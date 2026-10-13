@@ -1,55 +1,36 @@
 package io.stonepotatoes.web3ide.agent;
 
-import io.stonepotatoes.web3agent.chain.SpendPolicy;
-import io.stonepotatoes.web3agent.llm.LlmProvider;
-import io.stonepotatoes.web3agent.wallet.AgentWallet;
 import io.stonepotatoes.web3ide.agent.controller.AgentController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Smoke test: the full application context starts offline (no config-server,
- * eureka, chain, LLM or Kafka broker) with a password and temp data dir.
- * 冒煙測試：在離線環境（無 config-server、eureka、鏈、LLM、Kafka broker）
- * 提供密碼與暫存資料夾時，完整 application context 能啟動。
+ * Smoke test: the application context starts offline (no config-server,
+ * eureka, Kafka broker or web3-agent HTTP service needed). agent-service is
+ * an HTTP proxy to web3-agent (agent.http-url); keystore/password handling
+ * lives in web3-agent itself.
+ * 冒煙測試：離線環境下 application context 可啟動。agent-service 為 web3-agent
+ * 的 HTTP 代理（agent.http-url）；keystore/密碼由 web3-agent 本身處理。
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
                 "spring.cloud.config.enabled=false",
                 "eureka.client.enabled=false",
-                "agent.password=smoke-test-pass",
-                "agent.llm.type=mock",
-                "agent.p2p.port=0"
+                "agent.http-url=http://127.0.0.1:1"
         })
 class AgentServiceSmokeTest {
 
-    @DynamicPropertySource
-    static void dataDir(DynamicPropertyRegistry r) throws Exception {
-        Path dir = Files.createTempDirectory("agent-service-smoke");
-        r.add("agent.data-dir", dir::toString);
-    }
-
-    @Autowired AgentWallet wallet;
-    @Autowired SpendPolicy spendPolicy;
-    @Autowired LlmProvider llmProvider;
     @Autowired AgentController controller;
+    @Autowired WebClient.Builder webClientBuilder;
 
     @Test
-    void contextLoadsAndWalletIsCreated() {
+    void contextLoads() {
         assertNotNull(controller);
-        assertNotNull(spendPolicy);
-        assertNotNull(llmProvider);
-        assertTrue(wallet.address().matches("0x[0-9a-fA-F]{40}"),
-                "wallet address should be a 20-byte hex address");
+        assertNotNull(webClientBuilder);
     }
 }
