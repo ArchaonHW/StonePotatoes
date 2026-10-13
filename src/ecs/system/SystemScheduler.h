@@ -24,7 +24,18 @@ public:
     ~SystemScheduler();
 
     void RegisterSystem(std::unique_ptr<System> system);
-    void UnregisterSystem(System* system); // NOT IMPLEMENTED
+
+    // Remove a system by pointer. If `world` is non-null the system's
+    // Shutdown(world) is called first. Calls made during an update (from
+    // inside a System::Update) are deferred until the update finishes, so
+    // the running wave is never invalidated. Returns false if the system is
+    // not registered (or already pending removal).
+    // 依指標移除系統。若 world 非空會先呼叫 Shutdown(world)。在更新期間
+    // （System::Update 內）呼叫時延遲至本次更新結束後執行，不會破壞進行中的
+    // wave。未註冊（或已排定移除）時回傳 false。
+    bool UnregisterSystem(System* system, World* world = nullptr);
+
+    size_t GetSystemCount() const { return m_Systems.size(); }
 
     void InitializeSystems(World* world);
     void UpdateSystems(World* world, float deltaTime);
@@ -54,7 +65,14 @@ private:
     ParallelStats RunWaves(World* world, float deltaTime,
                            const ParallelForFn* parallelFor);
 
+    void RemoveNow(System* system, World* world);
+    void FlushPendingRemovals();
+
     std::vector<std::unique_ptr<System>> m_Systems;
+
+    struct PendingRemoval { System* system; World* world; };
+    std::vector<PendingRemoval> m_PendingRemovals;
+    bool m_Updating = false;
 };
 
 } // namespace ECS

@@ -9,7 +9,6 @@ add_library(StonePotatoesGPU STATIC
     CPUBackend.cpp
     ComputeGraph.cpp
     VulkanBackend.cpp
-    stub.cpp
 )
 
 target_include_directories(StonePotatoesGPU
