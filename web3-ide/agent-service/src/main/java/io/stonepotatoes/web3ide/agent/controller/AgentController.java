@@ -37,7 +37,7 @@ public class AgentController {
     private ContentStore contentStore;
 
     @PostMapping("/chat")
-    public Map<String, Object> chat(@RequestBody ChatRequest request) {
+    public Map<String, Object> chat(@RequestBody ChatRequest request) throws Exception {
         Web3Agent agent = new Web3Agent(llmProvider,
                 Web3Tools.create(wallet, chainClient, spendPolicy, peerNode, contentStore), 6);
         String response = agent.chat(request.message());

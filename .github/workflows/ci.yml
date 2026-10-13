@@ -55,3 +55,22 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  web3-ide:
+    name: web3-ide (Maven build + password fail-fast)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Install web3-agent to local Maven repo
+        working-directory: web3-agent
+        run: mvn -B install -DskipTests
+      - name: Build web3-ide (all modules)
+        working-directory: web3-ide
+        run: mvn -B verify
+      - name: agent-service must fail fast without WEB3AGENT_PASSWORD
+        run: ./tools/ci/check-agent-password-failfast.sh
