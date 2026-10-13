@@ -1,7 +1,29 @@
-# Tests - NOT IMPLEMENTED YET
-# TODO: Implement in Phase 1
+# Tests | 測試
 enable_testing()
-# add_subdirectory(unit)
-# add_subdirectory(integration)
-# add_subdirectory(performance)
-# add_subdirectory(stress)
+
+add_executable(StonePotatoesTests unit/test_phase1.cpp)
+target_include_directories(StonePotatoesTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesTests
+    PRIVATE
+        StonePotatoesCore
+        StonePotatoesECS
+        StonePotatoesMath
+        StonePotatoesIQGPU
+        Threads::Threads
+)
+
+add_test(NAME phase1_unit COMMAND StonePotatoesTests)
+
+# Math + IQGPU module tests | 數學 + IQGPU 模組測試
+add_executable(StonePotatoesMathTests unit/test_math_iqgpu.cpp)
+target_include_directories(StonePotatoesMathTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesMathTests
+    PRIVATE
+        StonePotatoesCore
+        StonePotatoesMath
+        StonePotatoesGPU
+        StonePotatoesIQGPU
+        Threads::Threads
+)
+
+add_test(NAME math_iqgpu_unit COMMAND StonePotatoesMathTests)

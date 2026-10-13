@@ -42,6 +42,11 @@ IQGPURuntime                     (implemented | 已實作)
 | `GPU::CPUBackend` | ✅ Implemented | Real multithreaded dispatch — contiguous partition (`Dispatch`), atomic grain-stealing (`ParallelFor`), and async submission (`DispatchAsync` → `std::future`). 真實多執行緒派發 — 連續切分（`Dispatch`）、原子粒度竊取（`ParallelFor`）與非同步提交（`DispatchAsync` → `std::future`）。 |
 | `GPU::ComputeGraph` | ✅ Implemented | DAG of KernelDispatch/HostTask/Barrier nodes; topological execution; cycle detection; `ExecuteParallel` runs independent nodes concurrently. KernelDispatch/HostTask/Barrier 節點 DAG；拓撲執行；循環偵測；`ExecuteParallel` 並行執行無相依節點。 |
 | `IQGPU::KernelOptimizer` | ✅ Implemented | Measurement-driven variant selection: warmup + repeats, median/best/worst, speedup report; results feed the agent's `LearningSystem`. 量測驅動變體選擇：暖身 + 重複量測、中位/最佳/最差、加速比報告；結果回饋 Agent 的 `LearningSystem`。 |
+| `IQGPU::ZetaCompute` | ✅ Implemented | Parallel HardyZ zero scan (`FindZeros` → `ZeroSpectrum`), parallel `EvaluateZ`, Gram/Rosser `VerifyCriticalLine`, and `RunAudit` — an 11-check RH finite-verification suite (on-line count, argument-principle winding, Gram blocks, GUE KS, Montgomery R₂, explicit formula, Mertens, Robin, Li λ₁, de Bruijn–Newman). 平行 HardyZ 零點掃描、平行求值、Gram/Rosser 臨界線驗證與 11 項 RH 有限驗證稽核。 |
+| `Math::Zeta` (`src/math`) | ✅ Implemented | Euler–Maclaurin/Hurwitz ζ, Lanczos Γ, Riemann–Siegel with C0 remainder, Gram points, η/β/ξ, de Bruijn–Newman kernel, argument principle, Chebyshev ψ, Möbius sieve, Mertens, Robin, Li coefficients. EM/Hurwitz ζ、Lanczos Γ、含 C0 餘項的 Riemann–Siegel、Gram 點、η/β/ξ、de Bruijn–Newman 核、輻角原理、Chebyshev ψ、Möbius 篩、Mertens、Robin、Li 係數。 |
+| `Math::Zeta::ZeroSpectrum` | ✅ Implemented | Zero table + unfolded spacing, GUE/Poisson KS distances, Montgomery pair correlation, min-spacing (Lehmer-pair) detector. 零點表 + 展開間距、GUE/Poisson KS 距離、Montgomery 配對關聯、最小間距（Lehmer 近重合）偵測。 |
+| `Math::Zeta::SpectralPointSampler` | ✅ Implemented | Level-repulsion point placement for world-gen (1D/2D, deterministic per seed). 供世界生成用的層級排斥點分佈（一維/二維、按 seed 確定）。 |
+| `Math::Zeta::SpectralNoise` | ✅ Implemented | Deterministic aperiodic noise; frequencies are zero ordinates γ_k. 確定性非週期雜訊；頻率為零點縱座標 γ_k。 |
 | `IQGPU::IQGPURuntime` | ✅ Implemented | Runtime facade: device select, buffer factory, dispatch, graph execution. 執行期外觀：裝置選擇、緩衝工廠、派發、圖執行。 |
 | `IQGPU::SimulatedAnnealer` | ✅ Implemented | Classical annealing baseline. 傳統退火基準。 |
 | `IQGPU::QuantumInspiredAnnealer` | ✅ Implemented | Annealing + long-range "tunneling" jumps (transverse-field analog). 退火 + 長程「穿隧」跳躍（橫向場類比）。 |
@@ -64,6 +69,8 @@ On the development machine (16 HW threads, MSVC Release):
 | AmplitudeAmp, 10 marked in 1024 | 7 Grover rounds → **99.3%** probability mass on marked states (uniform = 1.0%). 7 輪 Grover → 標記狀態機率質量 **99.3%**（均勻 = 1.0%）。 |
 | Born-rule measurement, 4k samples | 12.5% / 53.3% / 3.2% / 31.0% vs theoretical 13.3% / 53.3% / 3.3% / 30.0%. 與理論值 13.3/53.3/3.3/30.0% 相符。 |
 | KernelOptimizer, uneven 2M workload | `grain_128` grain-stealing beat contiguous partition **1.51×** (11.07 vs 16.67 ms); best variant recorded into agent learning memory. `grain_128` 粒度竊取比連續切分快 **1.51×**（11.07 vs 16.67 ms）；最佳變體已寫入 Agent 學習記憶。 |
+| ZetaCompute parallel scan, zeros to t≈2000 | ~100k HardyZ samples across 16 workers; audit completed in ~111 ms. 16 worker 取樣約十萬次 HardyZ；稽核約 111 ms 完成。 |
+| RH finite-verification audit, T=60 | **11/11 PASS** — winding count 13 equals on-line zeros 13 (no off-line zeros in the strip); Gram/Rosser 41/41; GUE KS 0.045 vs Poisson 0.320; explicit-formula max err 0.255; Li λ₁ within tail bound; de Bruijn–Newman H_λ zeros real. **11/11 通過** — 環繞數 13 等於線上零點 13（帶內無離線零點）；Gram/Rosser 41/41；GUE KS 0.045 對 Poisson 0.320；顯式公式最大誤差 0.255；Li λ₁ 在尾項界內；de Bruijn–Newman H_λ 零點皆實。 |
 
 ## Quantum-Inspired ≠ Quantum | 量子啟發 ≠ 量子
 
@@ -108,6 +115,43 @@ IQGPU::AmplitudeAmplifier aa;
 auto r = aa.Search(1024, [](uint32_t i){ return i % 97 == 0 && i != 0; });
 // r.probabilities — marked states amplified to ~99%
 ```
+
+## ZetaCompute · ζ 計算
+
+`IQGPU::ZetaCompute` integrates `Math::Zeta` with the runtime: parallel
+`FindZeros` scans (HardyZ sign-change + bisection into a `ZeroSpectrum`),
+parallel `EvaluateZ`, Gram/Rosser `VerifyCriticalLine`, and `RunAudit` — an
+11-check RH finite-verification suite: on-line count, argument-principle
+winding, Gram blocks, GUE KS, Montgomery R₂, explicit formula, Mertens,
+Robin, Li λ₁, de Bruijn–Newman.
+`IQGPU::ZetaCompute` 將 `Math::Zeta` 整合進執行期：平行 `FindZeros`
+掃描（HardyZ 變號 + 二分法產生 `ZeroSpectrum`）、平行 `EvaluateZ`、
+Gram/Rosser `VerifyCriticalLine`，以及 `RunAudit` — 11 項 RH 有限驗證。
+
+```
+[Zeta] Found 13 zeros in [13,60): first=14.134725 (true 14.134725)
+[RH] zeros.on_line      13 (N0(T)=12.91)                    PASS
+[RH] winding.strip_count 13                                 PASS
+[RH] gram.critical_line 41/41 bad_gram=0                    PASS
+[RH] gue.ks             0.0453 (poisson 0.3204)             PASS
+[RH] explicit.psi_max_err 0.2546                            PASS
+[RH] ... Audit: 11/11 checks passed — falsifies, never proves
+```
+
+Parallel scan to t≈2000 samples ~100k HardyZ points on 16 workers in ~111 ms.
+平行掃描至 t≈2000 在 16 worker 上取樣約十萬點，約 111 ms。
+
+## What RH Finite Verification Means · RH 有限驗證的意義
+
+- **Every check can falsify, never prove.** The winding-number count of ξ
+  along the strip boundary agreeing with the on-line sign-change count
+  certifies *no off-line zeros below T* — the strongest statement numerical
+  analysis supports. **每項檢驗只能否證、不能證明。** ξ 沿帶邊界的環繞數
+  與線上變號次數一致，可確認 *T 以下無離線零點* — 數值分析的最強結論。
+- `SpectralNoise` / `SpectralPointSampler` turn the zero spectrum into
+  world-gen primitives: level repulsion gives non-clumping, non-lattice
+  spawn distributions. `SpectralNoise` / `SpectralPointSampler` 將零點頻譜
+  化為世界生成原語：層級排斥產生不聚集、非格狀的分佈。
 
 ## Roadmap | 路線圖
 

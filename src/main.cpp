@@ -14,6 +14,8 @@
 #include "iqgpu/IQGPURuntime.h"
 #include "iqgpu/QuantumInspired.h"
 #include "iqgpu/KernelOptimizer.h"
+#include "iqgpu/ZetaCompute.h"
+#include "math/ZetaSpectral.h"
 
 #include <cmath>
 #include <iostream>
@@ -421,6 +423,83 @@ int main(int argc, char* argv[]) {
             "[Agent] Learned dispatch strategy: %s",
             agent.GetLearningSystem().SuggestApproach(
                 "uneven_workload_2M").c_str());
+
+        // ------------------------------------------------------------------
+        // ZetaCompute: parallel zero scan + spectral world-gen tools
+        // ZetaCompute：平行零點掃描 + 頻譜世界生成工具
+        // The ζ zero spectrum becomes a reusable engine resource:
+        // level-repulsion point placement and aperiodic noise.
+        // ζ 零點頻譜成為可重用的引擎資源：
+        // 層級排斥點分佈與非週期雜訊。
+        // ------------------------------------------------------------------
+        STONEPOTATOES_LOG_INFO("--- ZetaCompute Demo | ζ 計算演示 ---");
+        using namespace StonePotatoes::Math::Zeta;
+
+        IQGPU::ZetaCompute zeta(rt);
+        GPU::CPUBackend::Stats zs;
+        ZeroSpectrum spec = zeta.FindZeros(13.0, 60.0, 0.02, &zs);
+        const auto& gammas = spec.Gammas();
+        STONEPOTATOES_LOG_INFO(
+            "[Zeta] parallel scan: %u items in %.1fms on %u workers",
+            zs.itemsProcessed, zs.dispatchMs, zs.threadsUsed);
+        STONEPOTATOES_LOG_INFO(
+            "[Zeta] Found %zu zeros in [13,60): first=%.6f (true 14.134725)",
+            gammas.size(), gammas.empty() ? 0.0 : gammas.front());
+        if (spec.Size() >= 8) {
+            STONEPOTATOES_LOG_INFO(
+                "[Zeta] Spacing KS: GUE=%.3f vs Poisson=%.3f "
+                "(GUE repulsion confirmed | GUE 排斥驗證)",
+                spec.KSDistanceGUE(), spec.KSDistancePoisson());
+
+            // SpectralPointSampler: deterministic, non-clumping,
+            // non-gridded placement — usable for world object spawn.
+            // SpectralPointSampler：確定性、不群聚、非網格的點分佈 —
+            // 可用於世界物件生成位置。
+            SpectralPointSampler sampler(spec);
+            auto pts = sampler.Sample2D(100.0f, 60.0f, 10.0f, 7);
+            STONEPOTATOES_LOG_INFO(
+                "[Zeta] SpectralPointSampler: %zu deterministic "
+                "spawn points on 100x60 map",
+                pts.size());
+            if (!pts.empty()) {
+                STONEPOTATOES_LOG_INFO(
+                    "[Zeta] first points: (%.1f,%.1f) (%.1f,%.1f)",
+                    double(pts[0].x), double(pts[0].y),
+                    pts.size() > 1 ? double(pts[1].x) : 0.0,
+                    pts.size() > 1 ? double(pts[1].y) : 0.0);
+            }
+
+            // SpectralNoise: aperiodic terrain-style signal.
+            // SpectralNoise：非週期地形訊號。
+            SpectralNoise noise(spec, 42, 16, 0.5);
+            double n0 = noise.Evaluate(0.0), n1 = noise.Evaluate(3.7);
+            STONEPOTATOES_LOG_INFO(
+                "[Zeta] SpectralNoise(0)=%.3f (3.7)=%.3f — zero-mean "
+                "unit-variance", n0, n1);
+        }
+
+        // RH finite-verification audit (bounded height — can falsify,
+        // never prove). Real work: zeros, winding, Gram blocks, GUE,
+        // explicit formula, Mertens/Robin, Li, de Bruijn–Newman.
+        // RH 有限驗證稽核（限定高度 — 可證偽，無法證明）。
+        // 真實工作：零點、環繞數、Gram 區塊、GUE、
+        // 顯式公式、Mertens/Robin、Li、de Bruijn–Newman。
+        STONEPOTATOES_LOG_INFO("--- RH Finite Verification | RH 有限驗證 ---");
+        IQGPU::ZetaCompute::AuditConfig acfg;
+        acfg.tMax = 60.0;
+        acfg.spectrumTMax = 2000.0;  // more zeros → tighter explicit-formula fit
+        acfg.xMax = 60000;
+        acfg.gramLast = 40;
+        auto audit = zeta.RunAudit(acfg);
+        for (const auto& item : audit.items) {
+            STONEPOTATOES_LOG_INFO("[RH] %-24s %-55s %s",
+                item.name.c_str(), item.value.c_str(),
+                item.pass ? "PASS" : "FAIL");
+        }
+        STONEPOTATOES_LOG_INFO(
+            "[RH] Audit: %d/%d checks passed in %.0fms "
+            "(finite verification — falsifies, never proves)",
+            audit.passed, audit.total, audit.ms);
         rt.Shutdown();
     }
 

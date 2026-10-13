@@ -138,25 +138,53 @@ inline double RSZ(double t) {
     return 2.0 * z;
 }
 
-// Riemann–Siegel C0(p) = cos(2π(p²−p−1/16)) / cos(2πp).
-// Removable singularities at p = 1/4, 3/4 → symmetric average.
-// Riemann–Siegel C0(p)；p=1/4、3/4 為可去奇點 → 對稱平均。
-inline double RSC0(double p) {
-    auto raw = [](double q) {
-        return std::cos(kTwoPi * (q * q - q - 1.0 / 16.0)) /
-               std::cos(kTwoPi * q);
-    };
-    if (std::fabs(std::cos(kTwoPi * p)) < 1e-5) {
-        constexpr double d = 1e-4;
-        return 0.5 * (raw(p - d) + raw(p + d));
-    }
-    return raw(p);
+// Riemann–Siegel Ψ(p) = C0(p) = cos(2π(p²−p−1/16)) / cos(2πp), closed form.
+// Removable singularities at p = 1/4, 3/4 → test oracle only.
+// Riemann–Siegel C0 閉式；p=1/4、3/4 為可去奇點 → 僅作測試對照。
+inline double RSC0Closed(double p) {
+    return std::cos(kTwoPi * (p * p - p - 1.0 / 16.0)) / std::cos(kTwoPi * p);
 }
 
-// Hardy Z(t) via Riemann–Siegel main sum + C0 remainder.
-// Cost O(√t); error ~O(t^{-3/4}) — sign structure is reliable for t ≳ 100.
-// Hardy Z(t)：Riemann–Siegel 主和 + C0 餘項。
-// 代價 O(√t)；誤差約 O(t^{-3/4})——t≳100 變號結構可靠。
+// C0 is even about p = ½: C0 = Σ a_k z^{2k}, z = 2p−1 (Haselgrove/Gabcke
+// Taylor coefficients). Singularity-free, and differentiable analytically.
+// C0 對 p=½ 偶對稱：C0 = Σ a_k z^{2k}，z=2p−1（Haselgrove/Gabcke 係數），
+// 無奇點且可解析微分。
+inline constexpr int kRSC0Terms = 18;
+inline constexpr double kRSC0Coef[kRSC0Terms] = {
+    0.38268343236508977173, 0.43724046807752044936,
+    0.13237657548034352332, -0.01360502604767418865,
+    -0.01356762197010358089, -0.00162372532314446528,
+    0.00029705353733379691, 0.00007943300879521470,
+    0.00000046556124614505, -0.00000143272516309551,
+    -0.00000010354847112313, 0.00000001235792708386,
+    0.00000000178810838580, -0.00000000003391414390,
+    -0.00000000001632663390, -0.00000000000037851093,
+    0.00000000000009327423, 0.00000000000000522184,
+};
+
+inline double RSC0(double p) {
+    const double z = 2.0 * p - 1.0, z2 = z * z;
+    double s = 0.0;
+    for (int k = kRSC0Terms - 1; k >= 0; --k) s = s * z2 + kRSC0Coef[k];
+    return s;
+}
+
+// C1(p) = −Ψ'''(p)/(96π²); d/dp = 2·d/dz → Ψ''' = 8·d³/dz³ Σ a_k z^{2k}.
+// C1(p) = −Ψ'''(p)/(96π²)，對級數逐項解析微分。
+inline double RSC1(double p) {
+    const double z = 2.0 * p - 1.0;
+    double d3 = 0.0;
+    for (int k = 2; k < kRSC0Terms; ++k) {
+        const double m = 2.0 * k;
+        d3 += kRSC0Coef[k] * m * (m - 1) * (m - 2) * std::pow(z, m - 3);
+    }
+    return -8.0 * d3 / (96.0 * kPi * kPi);
+}
+
+// Hardy Z(t) via Riemann–Siegel main sum + C0 + C1 remainder.
+// Cost O(√t); error ~O(t^{-5/4}) — accurate to ~1e-4 already at t ≈ 400.
+// Hardy Z(t)：Riemann–Siegel 主和 + C0 + C1 餘項。
+// 代價 O(√t)；誤差約 O(t^{-5/4})——t≈400 已達 ~1e-4。
 inline double RSZCorrected(double t) {
     const double a = std::sqrt(t / kTwoPi);
     const int n = static_cast<int>(a);
@@ -167,7 +195,7 @@ inline double RSZCorrected(double t) {
         z += std::cos(th - t * std::log(static_cast<double>(k))) /
              std::sqrt(static_cast<double>(k));
     const double sign = ((n - 1) % 2 == 0) ? 1.0 : -1.0;
-    return 2.0 * z + sign * std::pow(a, -0.5) * RSC0(p);
+    return 2.0 * z + sign * std::pow(a, -0.5) * (RSC0(p) + RSC1(p) / a);
 }
 
 // High-t rotated ζ: Re(e^{iθ(t)} ζ(½+it)), N ≈ 4t.

@@ -4,6 +4,7 @@ add_library(StonePotatoesIQGPU STATIC
     IQGPURuntime.cpp
     QuantumInspired.cpp
     KernelOptimizer.cpp
+    ZetaCompute.cpp
 )
 
 target_include_directories(StonePotatoesIQGPU
@@ -15,4 +16,5 @@ target_link_libraries(StonePotatoesIQGPU
     PUBLIC
         StonePotatoesCore
         StonePotatoesGPU
+        StonePotatoesMath
 )
