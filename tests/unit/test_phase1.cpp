@@ -8,6 +8,7 @@
 #include "core/io/FileSystem.h"
 #include "core/config/Config.h"
 #include "ecs/World.h"
+#include "ecs/system/SystemScheduler.h"
 #include "ecs/events/EventBus.h"
 #include "math/RiemannZeta.h"
 #include "math/ZetaSpectral.h"
@@ -334,6 +335,67 @@ void TestZeta() {
     rt.Shutdown();
 }
 
+
+// --- SystemScheduler::UnregisterSystem | 系統反註冊 ---
+struct CountingSystem : ECS::System {
+    int* updates; int* shutdowns;
+    ECS::SystemScheduler* sched = nullptr;
+    ECS::System* victim = nullptr;   // removed from inside Update | 在 Update 內移除
+    CountingSystem(int* u, int* s) : updates(u), shutdowns(s) {}
+    void Update(ECS::World*, float) override {
+        ++*updates;
+        if (sched && victim) { sched->UnregisterSystem(victim); victim = nullptr; }
+    }
+    void Shutdown(ECS::World*) override { ++*shutdowns; }
+};
+
+void TestUnregisterSystem() {
+    ECS::World world;
+    world.Initialize();
+    ECS::SystemScheduler sched;
+
+    int ua = 0, sa = 0, ub = 0, sb = 0, uc = 0, sc = 0;
+    auto* a = new CountingSystem(&ua, &sa);
+    auto* b = new CountingSystem(&ub, &sb);
+    auto* c = new CountingSystem(&uc, &sc);
+    sched.RegisterSystem(std::unique_ptr<ECS::System>(a));
+    sched.RegisterSystem(std::unique_ptr<ECS::System>(b));
+    sched.RegisterSystem(std::unique_ptr<ECS::System>(c));
+    CHECK(sched.GetSystemCount() == 3);
+
+    // Immediate removal with Shutdown | 立即移除並呼叫 Shutdown
+    CHECK(sched.UnregisterSystem(b, &world));
+    CHECK(sb == 1);
+    CHECK(sched.GetSystemCount() == 2);
+    CHECK(!sched.UnregisterSystem(b));          // already gone | 已移除
+    CHECK(!sched.UnregisterSystem(nullptr));
+
+    sched.UpdateSystems(&world, 0.016f);
+    CHECK(ua == 1 && uc == 1 && ub == 0);
+
+    // Deferred removal from inside Update (sequential path): c still runs
+    // this frame, is gone next frame. | 更新中移除：本幀仍執行，下一幀消失
+    a->sched = &sched; a->victim = c;
+    sched.UpdateSystems(&world, 0.016f);
+    CHECK(ua == 2 && uc == 2);
+    CHECK(sched.GetSystemCount() == 1);
+    sched.UpdateSystems(&world, 0.016f);
+    CHECK(ua == 3 && uc == 2);
+
+    // Deferred removal on the wave path | wave 路徑上的延遲移除
+    int ud = 0, sd = 0;
+    auto* d = new CountingSystem(&ud, &sd);
+    sched.RegisterSystem(std::unique_ptr<ECS::System>(d));
+    a->victim = d;
+    auto st = sched.UpdateSystemsWaves(&world, 0.016f);
+    CHECK(st.systemsRun == 2);
+    CHECK(sched.GetSystemCount() == 1);
+    st = sched.UpdateSystemsWaves(&world, 0.016f);
+    CHECK(st.systemsRun == 1 && ud == 1);
+
+    world.Shutdown();
+}
+
 int main() {
     std::printf("=== StonePotatoes Phase 1 Tests ===\n");
 
@@ -344,6 +406,7 @@ int main() {
     TestFileSystem();
     TestConfig();
     TestECS();
+    TestUnregisterSystem();
     TestEventBus();
     TestWorldSaveLoad();
     TestZeta();

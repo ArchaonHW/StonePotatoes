@@ -1,7 +1,6 @@
-# World library — procedural generation (other subsystems: Phase 6)
+# World library — procedural generation (more subsystems planned)
 # World 函式庫 — 程序化生成（其他子系統：Phase 6）
 add_library(StonePotatoesWorld STATIC
-    stub.cpp
     procedural/ResourceScatter.cpp
     procedural/WorldStreamer.cpp
 )

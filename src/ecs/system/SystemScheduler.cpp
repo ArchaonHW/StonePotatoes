@@ -15,15 +15,48 @@ SystemScheduler::~SystemScheduler() {
 }
 
 void SystemScheduler::RegisterSystem(std::unique_ptr<System> system) {
-    (void)system; // Suppress unused parameter warning
     m_Systems.push_back(std::move(system));
     STONEPOTATOES_LOG_INFO("Registered system, total systems: %zu", m_Systems.size());
 }
 
-void SystemScheduler::UnregisterSystem(System* system) {
-    // TODO: Implement system unregistration
-    (void)system;
-    STONEPOTATOES_LOG_WARNING("SystemScheduler::UnregisterSystem: TODO - Implement system unregistration");
+bool SystemScheduler::UnregisterSystem(System* system, World* world) {
+    if (!system) return false;
+    const bool registered = std::any_of(
+        m_Systems.begin(), m_Systems.end(),
+        [&](const std::unique_ptr<System>& s) { return s.get() == system; });
+    if (!registered) return false;
+    const bool pending = std::any_of(
+        m_PendingRemovals.begin(), m_PendingRemovals.end(),
+        [&](const PendingRemoval& r) { return r.system == system; });
+    if (pending) return false;
+
+    if (m_Updating) {
+        // Defer: removing now would invalidate wave indices / iterators.
+        // 延遲：此時移除會使 wave 索引／迭代器失效。
+        m_PendingRemovals.push_back({system, world});
+        return true;
+    }
+    RemoveNow(system, world);
+    return true;
+}
+
+void SystemScheduler::RemoveNow(System* system, World* world) {
+    auto it = std::find_if(
+        m_Systems.begin(), m_Systems.end(),
+        [&](const std::unique_ptr<System>& s) { return s.get() == system; });
+    if (it == m_Systems.end()) return;
+    if (world) (*it)->Shutdown(world);
+    // erase keeps relative order → registration-order semantics preserved;
+    // waves are rebuilt from m_Systems on every RunWaves call.
+    // erase 保留相對順序 → 維持註冊順序語意；每次 RunWaves 皆重建 wave。
+    m_Systems.erase(it);
+    STONEPOTATOES_LOG_INFO("Unregistered system, total systems: %zu", m_Systems.size());
+}
+
+void SystemScheduler::FlushPendingRemovals() {
+    auto pending = std::move(m_PendingRemovals);
+    m_PendingRemovals.clear();
+    for (const auto& r : pending) RemoveNow(r.system, r.world);
 }
 
 void SystemScheduler::InitializeSystems(World* world) {
@@ -34,9 +67,12 @@ void SystemScheduler::InitializeSystems(World* world) {
 }
 
 void SystemScheduler::UpdateSystems(World* world, float deltaTime) {
+    m_Updating = true;
     for (auto& system : m_Systems) {
         system->Update(world, deltaTime);
     }
+    m_Updating = false;
+    FlushPendingRemovals();
 }
 
 // ------------------------------------------------------------------
@@ -92,6 +128,7 @@ SystemScheduler::ParallelStats
 SystemScheduler::RunWaves(World* world, float deltaTime,
                           const ParallelForFn* parallelFor) {
     const auto t0 = std::chrono::steady_clock::now();
+    m_Updating = true;
     auto waves = BuildWaves();
     ParallelStats st;
     st.waves = static_cast<uint32_t>(waves.size());
@@ -113,6 +150,8 @@ SystemScheduler::RunWaves(World* world, float deltaTime,
         // 本波排入的延遲指令於下一波開始前執行。
         world->ApplyCommands();
     }
+    m_Updating = false;
+    FlushPendingRemovals();
     st.ms = std::chrono::duration<double, std::milli>(
                 std::chrono::steady_clock::now() - t0)
                 .count();
