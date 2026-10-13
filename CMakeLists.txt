@@ -73,6 +73,9 @@ add_subdirectory(src/data)
 # GPU library
 add_subdirectory(src/gpu)
 
+# IQGPU library (unified compute + quantum-inspired)
+add_subdirectory(src/iqgpu)
+
 # Game library
 add_subdirectory(src/game)
 
@@ -107,11 +110,13 @@ target_link_libraries(StonePotatoes
         StonePotatoesCore
         StonePotatoesECS
         StonePotatoesSelfDevelopingAgent
+        StonePotatoesIQGPU
+        Threads::Threads
 )
 
 # Install configuration
 include(GNUInstallDirs)
-install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesRendering StonePotatoesPhysics StonePotatoesAI StonePotatoesWorld StonePotatoesCivilization StonePotatoesAgent StonePotatoesNetworking StonePotatoesData StonePotatoesGPU StonePotatoesGame StonePotatoesSelfDevelopingAgent
+install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesRendering StonePotatoesPhysics StonePotatoesAI StonePotatoesWorld StonePotatoesCivilization StonePotatoesAgent StonePotatoesNetworking StonePotatoesData StonePotatoesGPU StonePotatoesIQGPU StonePotatoesGame StonePotatoesSelfDevelopingAgent
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
