@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: io.stonepotatoes.web3agent.agent.Web3AgentTest
--------------------------------------------------------------------------------
-Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.528 s -- in io.stonepotatoes.web3agent.agent.Web3AgentTest

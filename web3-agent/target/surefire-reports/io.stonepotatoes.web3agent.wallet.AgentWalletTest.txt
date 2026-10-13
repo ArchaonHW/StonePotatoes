@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: io.stonepotatoes.web3agent.wallet.AgentWalletTest
--------------------------------------------------------------------------------
-Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.514 s -- in io.stonepotatoes.web3agent.wallet.AgentWalletTest
