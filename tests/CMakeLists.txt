@@ -77,3 +77,14 @@ add_test(NAME vulkan_unit COMMAND StonePotatoesVulkanTests)
 # No GPU / no loader → exit 77 → ctest reports Skipped (not Failed/Passed).
 # 無 GPU / loader 時回傳 77，ctest 顯示為 Skipped。
 set_tests_properties(vulkan_unit PROPERTIES SKIP_RETURN_CODE 77)
+
+# Plugin system tests (incl. a real shared-library plugin) | 外掛系統測試（含實際共享函式庫外掛）
+add_library(StonePotatoesTestPlugin MODULE unit/test_plugin_module.cpp)
+target_include_directories(StonePotatoesTestPlugin PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_executable(StonePotatoesPluginTests unit/test_plugin.cpp)
+target_include_directories(StonePotatoesPluginTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesPluginTests PRIVATE StonePotatoesCore)
+target_compile_definitions(StonePotatoesPluginTests PRIVATE
+    SP_TEST_PLUGIN_PATH="$<TARGET_FILE:StonePotatoesTestPlugin>")
+add_dependencies(StonePotatoesPluginTests StonePotatoesTestPlugin)
+add_test(NAME plugin_unit COMMAND StonePotatoesPluginTests)
