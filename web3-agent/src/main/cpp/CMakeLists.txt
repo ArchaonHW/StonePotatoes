@@ -4,10 +4,7 @@ project(stonepotatoes_engine)
 # Find JNI
 find_package(JNI REQUIRED)
 
-# Find Vulkan (optional, for actual GPU support)
-find_package(Vulkan QUIET)
-
-# Include StonePotatoes headers
+# Include directories
 include_directories(
     ${JNI_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/../../../src/gpu
@@ -21,16 +18,17 @@ set(SOURCES
 
 # Add StonePotatoes C++ sources if available
 if(EXISTS "${CMAKE_SOURCE_DIR}/../../../src/gpu/VulkanBackend.cpp")
+    # Find Vulkan (optional, for actual GPU support)
+    find_package(Vulkan QUIET)
+    if(Vulkan_FOUND)
+        target_link_libraries(stonepotatoes_engine Vulkan::Vulkan)
+        add_definitions(-DSP_VULKAN)
+    endif()
     list(APPEND SOURCES ../../../src/gpu/VulkanBackend.cpp)
 endif()
 
 # Create shared library (DLL on Windows)
 add_library(stonepotatoes_engine SHARED ${SOURCES})
-
-# Link libraries
-if(Vulkan_FOUND)
-    target_link_libraries(stonepotatoes_engine Vulkan::Vulkan)
-endif()
 
 # Set output directory
 set_target_properties(stonepotatoes_engine PROPERTIES

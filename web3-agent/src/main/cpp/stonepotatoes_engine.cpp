@@ -6,17 +6,17 @@
 
 // Include the actual VulkanBackend from StonePotatoes
 #ifdef _WIN32
-    #define SP_VULKAN 1
-    #include "VulkanBackend.h"
-    #include "ComputeDevice.h"
-#else
-    // Placeholder for non-Windows platforms
+    #ifdef SP_VULKAN
+        #include "VulkanBackend.h"
+        #include "ComputeDevice.h"
+        using namespace StonePotatoes::GPU;
+    #endif
 #endif
 
-using namespace StonePotatoes::GPU;
-
 // Global VulkanBackend instance
+#ifdef SP_VULKAN
 static std::unique_ptr<VulkanBackend> g_backend;
+#endif
 
 extern "C" {
 
