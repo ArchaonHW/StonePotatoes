@@ -27,3 +27,16 @@ target_link_libraries(StonePotatoesMathTests
 )
 
 add_test(NAME math_iqgpu_unit COMMAND StonePotatoesMathTests)
+
+# NPC vertical-slice tests | NPC 垂直切片測試
+add_executable(StonePotatoesNpcTests unit/test_npc.cpp)
+target_include_directories(StonePotatoesNpcTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesNpcTests
+    PRIVATE
+        StonePotatoesCore
+        StonePotatoesECS
+        StonePotatoesAI
+        Threads::Threads
+)
+
+add_test(NAME npc_unit COMMAND StonePotatoesNpcTests)

@@ -16,6 +16,7 @@
 #include "iqgpu/KernelOptimizer.h"
 #include "iqgpu/ZetaCompute.h"
 #include "math/ZetaSpectral.h"
+#include "ai/NPC.h"
 
 #include <cmath>
 #include <iostream>
@@ -501,6 +502,75 @@ int main(int argc, char* argv[]) {
             "(finite verification — falsifies, never proves)",
             audit.passed, audit.total, audit.ms);
         rt.Shutdown();
+    }
+
+    // ------------------------------------------------------------------
+    // MVP NPC vertical slice: local-information agents.
+    // One hungry NPC, one food in sight, one food beyond the horizon,
+    // and a threat that arrives mid-run. The NPC only ever acts on
+    // what its own Memory has recorded — nothing is global.
+    // MVP NPC 垂直切片：局部資訊代理。
+    // 一隻餓的 NPC、視野內一份食物、地平線外一份食物，
+    // 以及中途出現的威脅。NPC 僅依自身記憶行動 — 無全域知識。
+    // ------------------------------------------------------------------
+    STONEPOTATOES_LOG_INFO("--- NPC Vertical Slice | NPC 垂直切片 ---");
+    {
+        namespace A = StonePotatoes::AI;
+        StonePotatoes::ECS::World sim;
+        sim.Initialize();
+        A::RegisterNpcComponents(sim);
+        auto& sched = sim.GetSystemScheduler();
+        sched.RegisterSystem(std::make_unique<A::PerceptionSystem>());
+        sched.RegisterSystem(std::make_unique<A::DecisionSystem>());
+        sched.RegisterSystem(std::make_unique<A::ActionSystem>());
+        sched.RegisterSystem(std::make_unique<A::NpcMovementSystem>());
+
+        auto npc = A::SpawnNpc(sim, 0.0f, 0.0f);
+        sim.GetComponent<A::Needs>(npc)->hunger = 0.8f;
+        auto nearFood = sim.CreateEntity();
+        sim.AddComponent(nearFood, A::NPCPosition{5.0f, 0.0f});
+        sim.AddComponent(nearFood, A::Food{});
+        auto farFood = sim.CreateEntity();
+        sim.AddComponent(farFood, A::NPCPosition{80.0f, 0.0f});
+        sim.AddComponent(farFood, A::Food{});
+
+        sim.GetEventBus().Subscribe<A::FoodEatenEvent>(
+            [](const A::FoodEatenEvent& e) {
+                STONEPOTATOES_LOG_INFO(
+                    "[NPC] Food eaten by entity %llu | 食物被實體 %llu 吃掉",
+                    (unsigned long long)e.eater.id,
+                    (unsigned long long)e.food.id);
+            });
+
+        const float dt = 0.05f;
+        for (int t = 0; t < 120; ++t) {
+            sim.Update(dt);
+            if (t == 40) {   // a wolf appears at mid-run | 中途出現威脅
+                auto wolf = sim.CreateEntity();
+                sim.AddComponent(wolf, A::NPCPosition{3.0f, 1.0f});
+                sim.AddComponent(wolf, A::Threat{});
+            }
+            if (t % 20 == 0) {
+                auto* p = sim.GetComponent<A::NPCPosition>(npc);
+                auto* d = sim.GetComponent<A::Decision>(npc);
+                auto* m = sim.GetComponent<A::Memory>(npc);
+                const char* act =
+                    d->action == A::Action::Flee ? "FLEE" :
+                    d->action == A::Action::SeekFood ? "SEEK" :
+                    d->action == A::Action::Wander ? "WANDER" : "IDLE";
+                STONEPOTATOES_LOG_INFO(
+                    "[NPC] t=%4.1fs pos=(%5.1f,%5.1f) action=%-6s "
+                    "memories=%u | 位置=(%5.1f,%5.1f) 行動=%s 記憶=%u",
+                    t * dt, p->x, p->y, act, m->count,
+                    p->x, p->y, act, m->count);
+            }
+        }
+        auto* mem = sim.GetComponent<A::Memory>(npc);
+        STONEPOTATOES_LOG_INFO(
+            "[NPC] knows far food? %s (local info only | 僅局部資訊)",
+            mem->Find(farFood.id) != StonePotatoes::AI::Memory::kMax
+                ? "YES" : "NO");
+        sim.Shutdown();
     }
 
     // Main loop
