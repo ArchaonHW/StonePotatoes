@@ -8,7 +8,7 @@ spring:
     bootstrap-servers: localhost:9092
 
 server:
-  port: 8091
+  port: 8092
   address: 0.0.0.0
 
 eureka:
