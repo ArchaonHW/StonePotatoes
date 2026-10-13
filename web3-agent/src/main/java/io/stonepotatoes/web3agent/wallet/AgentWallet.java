@@ -32,6 +32,10 @@ public final class AgentWallet {
         return new AgentWallet(credentials);
     }
 
+    public static AgentWallet fromPrivateKey(String privateKeyHex) {
+        return new AgentWallet(Credentials.create(privateKeyHex));
+    }
+
     public static AgentWallet random() {
         try {
             return new AgentWallet(Credentials.create(Keys.createEcKeyPair()));

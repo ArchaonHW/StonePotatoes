@@ -5,13 +5,14 @@ import java.time.Clock;
 import java.time.LocalDate;
 
 /**
- * Guard rail between the (untrusted) LLM and the wallet: every outgoing transfer must pass
- * per-transaction and daily limits and an explicit approval callback (e.g. a human prompt).
+ * Guard rail between the (untrusted) LLM and the wallet: every state-changing transaction must
+ * pass per-transaction and daily native-currency limits and an explicit approval callback (e.g. a
+ * human prompt) that sees a human-readable description of the action. Gas fees are not counted.
  */
 public final class SpendPolicy {
     @FunctionalInterface
     public interface Approver {
-        boolean approve(String to, BigInteger valueWei);
+        boolean approve(String description);
     }
 
     public static final class PolicyViolationException extends Exception {
@@ -39,14 +40,15 @@ public final class SpendPolicy {
         this(maxPerTxWei, maxDailyWei, approver, Clock.systemUTC());
     }
 
-    public synchronized void authorize(String to, BigInteger valueWei) throws PolicyViolationException {
+    /** @param valueWei native value attached to the transaction (may be zero for contract calls) */
+    public synchronized void authorize(String description, BigInteger valueWei) throws PolicyViolationException {
         rollDay();
-        if (valueWei.signum() <= 0) throw new PolicyViolationException("Amount must be positive");
+        if (valueWei.signum() < 0) throw new PolicyViolationException("Amount must not be negative");
         if (valueWei.compareTo(maxPerTxWei) > 0)
             throw new PolicyViolationException("Amount exceeds per-transaction limit of " + maxPerTxWei + " wei");
         if (spentToday.add(valueWei).compareTo(maxDailyWei) > 0)
             throw new PolicyViolationException("Amount exceeds remaining daily limit of " + remainingTodayWei() + " wei");
-        if (!approver.approve(to, valueWei)) throw new PolicyViolationException("Transfer rejected by approver");
+        if (!approver.approve(description)) throw new PolicyViolationException("Transaction rejected by approver");
     }
 
     public synchronized void record(BigInteger valueWei) {

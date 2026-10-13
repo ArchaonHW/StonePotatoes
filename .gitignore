@@ -62,3 +62,5 @@ venv/
 *~
 *.orig
 web3-agent/target/
+web3-agent/contracts/out/
+web3-agent/contracts/cache/

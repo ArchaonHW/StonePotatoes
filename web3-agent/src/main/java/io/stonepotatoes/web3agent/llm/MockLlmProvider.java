@@ -24,6 +24,7 @@ public final class MockLlmProvider implements LlmProvider {
     private static final Pattern SIGN = Pattern.compile("^(?:sign|簽名)[:：]?\\s+(.+)$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern BROADCAST = Pattern.compile("^(?:broadcast|say|廣播)[:：]?\\s+(.+)$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern STORE = Pattern.compile("^(?:store|save|儲存)[:：]?\\s+(.+)$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern CALL = Pattern.compile("^(?:call|呼叫)[:：]?\\s+" + ADDR + "\\s+(.+)$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     @Override
     public String name() {
@@ -54,9 +55,11 @@ public final class MockLlmProvider implements LlmProvider {
         if (lower.contains("inbox") || lower.contains("messages") || last.contains("訊息")) return call("p2p_inbox");
         if (lower.contains("chain") || lower.contains("block") || last.contains("區塊")) return call("chain_info");
         if (lower.contains("address") || lower.contains("who am i") || last.contains("地址")) return call("wallet_address");
+        if ((m = CALL.matcher(last)).find()) return call("call_contract", "to", m.group(1), "signature", m.group(2));
         return Json.write(Json.object().put("answer", """
                 Mock LLM understands: "address", "balance [0x..]", "send 0.01 eth to 0x..", "token 0x<erc20> [0x<owner>]",
-                "chain info", "sign <text>", "broadcast <text>", "peers", "inbox", "store <text>", "<cid>", "share <cid>".
+                "chain info", "sign <text>", "broadcast <text>", "peers", "inbox", "store <text>", "<cid>", "share <cid>",
+                "call 0x<contract> signature(in)(out)".
                 Use --llm openai for free-form natural language."""));
     }
 

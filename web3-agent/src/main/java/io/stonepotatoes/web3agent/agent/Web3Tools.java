@@ -1,5 +1,6 @@
 package io.stonepotatoes.web3agent.agent;
 
+import io.stonepotatoes.web3agent.chain.AbiSignature;
 import io.stonepotatoes.web3agent.chain.ChainClient;
 import io.stonepotatoes.web3agent.chain.SpendPolicy;
 import io.stonepotatoes.web3agent.p2p.ContentStore;
@@ -15,6 +16,7 @@ import tools.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -42,12 +44,41 @@ public final class Web3Tools {
                     a -> "rpc=" + chain.rpcUrl() + " chainId=" + chain.chainId() + " block=" + chain.blockNumber()));
             t.add(new Tool("get_balance", "Native balance in ETH (defaults to own address)", "{\"address\":\"0x.. (optional)\"}",
                     a -> Convert.fromWei(new BigDecimal(chain.balanceWei(optional(a, "address", wallet.address()))), Convert.Unit.ETHER).toPlainString() + " ETH"));
-            t.add(new Tool("erc20_balance", "Raw ERC-20 token balance (smallest unit)", "{\"token\":\"0x contract\",\"owner\":\"0x.. (optional)\"}",
-                    a -> chain.erc20Balance(required(a, "token"), optional(a, "owner", wallet.address())).toString()));
+            t.add(new Tool("erc20_balance", "ERC-20 token balance in human units", "{\"token\":\"0x contract\",\"owner\":\"0x.. (optional)\"}",
+                    a -> erc20HumanBalance(chain, required(a, "token"), optional(a, "owner", wallet.address()))));
             t.add(new Tool("send_eth", "Send native ETH. Subject to spend limits and human approval", "{\"to\":\"0x..\",\"amount_eth\":\"decimal\"}", a -> {
                 BigInteger wei = Convert.toWei(new BigDecimal(required(a, "amount_eth")), Convert.Unit.ETHER).toBigIntegerExact();
                 return "tx=" + chain.sendEther(wallet, required(a, "to"), wei, policy);
             }));
+            t.add(new Tool("call_contract", "Read-only contract call, returns decoded outputs. Signature e.g. balanceOf(address)(uint256)", "{\"to\":\"0x contract\",\"signature\":\"name(in)(out)\",\"args\":[\"value1\",\"value2\"]}",
+                    a -> String.join(", ", chain.call(required(a, "to"), AbiSignature.parse(required(a, "signature")), jsonArray(a, "args")))));
+            t.add(new Tool("contract_tx", "State-changing contract call. Requires approval. Signature e.g. transfer(address,uint256)(bool)", "{\"to\":\"0x contract\",\"signature\":\"name(in)(out)\",\"args\":[\"value1\",\"value2\"],\"value_eth\":\"0 (optional)\"}",
+                    a -> {
+                        String to = required(a, "to");
+                        AbiSignature sig = AbiSignature.parse(required(a, "signature"));
+                        List<String> args = jsonArray(a, "args");
+                        BigDecimal value = optionalBigDecimal(a, "value_eth", "0");
+                        BigInteger wei = Convert.toWei(value, Convert.Unit.ETHER).toBigIntegerExact();
+                        return "tx=" + chain.sendContractTx(wallet, to, sig, args, wei, policy);
+                    }));
+            t.add(new Tool("erc20_transfer", "Transfer ERC-20 tokens in human units. Requires approval", "{\"token\":\"0x contract\",\"to\":\"0x..\",\"amount\":\"decimal\"}",
+                    a -> {
+                        String token = required(a, "token");
+                        String to = required(a, "to");
+                        BigDecimal amount = new BigDecimal(required(a, "amount"));
+                        return "tx=" + chain.erc20Transfer(wallet, token, to, amount, policy);
+                    }));
+            t.add(new Tool("deploy_token", "Deploy the built-in AgentToken ERC-20. Requires approval", "{\"name\":\"string\",\"symbol\":\"string\",\"supply_raw\":\"integer (smallest unit)\"}",
+                    a -> {
+                        String name = required(a, "name");
+                        String symbol = required(a, "symbol");
+                        BigInteger supply = new BigInteger(required(a, "supply_raw"));
+                        return "tx=" + chain.deployAgentToken(wallet, name, symbol, supply, policy);
+                    }));
+            t.add(new Tool("receipt", "Fetch transaction receipt by hash", "{\"tx_hash\":\"0x..\"}",
+                    a -> chain.receipt(required(a, "tx_hash")).map(ChainClient.Receipt::toString).orElse("(pending or not found)")));
+            t.add(new Tool("wait_receipt", "Wait up to 60s for receipt", "{\"tx_hash\":\"0x..\"}",
+                    a -> chain.waitForReceipt(required(a, "tx_hash"), Duration.ofSeconds(60)).map(ChainClient.Receipt::toString).orElse("(timed out)")));
         }
 
         if (node != null) {
@@ -101,5 +132,23 @@ public final class Web3Tools {
     private static String optional(JsonNode args, String key, String fallback) {
         String v = args.path(key).asString("");
         return v.isBlank() ? fallback : v.trim();
+    }
+
+    private static BigDecimal optionalBigDecimal(JsonNode args, String key, String fallback) {
+        String v = args.path(key).asString("");
+        return v.isBlank() ? new BigDecimal(fallback) : new BigDecimal(v.trim());
+    }
+
+    private static List<String> jsonArray(JsonNode args, String key) {
+        ArrayNode arr = (ArrayNode) args.path(key);
+        List<String> out = new ArrayList<>();
+        for (JsonNode e : arr) out.add(e.asText());
+        return out;
+    }
+
+    private static String erc20HumanBalance(ChainClient chain, String token, String owner) throws Exception {
+        ChainClient.TokenInfo info = chain.erc20Info(token);
+        BigInteger raw = chain.erc20Balance(token, owner);
+        return new BigDecimal(raw).movePointLeft(info.decimals()).stripTrailingZeros().toPlainString() + " " + info.symbol();
     }
 }

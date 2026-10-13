@@ -96,6 +96,10 @@ This project is in early development. See [ROADMAP.md](ROADMAP.md) for the compl
   主執行檔，包含視窗建立與基本迴圈
 - [x] MIT License
   MIT 授權
+- [x] PotatoEngine ports (Profiler, Pathfinding, QuasiRandom, CurlNoise, SystemDynamics, LockstepSync)
+  PotatoEngine 移植（Profiler、Pathfinding、QuasiRandom、CurlNoise、SystemDynamics、LockstepSync）
+  See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for licensing details.
+  詳見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 授權資訊。
 
 ### In Progress 🚧 | 進行中 🚧
 - [ ] Full ECS implementation (archetypes, queries, events, resources)

@@ -72,7 +72,7 @@ public final class Main {
         AgentWallet wallet = AgentWallet.loadOrCreate(dataDir.resolve("keystore"), password(in), true);
         ContentStore store = new ContentStore(dataDir.resolve("blobs"));
         SpendPolicy policy = new SpendPolicy(eth(opts.getOrDefault("max-tx-eth", "0.1")), eth(opts.getOrDefault("max-daily-eth", "1")),
-                (to, wei) -> confirm(out, in, to, wei));
+                desc -> confirm(out, in, desc));
         LlmProvider llm = switch (opts.getOrDefault("llm", "mock").toLowerCase(Locale.ROOT)) {
             case "mock" -> new MockLlmProvider();
             case "openai" -> new OpenAiCompatibleProvider(opts.getOrDefault("llm-url", "http://127.0.0.1:11434/v1"),
@@ -119,8 +119,8 @@ public final class Main {
         }
     }
 
-    private static boolean confirm(PrintStream out, BufferedReader in, String to, BigInteger wei) {
-        out.print("Approve sending " + Convert.fromWei(new BigDecimal(wei), Convert.Unit.ETHER).toPlainString() + " ETH to " + to + "? [y/N] ");
+    private static boolean confirm(PrintStream out, BufferedReader in, String description) {
+        out.print("Approve: " + description + "? [y/N] ");
         try {
             String answer = in.readLine();
             return answer != null && answer.trim().equalsIgnoreCase("y");
