@@ -3,10 +3,13 @@
 namespace StonePotatoes {
 namespace ECS {
 
-ComponentManager::ComponentManager() {
-}
+ComponentManager::ComponentManager() = default;
 
-ComponentManager::~ComponentManager() {
+ComponentManager::~ComponentManager() = default;
+
+const ComponentTypeInfo*
+ComponentManager::FindByName(const std::string& name) const {
+    return GetComponentInfoByName(name);
 }
 
 } // namespace ECS

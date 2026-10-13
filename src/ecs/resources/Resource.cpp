@@ -3,11 +3,8 @@
 namespace StonePotatoes {
 namespace ECS {
 
-Resource::Resource() {
-}
-
-Resource::~Resource() {
-}
+// Resource is a polymorphic base; vtable anchor lives here.
+// Resource 為多型基底；vtable 錨點位於此檔案。
 
 } // namespace ECS
 } // namespace StonePotatoes

@@ -4,6 +4,9 @@
 #include "core/logging/Logger.h"
 #include "core/config/Config.h"
 #include "core/io/FileSystem.h"
+#include "core/memory/MemoryPool.h"
+#include "core/memory/StackAllocator.h"
+#include "core/memory/ArenaAllocator.h"
 #include "ecs/World.h"
 #include "ecs/entity/Entity.h"
 #include "ecs/system/System.h"
@@ -12,17 +15,25 @@
 #include <iostream>
 #include <memory>
 
-// Simple movement system for demonstration
-// 簡單移動系統用於演示
+// --- Demo components (POD, serializable) | 演示組件（POD，可序列化） ---
+struct Position { float x = 0, y = 0, z = 0; };
+struct Velocity { float x = 0, y = 0, z = 0; };
+struct Health   { int hp = 100; };
+
+// Demo event | 演示事件
+struct EntityDamagedEvent { StonePotatoes::ECS::Entity entity; int amount; };
+
+// Real movement system: integrates Position from Velocity each tick.
+// 真實移動系統：每 tick 以 Velocity 積分更新 Position。
 class MovementSystem : public StonePotatoes::ECS::System {
 public:
     void Update(StonePotatoes::ECS::World* world, float deltaTime) override {
-        (void)world; // Suppress unused parameter warning
-        (void)deltaTime; // Suppress unused parameter warning
-        // TODO: Implement actual movement system with transform and velocity components
-        // TODO：實作實際移動系統與變換和速度組件
-        // For now, this is a stub
-        // 目前這是一個存根
+        world->ForEach<Position, Velocity>(
+            [deltaTime](StonePotatoes::ECS::Entity, Position& p, Velocity& v) {
+                p.x += v.x * deltaTime;
+                p.y += v.y * deltaTime;
+                p.z += v.z * deltaTime;
+            });
     }
 };
 
@@ -89,24 +100,97 @@ int main(int argc, char* argv[]) {
     StonePotatoes::ECS::World world;
     world.Initialize();
 
+    // Register component types with stable serialization names.
+    // 以穩定的序列化名稱註冊組件型別。
+    world.RegisterComponent<Position>("Position");
+    world.RegisterComponent<Velocity>("Velocity");
+    world.RegisterComponent<Health>("Health");
+
     // Register movement system
     // 註冊移動系統
     auto movementSystem = std::make_unique<MovementSystem>();
     world.GetSystemScheduler().RegisterSystem(std::move(movementSystem));
 
-    // Create 100 test entities
-    // 建立 100 個測試實體
+    // Subscribe to damage events (queued, dispatched at end of Update).
+    // 訂閱傷害事件（佇列方式，於 Update 結尾分派）。
+    world.GetEventBus().Subscribe<EntityDamagedEvent>(
+        [](const EntityDamagedEvent& e) {
+            STONEPOTATOES_LOG_INFO(
+                "Event: entity %u took %d damage", e.entity.GetIndex(),
+                e.amount);
+        });
+
+    // Create 100 test entities with real components.
+    // 建立 100 個帶有真實組件的測試實體。
     STONEPOTATOES_LOG_INFO("Creating 100 test entities...");
     STONEPOTATOES_LOG_INFO("建立 100 個測試實體...");
+    StonePotatoes::ECS::Entity firstEntity;
     for (int i = 0; i < 100; i++) {
-        StonePotatoes::ECS::Entity entity = world.GetEntityManager().CreateEntity();
-        if (entity.IsValid()) {
-            // TODO: Add components to entities
-            // TODO：為實體添加組件
-        }
+        StonePotatoes::ECS::Entity entity = world.CreateEntity();
+        if (i == 0) firstEntity = entity;
+        world.AddComponent<Position>(entity,
+                                     Position{static_cast<float>(i), 0.0f, 0.0f});
+        world.AddComponent<Velocity>(entity, Velocity{1.0f, 0.5f, 0.0f});
+        world.AddComponent<Health>(entity, Health{100});
     }
     STONEPOTATOES_LOG_INFO("Created %u entities", world.GetEntityManager().GetEntityCount());
     STONEPOTATOES_LOG_INFO("已建立 %u 個實體", world.GetEntityManager().GetEntityCount());
+    STONEPOTATOES_LOG_INFO("Archetypes: %zu",
+                           world.GetArchetypeManager().GetArchetypeCount());
+
+    // Query demo: count entities with Position+Velocity (all 100 expected).
+    // 查詢演示：計算擁有 Position+Velocity 的實體（預期全部 100 個）。
+    auto moving = world.MakeQuery<Position, Velocity>();
+    STONEPOTATOES_LOG_INFO("Query<Position,Velocity>: %zu entities",
+                           moving.Count(world.GetArchetypeManager()));
+
+    // Allocator smoke test | 分配器煙霧測試
+    {
+        StonePotatoes::Memory::MemoryPool pool(sizeof(Position), 8);
+        void* a = pool.Allocate();
+        void* b = pool.Allocate();
+        pool.Free(a);
+        STONEPOTATOES_LOG_INFO("MemoryPool: used=%zu free=%zu ownsA=%d",
+            pool.GetUsedBlocks(), pool.GetFreeBlocks(), pool.Owns(b));
+
+        StonePotatoes::Memory::StackAllocator stack(4096);
+        auto marker = stack.GetMarker();
+        void* s1 = stack.Allocate(256);
+        void* s2 = stack.Allocate(128);
+        stack.FreeToMarker(marker);
+        STONEPOTATOES_LOG_INFO("StackAllocator: after rollback used=%zu (s1=%p s2=%p)",
+            stack.GetUsed(), s1, s2);
+
+        StonePotatoes::Memory::ArenaAllocator arena(1024);
+        void* big = arena.Allocate(4096); // forces second chunk
+        STONEPOTATOES_LOG_INFO("ArenaAllocator: chunks=%zu allocated=%zu (big=%p)",
+            arena.GetChunkCount(), arena.GetTotalAllocated(), big);
+    }
+
+    // Resource system demo | 資源系統演示
+    struct WorldClock { double elapsed = 0.0; };
+    world.GetResourceManager().Insert<WorldClock>();
+    world.GetResourceManager().Get<WorldClock>()->elapsed = 42.0;
+    STONEPOTATOES_LOG_INFO("Resource WorldClock.elapsed = %.1f",
+        world.GetResourceManager().Get<WorldClock>()->elapsed);
+
+    // Queue a demo event (dispatched on first World::Update).
+    // 佇列一個演示事件（於第一次 World::Update 時分派）。
+    world.GetEventBus().Queue(EntityDamagedEvent{firstEntity, 25});
+
+    // Save/Load round-trip demo | 儲存/載入往返演示
+    world.SaveToFile("world_save.bin");
+    {
+        StonePotatoes::ECS::World loaded;
+        loaded.Initialize();
+        loaded.RegisterComponent<Position>("Position");
+        loaded.RegisterComponent<Velocity>("Velocity");
+        loaded.RegisterComponent<Health>("Health");
+        loaded.LoadFromFile("world_save.bin");
+        STONEPOTATOES_LOG_INFO("Loaded world entities: %u (expected 100)",
+                               loaded.GetEntityManager().GetEntityCount());
+        loaded.Shutdown();
+    }
 
     // Initialize Self-Developing AI Agent
     // 初始化自我開發 AI Agent

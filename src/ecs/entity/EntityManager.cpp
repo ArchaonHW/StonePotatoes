@@ -4,29 +4,25 @@
 namespace StonePotatoes {
 namespace ECS {
 
-EntityManager::EntityManager()
-    : m_NextFreeIndex(0) {
-    // Reserve space for entities
+EntityManager::EntityManager() {
     m_Generations.reserve(1024);
+    m_Alive.reserve(1024);
 }
 
-EntityManager::~EntityManager() {
-}
+EntityManager::~EntityManager() = default;
 
 Entity EntityManager::CreateEntity() {
     uint32_t index;
-
-    if (m_NextFreeIndex < m_FreeList.size()) {
-        // Reuse a free slot
-        index = m_FreeList[m_NextFreeIndex++];
+    if (!m_FreeList.empty()) {
+        index = m_FreeList.back();
+        m_FreeList.pop_back();
     } else {
-        // Allocate new slot
         index = static_cast<uint32_t>(m_Generations.size());
-        m_Generations.push_back(0);
+        m_Generations.push_back(1); // generation starts at 1
+        m_Alive.push_back(0);
     }
-
-    uint32_t generation = m_Generations[index]++;
-    return Entity::FromIndexAndGeneration(index, generation);
+    m_Alive[index] = 1;
+    return Entity::FromIndexAndGeneration(index, m_Generations[index]);
 }
 
 void EntityManager::DestroyEntity(Entity entity) {
@@ -34,32 +30,50 @@ void EntityManager::DestroyEntity(Entity entity) {
         STONEPOTATOES_LOG_WARNING("Attempted to destroy invalid entity");
         return;
     }
-
-    uint32_t index = entity.GetIndex();
-    m_Generations[index]++; // Increment generation to invalidate old references
-
-    // Add to free list
-    if (m_NextFreeIndex < m_FreeList.size()) {
-        m_FreeList[m_NextFreeIndex++] = index;
-    } else {
-        m_FreeList.push_back(index);
-        m_NextFreeIndex++;
-    }
+    const uint32_t index = entity.GetIndex();
+    ++m_Generations[index]; // invalidate outstanding handles
+    m_Alive[index] = 0;
+    m_FreeList.push_back(index);
 }
 
 bool EntityManager::IsEntityValid(Entity entity) const {
-    uint32_t index = entity.GetIndex();
-    uint32_t generation = entity.GetGeneration();
+    const uint32_t index = entity.GetIndex();
+    const uint32_t generation = entity.GetGeneration();
+    return index < m_Generations.size() && generation != 0 &&
+           m_Generations[index] == generation && m_Alive[index];
+}
 
-    if (index >= m_Generations.size()) {
-        return false;
+Entity EntityManager::RestoreEntity(uint32_t index, uint32_t generation) {
+    if (generation == 0) {
+        generation = 1;
     }
+    if (index >= m_Generations.size()) {
+        m_Generations.resize(index + 1, 1);
+        m_Alive.resize(index + 1, 0);
+    }
+    m_Generations[index] = generation;
+    m_Alive[index] = 1;
+    // Remove the index from the free list if present.
+    for (auto it = m_FreeList.begin(); it != m_FreeList.end(); ++it) {
+        if (*it == index) {
+            m_FreeList.erase(it);
+            break;
+        }
+    }
+    return Entity::FromIndexAndGeneration(index, generation);
+}
 
-    return m_Generations[index] == generation;
+void EntityManager::ForEachAlive(
+    const std::function<void(Entity)>& fn) const {
+    for (uint32_t i = 0; i < m_Generations.size(); ++i) {
+        if (m_Alive[i]) {
+            fn(Entity::FromIndexAndGeneration(i, m_Generations[i]));
+        }
+    }
 }
 
 uint32_t EntityManager::GetEntityCount() const {
-    return static_cast<uint32_t>(m_Generations.size() - m_NextFreeIndex);
+    return static_cast<uint32_t>(m_Generations.size() - m_FreeList.size());
 }
 
 uint32_t EntityManager::GetCapacity() const {

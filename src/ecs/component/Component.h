@@ -6,6 +6,7 @@
 #include <typeinfo>
 #include <unordered_map>
 #include <new>
+#include <string>
 
 namespace StonePotatoes {
 namespace ECS {
@@ -64,7 +65,7 @@ ComponentID GetComponentID() {
 // 註冊組件型別元資料。每種型別只需呼叫一次（冪等）。
 template <typename T>
 const ComponentTypeInfo* RegisterComponent(const char* name) {
-    static const ComponentTypeInfo info = [] {
+    static const ComponentTypeInfo info = [name] {
         ComponentTypeInfo i;
         i.id = GetComponentID<T>();
         i.name = name;
