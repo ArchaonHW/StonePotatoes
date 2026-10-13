@@ -4,6 +4,16 @@ project(stonepotatoes_engine)
 # Find JNI
 find_package(JNI REQUIRED)
 
+# Find Vulkan (optional, for actual GPU support)
+if(DEFINED ENV{VULKAN_SDK})
+    set(VULKAN_SDK_PATH $ENV{VULKAN_SDK})
+    include_directories(${VULKAN_SDK_PATH}/Include)
+    link_directories(${VULKAN_SDK_PATH}/Lib)
+    set(Vulkan_FOUND TRUE)
+    message(STATUS "Vulkan SDK path: ${VULKAN_SDK_PATH}")
+endif()
+find_package(Vulkan QUIET)
+
 # Include directories
 include_directories(
     ${JNI_INCLUDE_DIRS}
@@ -18,11 +28,12 @@ set(SOURCES
 
 # Add StonePotatoes C++ sources if available
 if(EXISTS "${CMAKE_SOURCE_DIR}/../../../src/gpu/VulkanBackend.cpp")
-    # Find Vulkan (optional, for actual GPU support)
-    find_package(Vulkan QUIET)
     if(Vulkan_FOUND)
-        target_link_libraries(stonepotatoes_engine Vulkan::Vulkan)
+        target_link_libraries(stonepotatoes_engine ${VULKAN_SDK_PATH}/Lib/vulkan-1.lib)
         add_definitions(-DSP_VULKAN)
+        message(STATUS "Vulkan found: ${VULKAN_SDK_PATH}")
+    else()
+        message(STATUS "Vulkan not found, compiling without GPU support")
     endif()
     list(APPEND SOURCES ../../../src/gpu/VulkanBackend.cpp)
 endif()
