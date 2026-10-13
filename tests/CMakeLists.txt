@@ -74,3 +74,6 @@ target_link_libraries(StonePotatoesVulkanTests
 )
 
 add_test(NAME vulkan_unit COMMAND StonePotatoesVulkanTests)
+# No GPU / no loader → exit 77 → ctest reports Skipped (not Failed/Passed).
+# 無 GPU / loader 時回傳 77，ctest 顯示為 Skipped。
+set_tests_properties(vulkan_unit PROPERTIES SKIP_RETURN_CODE 77)

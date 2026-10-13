@@ -125,7 +125,7 @@ int main() {
     std::printf("=== StonePotatoes Vulkan Backend Tests ===\n");
     if (!GPU::VulkanBackend::IsAvailable()) {
         std::printf("Vulkan unavailable — SKIP (not a failure)\n");
-        return 0;
+        return 77; // ctest SKIP_RETURN_CODE → reported as "Skipped"
     }
     TestEnumerate();
 
