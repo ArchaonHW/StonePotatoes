@@ -39,7 +39,13 @@ public:
         std::unordered_set<uint32_t> edibleTypes = {1};
     };
 
-    WorldStreamer(const ResourceScatter* scatter, Config cfg = {});
+    // Separate overload instead of `Config cfg = {}`: GCC rejects a default
+    // argument using a nested class with NSDMIs before the enclosing class is
+    // complete (MSVC/Clang accept it).
+    // 以多載取代 `Config cfg = {}`：GCC 不接受在外層類別完成前使用含 NSDMI 巢狀類別的預設引數。
+    explicit WorldStreamer(const ResourceScatter* scatter)
+        : WorldStreamer(scatter, Config{}) {}
+    WorldStreamer(const ResourceScatter* scatter, Config cfg);
 
     void Initialize(ECS::World* world) override;
     void Update(ECS::World* world, float deltaTime) override;
