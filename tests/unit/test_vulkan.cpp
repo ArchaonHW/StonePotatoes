@@ -4,7 +4,9 @@
 // 無 Vulkan loader/裝置時乾淨跳過（無 GPU 的 CI）。
 
 #include "iqgpu/IQGPURuntime.h"
+#include "iqgpu/ZetaCompute.h"
 #include "gpu/VulkanBackend.h"
+#include "math/HighPrecisionZ.h"
 
 #include <cmath>
 #include <cstdio>
@@ -140,6 +142,44 @@ int main() {
     TestU32BitExact(vk);
     TestSaxpy(vk);
     vk.Shutdown();
+
+    // zeta.comp: GPU dd-phase RS sum vs the CPU HighPrecisionZ path.
+    // Reduction order differs (per-thread strided partials vs sequential),
+    // so compare against a few × error bound, not bitwise.
+    // zeta.comp：GPU dd 相位 RS 主和 vs CPU HighPrecisionZ。
+    // 歸約順序不同（逐執行緒跨步部分和 vs 循序），故以誤差界倍數比對。
+    {
+        IQGPU::IQGPURuntime rt;
+        rt.Initialize();
+        IQGPU::ZetaCompute zc(rt);
+        std::vector<Math::DD::dd> ts;
+        for (int64_t n : {5000, 12345, 50000, 100000})
+            ts.push_back(Math::Zeta::GramPointDDExact(n));
+        ts.push_back({423456.789, 0.0});
+        auto z = zc.EvaluateZGPU(ts);
+        if (z.empty()) {
+            std::printf("[VK] zeta GPU path unavailable (no f64 kernel) — "
+                        "SKIP\n");
+        } else {
+            double tMax = 0.0;
+            for (const auto& t : ts) tMax = std::max(tMax, t.hi);
+            Math::Zeta::HighPrecisionZ hpz(tMax + 16.0);
+            double maxErr = 0.0, maxRatio = 0.0;
+            for (size_t i = 0; i < ts.size(); ++i) {
+                const double ref = hpz.Z(ts[i]);
+                const double err = std::fabs(z[i] - ref);
+                const double bnd = Math::Zeta::HighPrecisionZ::ErrorBound(
+                    ts[i].hi);
+                maxErr = std::max(maxErr, err);
+                maxRatio = std::max(maxRatio, err / bnd);
+                std::printf("[VK] zeta t=%.6f  gpu=% .6e  cpu=% .6e  "
+                            "err=%.2e (%.4f×bound)\n", ts[i].hi, z[i], ref,
+                            err, err / bnd);
+            }
+            CHECK(maxRatio < 30.0);  // dd CPU vs f64 GPU, large t | dd CPU vs f64 GPU
+            CHECK(zc.GetUseGPU());
+        }
+    }
 
     std::printf("=== %d passed, %d failed ===\n", g_Passed, g_Failed);
     return g_Failed == 0 ? 0 : 1;

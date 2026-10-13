@@ -1,12 +1,16 @@
 #pragma once
 
 #include "../gpu/CPUBackend.h"
+#include "../gpu/VulkanBackend.h"
 #include "../math/ZetaSpectral.h"
+#include "../math/DoubleDouble.h"
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace StonePotatoes {
+namespace Math { namespace Zeta { class HighPrecisionZ; } }
 namespace IQGPU {
 
 class IQGPURuntime;
@@ -21,6 +25,7 @@ class IQGPURuntime;
 class ZetaCompute {
 public:
     explicit ZetaCompute(IQGPURuntime& runtime);
+    ~ZetaCompute();  // out-of-line: unique_ptr to incomplete type | 前向型別
 
     // Parallel Hardy-Z evaluation over a list of t values.
     // 對 t 值列表平行求值 Hardy-Z。
@@ -59,6 +64,7 @@ public:
         uint64_t uncertainSigns = 0;      // after nudging | 微移後仍不確定
         uint64_t uncertainGramPoints = 0; // merged into bulk blocks | 併入區塊
         bool highPrecision = false;       // dd-phase RS path used | 使用 dd 相位路徑
+        bool gpuAccelerated = false;      // Vulkan zeta kernel sampled | GPU 取樣
         double minMarginRatio = 0.0;    // min |Z|/bound over samples | 最小餘裕倍數
 
         // Turing/Brent certification: every zero with g_lo < γ ≤ g_hi is on
@@ -146,12 +152,39 @@ public:
     static ScanResult FindZerosSequential(double tLo, double tHi,
                                           double step = 0.02);
 
+    // --- GPU batch evaluation | GPU 批次求值 ---
+    // EvaluateZGPU — one workgroup per t on the Vulkan backend; phases are
+    // double-double identical to the CPU HighPrecisionZ path (same dd ops
+    // in GLSL). Returns {} when no GPU exists → caller falls back to CPU.
+    // θ(t) and the log/sqrt tables come from the CPU (log tables uploaded
+    // once and cached by capacity); the correction term is applied on CPU.
+    // EvaluateZGPU — Vulkan 後端上每個 t 一個 workgroup；相位為與 CPU
+    // HighPrecisionZ 相同的 double-double 運算（GLSL 實作同組 dd 運算）。
+    // 無 GPU 時回傳空 → 呼叫端退回 CPU。θ 與對數表在 CPU 準備
+    // （表按容量上傳並快取）；修正項在 CPU 套用。
+    std::vector<double> EvaluateZGPU(const std::vector<Math::DD::dd>& ts);
+
+    // Disable GPU acceleration for verification paths.
+    // 關閉驗證路徑的 GPU 加速。
+    void SetUseGPU(bool v) { m_UseGPU = v; }
+    bool GetUseGPU() const { return m_UseGPU; }
+
 private:
     enum class CertMode { None, Anchored, Window };
     GramReport VerifyGram(int64_t nFirst, int64_t nLast,
                           uint32_t samplesPerInterval, CertMode mode);
 
+    // GPU tables for EvaluateZGPU — sized to the largest t requested so
+    // far; rebuilt if a larger t arrives. 依需求重建的 GPU 對數表。
+    bool EnsureGpuTables(double tMax);
+
     IQGPURuntime& m_Runtime;
+    bool m_UseGPU = true;
+    std::unique_ptr<Math::Zeta::HighPrecisionZ> m_GpuHp;
+    double m_GpuTMax = 0.0;
+    GPU::VulkanBackend::BufferHandle m_GpuLogK;
+    GPU::VulkanBackend::BufferHandle m_GpuInvSqrtK;
+    GPU::VulkanBackend::KernelHandle m_GpuKernel;
 };
 
 } // namespace IQGPU

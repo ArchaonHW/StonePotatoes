@@ -7,7 +7,12 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 #include <memory>
+
+#ifndef SP_SHADER_DIR
+#define SP_SHADER_DIR "shaders"
+#endif
 
 namespace StonePotatoes {
 namespace IQGPU {
@@ -57,7 +62,7 @@ struct ZEval {
 
 // Above this height Gram windows switch to the double-double phase path.
 // 高於此高度時 Gram 視窗改用 double-double 相位路徑。
-constexpr double kHighPrecisionT = 1.0e6;
+constexpr double kHighPrecisionT = 5.0e5;
 
 // Margin-aware variant: an interior sample whose |Z| is within the
 // error bound is nudged (±h/4, ±h/2) until its sign is certain.
@@ -92,6 +97,110 @@ IntervalCount CountSignChangesCertain(const ZEval& ev, double a, double b,
 
 ZetaCompute::ZetaCompute(IQGPURuntime& runtime) : m_Runtime(runtime) {
     if (!m_Runtime.IsInitialized()) m_Runtime.Initialize();
+}
+
+ZetaCompute::~ZetaCompute() {
+    if (auto* vk = m_Runtime.GetVulkanBackend()) {
+        if (m_GpuLogK.Valid()) vk->DestroyBuffer(m_GpuLogK);
+        if (m_GpuInvSqrtK.Valid()) vk->DestroyBuffer(m_GpuInvSqrtK);
+        if (m_GpuKernel.Valid()) vk->DestroyKernel(m_GpuKernel);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GPU batch evaluation — one workgroup per t, dd phases in GLSL.
+// GPU 批次求值 — 每個 t 一個 workgroup，GLSL dd 相位。
+// ---------------------------------------------------------------------------
+bool ZetaCompute::EnsureGpuTables(double tMax) {
+    auto* vk = m_Runtime.GetVulkanBackend();
+    if (!vk) return false;
+    if (m_GpuKernel.Valid() && tMax <= m_GpuTMax) return true;
+
+    // Build table to the largest n = floor(sqrt(t/2π)) across all t.
+    // 對所有 t 的最大 n = floor(sqrt(t/2π)) 建表。
+    m_GpuHp = std::make_unique<Math::Zeta::HighPrecisionZ>(tMax + 100.0);
+    m_GpuTMax = tMax + 100.0;
+    const auto& logK = m_GpuHp->LogK();       // index k = 1..N
+    const auto& w = m_GpuHp->InvSqrtK();
+    const size_t n = logK.size() - 1;         // k = 1..n
+
+    if (m_GpuLogK.Valid()) vk->DestroyBuffer(m_GpuLogK);
+    if (m_GpuInvSqrtK.Valid()) vk->DestroyBuffer(m_GpuInvSqrtK);
+    m_GpuLogK = vk->CreateBuffer(n * sizeof(DD::dd));
+    m_GpuInvSqrtK = vk->CreateBuffer(n * sizeof(double));
+    if (!m_GpuLogK.Valid() || !m_GpuInvSqrtK.Valid()) {
+        m_UseGPU = false;
+        return false;
+    }
+    vk->WriteBuffer(m_GpuLogK, logK.data() + 1, n * sizeof(DD::dd));
+    vk->WriteBuffer(m_GpuInvSqrtK, w.data() + 1, n * sizeof(double));
+
+    if (!m_GpuKernel.Valid())
+        m_GpuKernel = vk->CreateKernelFromFile(SP_SHADER_DIR "/zeta.spv", 5, 0);
+    if (!m_GpuKernel.Valid())
+        m_UseGPU = false;  // e.g. device without shaderFloat64 | 如無 f64 的裝置
+    return m_GpuKernel.Valid();
+}
+
+std::vector<double> ZetaCompute::EvaluateZGPU(
+    const std::vector<DD::dd>& ts) {
+    std::vector<double> out;
+    if (!m_UseGPU || ts.empty()) return out;
+    auto* vk = m_Runtime.GetVulkanBackend();
+    if (!vk) return out;
+    double tMax = 0.0;
+    for (const auto& t : ts) tMax = std::max(tMax, t.hi);
+    if (!EnsureGpuTables(tMax)) return out;
+
+    const size_t m = ts.size();
+    std::vector<double> td(4 * m), nt(m);
+    for (size_t i = 0; i < m; ++i) {
+        const DD::dd th = Math::Zeta::ThetaDD(ts[i]);
+        td[4 * i + 0] = ts[i].hi;
+        td[4 * i + 1] = ts[i].lo;
+        td[4 * i + 2] = th.hi;
+        td[4 * i + 3] = th.lo;
+        nt[i] = std::floor(std::sqrt(ts[i].hi / Math::Zeta::kTwoPi));
+    }
+    auto hTd = vk->CreateBuffer(4 * m * sizeof(double));
+    auto hNt = vk->CreateBuffer(m * sizeof(double));
+    auto hOut = vk->CreateBuffer(m * sizeof(double));
+    if (!hTd.Valid() || !hNt.Valid() || !hOut.Valid()) {
+        vk->DestroyBuffer(hTd);
+        vk->DestroyBuffer(hNt);
+        vk->DestroyBuffer(hOut);
+        return out;
+    }
+    vk->WriteBuffer(hTd, td.data(), 4 * m * sizeof(double));
+    vk->WriteBuffer(hNt, nt.data(), m * sizeof(double));
+
+    auto dr = vk->Dispatch(m_GpuKernel,
+                           {m_GpuLogK, m_GpuInvSqrtK, hTd, hNt, hOut},
+                           static_cast<uint32_t>(m), 1, 1);
+    out.assign(m, 0.0);
+    if (!dr.ok || !vk->ReadBuffer(hOut, out.data(), m * sizeof(double))) {
+        vk->DestroyBuffer(hTd);
+        vk->DestroyBuffer(hNt);
+        vk->DestroyBuffer(hOut);
+        return {};
+    }
+    vk->DestroyBuffer(hTd);
+    vk->DestroyBuffer(hNt);
+    vk->DestroyBuffer(hOut);
+
+    // Correction term on CPU (O(1) per t): 2z + sign·a^{-1/2}·(C0 + C1/a).
+    // 修正項在 CPU 套用：2z + sign·a^{-1/2}·(C0 + C1/a)。
+    for (size_t i = 0; i < m; ++i) {
+        const double t = ts[i].hi;
+        const double a = std::sqrt(t / Math::Zeta::kTwoPi);
+        const int n = static_cast<int>(a);
+        const double p = a - n;
+        const double sign = ((n - 1) % 2 == 0) ? 1.0 : -1.0;
+        out[i] = 2.0 * out[i] +
+                 sign * std::pow(a, -0.5) *
+                     (Math::Zeta::RSC0(p) + Math::Zeta::RSC1(p) / a);
+    }
+    return out;
 }
 
 std::vector<double> ZetaCompute::EvaluateZ(const std::vector<double>& ts,
@@ -174,9 +283,17 @@ ZetaCompute::GramReport ZetaCompute::VerifyGram(int64_t nFirst, int64_t nLast,
         gd[i] = hp ? GramPointDDExact(nFirst + i) : DD::dd{GramPoint(nFirst + i), 0.0};
         g[i] = DD::ToDouble(gd[i]);
     }, 256);
+
+    // Gram-point Z values: one GPU dispatch for the whole range when the
+    // high-precision path is active (the kernel is the same dd math).
+    // Gram 點 Z 值：hp 路徑下整段由單次 GPU 派發求值（kernel 即同款 dd 數學）。
+    std::vector<double> gpuZ;
+    if (hp && m_UseGPU) gpuZ = EvaluateZGPU(gd);
+    r.gpuAccelerated = !gpuZ.empty();
     be.ParallelFor(static_cast<uint32_t>(count), [&](uint32_t i) {
         p[i] = g[i];
-        zp[i] = hp ? hpz->Z(gd[i]) : HardyZ(g[i]);
+        zp[i] = !gpuZ.empty() ? gpuZ[i]
+                              : (hp ? hpz->Z(gd[i]) : HardyZ(g[i]));
         if (std::fabs(zp[i]) > ev.GramBound(g[i])) return;
         gramSure[i] = 0;
         const double h = i + 1 < count ? g[i + 1] - g[i] : g[i] - g[i - 1];
@@ -203,10 +320,67 @@ ZetaCompute::GramReport ZetaCompute::VerifyGram(int64_t nFirst, int64_t nLast,
     }
 
     std::vector<IntervalCount> iv(count - 1);
-    be.ParallelFor(static_cast<uint32_t>(count - 1), [&](uint32_t i) {
-        iv[i] = CountSignChangesCertain(ev, p[i], p[i + 1], zp[i], zp[i + 1],
-                                        samplesPerInterval);
-    }, 16);
+    // Interval interior samples: GPU-batched grid evaluation, CPU counting
+    // pass keeps the nudge-on-uncertain logic (rare CPU evals only).
+    // 區間內部取樣：GPU 批次求值網格，CPU 計數趟保留不確定微移邏輯
+    // （罕見的 CPU 補算）。
+    if (hp && m_UseGPU && !gpuZ.empty()) {
+        const uint32_t S = samplesPerInterval;
+        const size_t inner = S - 1;
+        const size_t perChunk =
+            std::max<size_t>(1, (size_t(1) << 15) / inner);
+        for (size_t c0 = 0; c0 < count - 1; c0 += perChunk) {
+            const size_t c1 = std::min(count - 1, c0 + perChunk);
+            std::vector<DD::dd> pts;
+            pts.reserve((c1 - c0) * inner);
+            for (size_t i = c0; i < c1; ++i) {
+                const double h = (p[i + 1] - p[i]) / S;
+                for (uint32_t j = 1; j < S; ++j)
+                    pts.push_back({p[i] + h * j, 0.0});
+            }
+            std::vector<double> zs = EvaluateZGPU(pts);
+            if (zs.empty()) {  // dispatch failed → CPU for this chunk
+                be.ParallelFor(static_cast<uint32_t>(c1 - c0), [&](uint32_t k) {
+                    const size_t i = c0 + k;
+                    iv[i] = CountSignChangesCertain(ev, p[i], p[i + 1], zp[i],
+                                                    zp[i + 1], S);
+                }, 16);
+                continue;
+            }
+            be.ParallelFor(static_cast<uint32_t>(c1 - c0), [&](uint32_t k) {
+                const size_t i = c0 + k;
+                IntervalCount r;
+                const double h = (p[i + 1] - p[i]) / S;
+                const double* zs_i = &zs[(i - c0) * inner];
+                double prev = zp[i];
+                for (uint32_t j = 1; j <= S; ++j) {
+                    double z = j == S ? zp[i + 1] : zs_i[j - 1];
+                    if (j < S) {
+                        const double t = p[i] + h * j;
+                        ++r.samples;
+                        static constexpr double kNudge[4] = {0.25, -0.25,
+                                                             0.5, -0.5};
+                        for (int kk = 0;
+                             kk < 4 && std::fabs(z) <= ev.Bound(t); ++kk) {
+                            z = ev.Z(t + kNudge[kk] * h);
+                            ++r.samples;
+                        }
+                        const double ratio = std::fabs(z) / ev.Bound(t);
+                        if (ratio <= 1.0) ++r.uncertain;
+                        r.minRatio = std::min(r.minRatio, ratio);
+                    }
+                    if (prev * z < 0.0) ++r.zeros;
+                    prev = z;
+                }
+                iv[i] = r;
+            }, 16);
+        }
+    } else {
+        be.ParallelFor(static_cast<uint32_t>(count - 1), [&](uint32_t i) {
+            iv[i] = CountSignChangesCertain(ev, p[i], p[i + 1], zp[i],
+                                            zp[i + 1], samplesPerInterval);
+        }, 16);
+    }
 
     size_t a = 0, b = count - 1;
     while (a < count && !good[a]) ++a;

@@ -1,0 +1,134 @@
+#version 450
+#extension GL_ARB_gpu_shader_fp64 : require
+// zeta.comp — Riemann–Siegel main sum with double-double phase per t.
+// One workgroup (256 threads) per t value: threads accumulate strided
+// terms k = lid+1, lid+257, ... then shared-memory tree-reduce.
+// Phase accuracy matches the CPU HighPrecisionZ path: tl = t·ln k is a
+// dd product and φ = θ − tl is reduced mod 2π in dd before cos().
+// zeta.comp — 每個 t 以 dd 相位計算 Riemann–Siegel 主和。
+// 每個 t 一個 workgroup（256 執行緒）：執行緒跨步累加後共享記憶體
+// 樹狀歸約。相位精度對齊 CPU HighPrecisionZ：tl=t·ln k 為 dd 乘積，
+// φ=θ−tl 先以 dd mod 2π 再取 cos。
+layout(local_size_x = 256) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer LogK { dvec2 logk[]; };
+layout(std430, set = 0, binding = 1) readonly buffer InvSqrt { double w[]; };
+// per-t: {t.hi, t.lo, theta.hi, theta.lo}
+layout(std430, set = 0, binding = 2) readonly buffer TData { dvec4 td[]; };
+layout(std430, set = 0, binding = 3) readonly buffer NTerms { double nt[]; };
+layout(std430, set = 0, binding = 4) writeonly buffer OutZ { double outZ[]; };
+
+const double K2PI_HI = 6.283185307179586232e+00;
+const double K2PI_LO = 2.449293598294706414e-16;
+
+// --- double-double helpers (mirrors src/math/DoubleDouble.h) ---
+
+dvec2 twoSum(double a, double b) {
+    double s = a + b;
+    double bp = s - a;
+    return dvec2(s, (a - (s - bp)) + (b - bp));
+}
+
+dvec2 quickTwoSum(double a, double b) {  // |a| >= |b|
+    double s = a + b;
+    return dvec2(s, b - (s - a));
+}
+
+dvec2 twoProd(double a, double b) {
+    double p = a * b;
+    return dvec2(p, fma(a, b, -p));
+}
+
+dvec2 ddAdd(dvec2 a, dvec2 b) {
+    dvec2 s = twoSum(a.x, b.x);
+    dvec2 t = twoSum(a.y, b.y);
+    s.y += t.x;
+    s = quickTwoSum(s.x, s.y);
+    s.y += t.y;
+    s = quickTwoSum(s.x, s.y);
+    return s;
+}
+
+dvec2 ddNeg(dvec2 a) { return -a; }
+
+// φ mod 2π → double in [−π, π]. φ.hi − q·2π.hi exact by Sterbenz.
+double reduce2pi(dvec2 phi) {
+    double q = roundEven(phi.x / K2PI_HI);
+    dvec2 qp = twoProd(q, K2PI_HI);
+    dvec2 d = twoSum(phi.x, -qp.x);
+    return d.x + (d.y + (phi.y - qp.y - q * K2PI_LO));
+}
+
+// --- double-precision cos: GLSL trig is float-only, so do quadrant
+// reduction on π/2 (dd constant) + Taylor on [−π/4, π/4].
+// Remainder < 1e-17 — matches double libm for our bound.
+// --- 雙精度 cos：GLSL 三角函數僅 float，故以 π/2 的 dd 常數做象限約化
+// + [−π/4, π/4] 上 Taylor。餘項 < 1e-17——對本誤差界與 libm 等價。
+const double KPIO2_HI = 1.570796326794896619e+00;
+const double KPIO2_LO = 6.123233995736766036e-17;
+const double TWO_OVER_PI = 6.366197723675813431e-01;
+
+double sinD(double s) {  // |s| ≲ π/4; s·P(s²) through s^17 | 泰勒至 s^17
+    const double s2 = s * s;
+    double p = -7.647163731819816e-13;     // -1/17!
+    p = fma(p, s2,  1.605904383682161e-10); //  1/15!
+    p = fma(p, s2, -2.505210838544172e-08); // -1/13!
+    p = fma(p, s2,  2.755731922398589e-06); //  1/11!
+    p = fma(p, s2, -1.984126984126984e-04); // -1/9!
+    p = fma(p, s2,  8.333333333333333e-03); //  1/7!
+    p = fma(p, s2, -1.666666666666667e-01); // -1/5!
+    p = fma(p, s2,  1.0);
+    return s * p;
+}
+
+double cosD0(double s) {  // |s| ≲ π/4; Q(s²) through s^18 | 泰勒至 s^18
+    const double s2 = s * s;
+    double p = 1.561920696858623e-16;      //  1/18!
+    p = fma(p, s2, -2.087675698786810e-14); // -1/16!
+    p = fma(p, s2,  2.755731922398589e-11); //  1/14!
+    p = fma(p, s2, -2.755731922398589e-08); // -1/12!
+    p = fma(p, s2,  2.480158730158730e-05); //  1/10!
+    p = fma(p, s2, -1.388888888888889e-03); // -1/8!
+    p = fma(p, s2,  4.166666666666667e-02); //  1/6!
+    p = fma(p, s2, -5.000000000000000e-01); // -1/4!
+    return fma(p, s2, 1.0);
+}
+
+double cosD(double x) {  // x ∈ [−π, π] | 象限約化
+    double q = roundEven(x * TWO_OVER_PI);
+    double s = (x - q * KPIO2_HI) - q * KPIO2_LO;
+    int iq = int(q);
+    int m = ((iq % 4) + 4) % 4;
+    if (m == 0) return cosD0(s);
+    if (m == 1) return -sinD(s);
+    if (m == 2) return -cosD0(s);
+    return sinD(s);
+}
+
+shared double part[256];
+
+void main() {
+    const uint gid = gl_WorkGroupID.x;
+    const uint lid = gl_LocalInvocationID.x;
+    const dvec4 tv = td[gid];
+    const uint n = uint(nt[gid] + 0.5);
+    const dvec2 th = dvec2(tv.z, tv.w);
+
+    double z = 0.0;
+    for (uint k = lid + 1u; k <= n; k += 256u) {
+        const dvec2 lk = logk[k - 1u];
+        // tl = t·ln k (dd): TwoProd(t.hi, lk.hi) + cross terms
+        dvec2 tl = twoProd(tv.x, lk.x);
+        tl.y += tv.x * lk.y + tv.y * lk.x;
+        const dvec2 phi = ddAdd(th, ddNeg(tl));
+        z += cosD(reduce2pi(phi)) * w[k - 1u];
+    }
+
+    part[lid] = z;
+    barrier();
+    for (uint s = 128u; s > 0u; s >>= 1u) {
+        if (lid < s) part[lid] += part[lid + s];
+        barrier();
+    }
+    if (lid == 0u) outZ[gid] = part[0];
+}

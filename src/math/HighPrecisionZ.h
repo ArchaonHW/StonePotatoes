@@ -52,6 +52,11 @@ public:
     // + 餘項計算誤差 10u·a + dd 對數/θ 誤差。
     static double ErrorBound(double t);
 
+    // Read-only table access for GPU upload (index k = 1..N).
+    // 供 GPU 上傳用的唯讀表存取（索引 k = 1..N）。
+    const std::vector<DD::dd>& LogK() const { return m_LogK; }
+    const std::vector<double>& InvSqrtK() const { return m_InvSqrtK; }
+
 private:
     double m_MaxT;
     std::vector<DD::dd> m_LogK;      // ln k, k ≥ 1 (index k) | 索引 k

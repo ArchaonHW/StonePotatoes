@@ -56,7 +56,8 @@ void PrintReport(const IQGPU::ZetaCompute::GramReport& r, uint32_t workers) {
                 static_cast<long long>(r.certifiedGramLo), r.certifiedHeightLo,
                 static_cast<long long>(r.certifiedGram), r.certifiedHeight,
                 static_cast<unsigned long long>(r.certifiedZeros));
-    std::printf("perf.ms=%.1f workers=%u samples_per_sec=%.3g\n", r.ms, workers,
+    std::printf("perf.ms=%.1f workers=%u gpu=%d samples_per_sec=%.3g\n", r.ms,
+                workers, r.gpuAccelerated ? 1 : 0,
                 r.ms > 0 ? 1000.0 * static_cast<double>(r.samplesEvaluated) / r.ms : 0.0);
 }
 
@@ -84,11 +85,11 @@ int main(int argc, char** argv) {
         else { samples = static_cast<uint32_t>(std::atoi(argv[i])); }
     }
     if (samples < 2 ||
-        (mode == "origin" && (gramLast < 10 || gramLast > 10000000)) ||
-        (mode == "window" && (windowFirst < 0 || windowCount < 100 || windowCount > 10000000)) ||
+        (mode == "origin" && gramLast < 10) ||
+        (mode == "window" && (windowFirst < 0 || windowCount < 100)) ||
         (mode == "job" && budgetMs <= 0.0)) {
-        std::fprintf(stderr, "bad arguments (origin gramLast in [10,1e7]; window count in "
-                             "[100,1e7]; job budgetMs > 0; samples >= 2)\n");
+        std::fprintf(stderr, "bad arguments (origin gramLast >= 10; window count >= 100; "
+                             "job budgetMs > 0; samples >= 2)\n");
         return 2;
     }
 
