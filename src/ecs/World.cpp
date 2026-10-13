@@ -30,7 +30,8 @@ World::World()
     , m_ArchetypeManager(std::make_unique<ArchetypeManager>())
     , m_SystemScheduler(std::make_unique<SystemScheduler>())
     , m_EventBus(std::make_unique<EventBus>())
-    , m_ResourceManager(std::make_unique<ResourceManager>()) {
+    , m_ResourceManager(std::make_unique<ResourceManager>())
+    , m_CommandBuffer(std::make_unique<CommandBuffer>()) {
 }
 
 World::~World() {
@@ -45,6 +46,7 @@ void World::Initialize() {
 
 void World::Update(float deltaTime) {
     m_SystemScheduler->UpdateSystems(this, deltaTime);
+    m_CommandBuffer->Apply(*this);
     m_EventBus->Dispatch(); // deliver queued events at end of tick
 }
 
@@ -53,6 +55,7 @@ World::UpdateParallel(float deltaTime, const ParallelForFn& parallelFor) {
     auto stats =
         m_SystemScheduler->UpdateSystemsParallel(this, deltaTime,
                                                  parallelFor);
+    m_CommandBuffer->Apply(*this);   // flush tail commands | 收尾指令
     m_EventBus->Dispatch();
     return stats;
 }

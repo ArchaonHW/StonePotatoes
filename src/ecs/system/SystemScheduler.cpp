@@ -108,6 +108,10 @@ SystemScheduler::RunWaves(World* world, float deltaTime,
             for (size_t i : wave) m_Systems[i]->Update(world, deltaTime);
         }
         st.systemsRun += static_cast<uint32_t>(wave.size());
+        // Deferred commands queued by this wave apply before the next
+        // wave starts, so later waves observe the structural results.
+        // 本波排入的延遲指令於下一波開始前執行。
+        world->ApplyCommands();
     }
     st.ms = std::chrono::duration<double, std::milli>(
                 std::chrono::steady_clock::now() - t0)

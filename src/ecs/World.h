@@ -6,6 +6,7 @@
 #include "system/SystemScheduler.h"
 #include "events/EventBus.h"
 #include "resources/ResourceManager.h"
+#include "commands/CommandBuffer.h"
 #include "query/Query.h"
 
 #include <memory>
@@ -94,6 +95,18 @@ public:
     // --- Resources | 資源 ---
     ResourceManager& GetResourceManager() { return *m_ResourceManager; }
 
+    // --- Deferred structural changes | 延遲結構變更 ---
+    // Systems running in a parallel wave queue entity/component
+    // mutations here instead of touching storage mid-iteration; the
+    // world applies them at wave boundaries / end of Update.
+    // 平行波內的系統把實體/組件變更排入此佇列，
+    // 由世界於波次邊界／Update 結尾統一執行。
+    CommandBuffer& GetCommandBuffer() { return *m_CommandBuffer; }
+    void QueueCommand(std::function<void(World&)> fn) {
+        m_CommandBuffer->Add(std::move(fn));
+    }
+    void ApplyCommands() { m_CommandBuffer->Apply(*this); }
+
     // --- Persistence | 持久化 ---
     // Binary save/load. Only trivially copyable, named-registered components
     // are serialized; others are skipped with a warning.
@@ -115,6 +128,7 @@ private:
     std::unique_ptr<SystemScheduler> m_SystemScheduler;
     std::unique_ptr<EventBus> m_EventBus;
     std::unique_ptr<ResourceManager> m_ResourceManager;
+    std::unique_ptr<CommandBuffer> m_CommandBuffer;
     bool m_Shutdown = false;
 };
 
