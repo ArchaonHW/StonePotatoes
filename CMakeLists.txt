@@ -121,10 +121,13 @@ target_link_libraries(StonePotatoes
 
 # Install configuration
 include(GNUInstallDirs)
-install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesMath StonePotatoesRendering StonePotatoesPhysics StonePotatoesAI StonePotatoesWorld StonePotatoesCivilization StonePotatoesAgent StonePotatoesNetworking StonePotatoesData StonePotatoesGPU StonePotatoesMath StonePotatoesIQGPU StonePotatoesGame StonePotatoesSelfDevelopingAgent
+install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesRendering StonePotatoesPhysics StonePotatoesAI StonePotatoesWorld StonePotatoesCivilization StonePotatoesAgent StonePotatoesNetworking StonePotatoesData StonePotatoesGPU StonePotatoesMath StonePotatoesIQGPU StonePotatoesGame StonePotatoesSelfDevelopingAgent
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+# Public headers live alongside sources under src/ (there is no include/ dir).
+# 公開標頭與原始碼同在 src/（沒有 include/ 目錄）。
+install(DIRECTORY src/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes
+    FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")

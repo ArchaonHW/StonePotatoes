@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.Path;
 
@@ -71,7 +72,7 @@ public class AgentConfig {
     }
 
     @Bean
-    public ContentStore contentStore() {
+    public ContentStore contentStore() throws java.io.IOException {
         return new ContentStore(Path.of(dataDir, "blobs"));
     }
 

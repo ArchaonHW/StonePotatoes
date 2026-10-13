@@ -53,8 +53,8 @@
             <groupId>io.stonepotatoes</groupId>
             <artifactId>web3-agent</artifactId>
             <version>0.1.0</version>
-            <scope>system</scope>
-            <systemPath>D:/HWC/StonePotatoes/web3-agent/target/web3-agent-0.1.0.jar</systemPath>
+            <!-- Resolved from local repo: run `mvn -B install` in ../../web3-agent first. -->
+            <!-- 先在 web3-agent 執行 `mvn -B install` 安裝至本機 repo。 -->
         </dependency>
 
         <dependency>
