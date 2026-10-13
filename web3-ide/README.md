@@ -97,7 +97,9 @@ cd /d/HWC/.tools/llama
 cd agent-service
 export JAVA_HOME=/d/HWC/.tools/jdk/jdk-25.0.4.1+1
 export PATH=$JAVA_HOME/bin:/d/HWC/.tools/apache-maven-3.9.11/bin:$PATH
-export WEB3AGENT_PASSWORD=test123
+# 請自行產生高強度隨機密碼，勿使用範例值，也不要 commit 真實密碼
+# 產生方式：openssl rand -base64 32
+export WEB3AGENT_PASSWORD="<your-strong-random-password>"
 mvn spring-boot:run
 ```
 
