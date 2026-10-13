@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace Plugin {
 
 class Plugin {
@@ -40,4 +40,4 @@ private:
 };
 
 } // namespace Plugin
-} // namespace Genesis
+} // namespace StonePotatoes

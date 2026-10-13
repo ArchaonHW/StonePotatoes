@@ -1,7 +1,7 @@
 #include "World.h"
 #include "../core/logging/Logger.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 World::World()
@@ -16,9 +16,9 @@ World::~World() {
 }
 
 void World::Initialize() {
-    GENESIS_LOG_INFO("World: Initializing");
+    STONEPOTATOES_LOG_INFO("World: Initializing");
     m_SystemScheduler->InitializeSystems(this);
-    GENESIS_LOG_INFO("World: Initialized");
+    STONEPOTATOES_LOG_INFO("World: Initialized");
 }
 
 void World::Update(float deltaTime) {
@@ -26,9 +26,11 @@ void World::Update(float deltaTime) {
 }
 
 void World::Shutdown() {
-    GENESIS_LOG_INFO("World: Shutting down");
+    if (m_Shutdown) return;
+    m_Shutdown = true;
+    STONEPOTATOES_LOG_INFO("World: Shutting down");
     m_SystemScheduler->ShutdownSystems(this);
-    GENESIS_LOG_INFO("World: Shutdown complete");
+    STONEPOTATOES_LOG_INFO("World: Shutdown complete");
 }
 
 EntityManager& World::GetEntityManager() {
@@ -48,4 +50,4 @@ SystemScheduler& World::GetSystemScheduler() {
 }
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

@@ -4,7 +4,7 @@
 #include <vector>
 #include <memory>
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 class World;
@@ -26,4 +26,4 @@ private:
 };
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

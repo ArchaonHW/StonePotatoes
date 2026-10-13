@@ -1,9 +1,9 @@
 #include "System.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 // System implementation is header-only for now
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

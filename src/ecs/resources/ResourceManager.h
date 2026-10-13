@@ -2,7 +2,7 @@
 
 #include "Resource.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 class ResourceManager {
@@ -15,4 +15,4 @@ private:
 };
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

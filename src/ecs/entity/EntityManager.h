@@ -4,7 +4,7 @@
 #include <vector>
 #include <cstdint>
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 class EntityManager {
@@ -26,4 +26,4 @@ private:
 };
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

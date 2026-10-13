@@ -1,8 +1,9 @@
 #pragma once
 
+#include <cstdio>
 #include <string>
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace Logging {
 
 enum class LogLevel {
@@ -24,7 +25,7 @@ public:
     LogLevel GetLogLevel() const;
 
     void EnableConsoleOutput(bool enable);
-    void EnableFileOutput(bool enable, const char* filename = "genesis.log");
+    void EnableFileOutput(bool enable, const char* filename = "stonepotatoes.log");
 
 private:
     Logger();
@@ -38,14 +39,15 @@ private:
     bool m_ConsoleOutput;
     bool m_FileOutput;
     std::string m_LogFilename;
+    FILE* m_FileHandle = nullptr;
 };
 
 } // namespace Logging
-} // namespace Genesis
+} // namespace StonePotatoes
 
 // Convenience macros
-#define GENESIS_LOG_DEBUG(...) Genesis::Logging::Logger::GetInstance().LogFormat(Genesis::Logging::LogLevel::Debug, __VA_ARGS__)
-#define GENESIS_LOG_INFO(...) Genesis::Logging::Logger::GetInstance().LogFormat(Genesis::Logging::LogLevel::Info, __VA_ARGS__)
-#define GENESIS_LOG_WARNING(...) Genesis::Logging::Logger::GetInstance().LogFormat(Genesis::Logging::LogLevel::Warning, __VA_ARGS__)
-#define GENESIS_LOG_ERROR(...) Genesis::Logging::Logger::GetInstance().LogFormat(Genesis::Logging::LogLevel::Error, __VA_ARGS__)
-#define GENESIS_LOG_FATAL(...) Genesis::Logging::Logger::GetInstance().LogFormat(Genesis::Logging::LogLevel::Fatal, __VA_ARGS__)
+#define STONEPOTATOES_LOG_DEBUG(...) StonePotatoes::Logging::Logger::GetInstance().LogFormat(StonePotatoes::Logging::LogLevel::Debug, __VA_ARGS__)
+#define STONEPOTATOES_LOG_INFO(...) StonePotatoes::Logging::Logger::GetInstance().LogFormat(StonePotatoes::Logging::LogLevel::Info, __VA_ARGS__)
+#define STONEPOTATOES_LOG_WARNING(...) StonePotatoes::Logging::Logger::GetInstance().LogFormat(StonePotatoes::Logging::LogLevel::Warning, __VA_ARGS__)
+#define STONEPOTATOES_LOG_ERROR(...) StonePotatoes::Logging::Logger::GetInstance().LogFormat(StonePotatoes::Logging::LogLevel::Error, __VA_ARGS__)
+#define STONEPOTATOES_LOG_FATAL(...) StonePotatoes::Logging::Logger::GetInstance().LogFormat(StonePotatoes::Logging::LogLevel::Fatal, __VA_ARGS__)

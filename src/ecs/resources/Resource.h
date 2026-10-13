@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 // TODO: Implement resource system
@@ -13,4 +13,4 @@ public:
 };
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

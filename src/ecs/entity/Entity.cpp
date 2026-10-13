@@ -1,9 +1,9 @@
 #include "Entity.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 // Entity implementation is header-only for now
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

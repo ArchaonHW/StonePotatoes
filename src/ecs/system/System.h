@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 class World;
@@ -15,4 +15,4 @@ public:
 };
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

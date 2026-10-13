@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace Platform {
 
 // Platform initialization
@@ -16,4 +16,4 @@ void SetErrorCallback(void (*callback)(const char* message));
 void ReportError(const char* message);
 
 } // namespace Platform
-} // namespace Genesis
+} // namespace StonePotatoes

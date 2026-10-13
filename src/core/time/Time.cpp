@@ -1,5 +1,6 @@
 #include "Time.h"
 #include "../platform/Platform.h"
+#include "../logging/Logger.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -9,7 +10,7 @@
 #include <mach/mach_time.h>
 #endif
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace Time {
 
 static uint64_t GetHighResolutionTime() {
@@ -88,11 +89,11 @@ TimeManager& TimeManager::GetInstance() {
 
 void TimeManager::Initialize() {
     m_Timer.Reset();
-    Platform::ReportError("TimeManager: Initialized");
+    STONEPOTATOES_LOG_INFO("TimeManager: Initialized");
 }
 
 void TimeManager::Shutdown() {
-    Platform::ReportError("TimeManager: Shutdown");
+    STONEPOTATOES_LOG_INFO("TimeManager: Shutdown");
 }
 
 void TimeManager::Update() {
@@ -154,4 +155,4 @@ double TimeManager::GetTimeScale() const {
 }
 
 } // namespace Time
-} // namespace Genesis
+} // namespace StonePotatoes

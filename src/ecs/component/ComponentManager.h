@@ -3,7 +3,7 @@
 #include "Component.h"
 #include "../../core/logging/Logger.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 class ComponentManager {
@@ -18,4 +18,4 @@ private:
 };
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

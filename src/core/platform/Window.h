@@ -2,13 +2,16 @@
 
 #include <cstdint>
 
-namespace Genesis {
+// Forward declare GLFWwindow to avoid including GLFW headers in the public interface
+struct GLFWwindow;
+
+namespace StonePotatoes {
 namespace Platform {
 
 struct WindowConfig {
     int width = 1280;
     int height = 720;
-    const char* title = "Genesis Engine";
+    const char* title = "StonePotatoes Engine";
     bool fullscreen = false;
     bool resizable = true;
     bool vsync = true;
@@ -31,7 +34,7 @@ public:
     int GetHeight() const;
 
 private:
-    void* m_NativeWindow = nullptr;
+    GLFWwindow* m_NativeWindow = nullptr;
     void* m_NativeContext = nullptr;
     int m_Width = 0;
     int m_Height = 0;
@@ -39,4 +42,4 @@ private:
 };
 
 } // namespace Platform
-} // namespace Genesis
+} // namespace StonePotatoes

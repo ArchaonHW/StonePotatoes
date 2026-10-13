@@ -1,5 +1,17 @@
 # Core library - Foundation systems
-add_library(StonePotatoesCore STATIC platform/Platform.cpp platform/Window.cpp memory/MemoryPool.cpp time/Time.cpp config/Config.cpp logging/Logger.cpp plugin/Plugin.cpp)
+add_library(StonePotatoesCore STATIC
+    platform/Platform.cpp
+    platform/Window.cpp
+    platform/Input.cpp
+    io/FileSystem.cpp
+    memory/MemoryPool.cpp
+    memory/StackAllocator.cpp
+    memory/ArenaAllocator.cpp
+    time/Time.cpp
+    config/Config.cpp
+    logging/Logger.cpp
+    plugin/Plugin.cpp
+)
 
 target_include_directories(StonePotatoesCore
     PUBLIC

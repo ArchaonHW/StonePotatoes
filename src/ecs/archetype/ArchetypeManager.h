@@ -2,7 +2,7 @@
 
 #include "Archetype.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 class ArchetypeManager {
@@ -15,4 +15,4 @@ private:
 };
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

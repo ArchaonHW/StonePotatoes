@@ -2,7 +2,7 @@
 
 #include "Event.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 class EventBus {
@@ -15,4 +15,4 @@ private:
 };
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

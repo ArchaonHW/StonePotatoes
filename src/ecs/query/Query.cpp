@@ -1,6 +1,6 @@
 #include "Query.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 Query::Query() {
@@ -10,4 +10,4 @@ Query::~Query() {
 }
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

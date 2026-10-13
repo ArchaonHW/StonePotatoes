@@ -1,6 +1,6 @@
 #include "Resource.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 Resource::Resource() {
@@ -10,4 +10,4 @@ Resource::~Resource() {
 }
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

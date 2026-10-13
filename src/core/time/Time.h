@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace Time {
 
 class Timer {
@@ -61,4 +61,4 @@ private:
 };
 
 } // namespace Time
-} // namespace Genesis
+} // namespace StonePotatoes

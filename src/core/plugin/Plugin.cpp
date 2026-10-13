@@ -1,7 +1,8 @@
 #include "Plugin.h"
 #include "../platform/Platform.h"
+#include "../logging/Logger.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace Plugin {
 
 Plugin::Plugin(const char* name)
@@ -38,34 +39,34 @@ PluginManager& PluginManager::GetInstance() {
 bool PluginManager::RegisterPlugin(Plugin* plugin) {
     (void)plugin; // Suppress unused parameter warning
     // TODO: Implement plugin registration
-    Platform::ReportError("PluginManager::RegisterPlugin: TODO - Implement plugin registration");
+    STONEPOTATOES_LOG_ERROR("PluginManager::RegisterPlugin: TODO - Implement plugin registration");
     return true;
 }
 
 bool PluginManager::UnregisterPlugin(const char* name) {
     (void)name; // Suppress unused parameter warning
     // TODO: Implement plugin unregistration
-    Platform::ReportError("PluginManager::UnregisterPlugin: TODO - Implement plugin unregistration");
+    STONEPOTATOES_LOG_ERROR("PluginManager::UnregisterPlugin: TODO - Implement plugin unregistration");
     return true;
 }
 
 Plugin* PluginManager::GetPlugin(const char* name) {
     (void)name; // Suppress unused parameter warning
     // TODO: Implement plugin lookup
-    Platform::ReportError("PluginManager::GetPlugin: TODO - Implement plugin lookup");
+    STONEPOTATOES_LOG_ERROR("PluginManager::GetPlugin: TODO - Implement plugin lookup");
     return nullptr;
 }
 
 bool PluginManager::LoadAllPlugins() {
     // TODO: Implement loading all registered plugins
-    Platform::ReportError("PluginManager::LoadAllPlugins: TODO - Implement loading all plugins");
+    STONEPOTATOES_LOG_ERROR("PluginManager::LoadAllPlugins: TODO - Implement loading all plugins");
     return true;
 }
 
 void PluginManager::UnloadAllPlugins() {
     // TODO: Implement unloading all plugins
-    Platform::ReportError("PluginManager::UnloadAllPlugins: TODO - Implement unloading all plugins");
+    STONEPOTATOES_LOG_ERROR("PluginManager::UnloadAllPlugins: TODO - Implement unloading all plugins");
 }
 
 } // namespace Plugin
-} // namespace Genesis
+} // namespace StonePotatoes

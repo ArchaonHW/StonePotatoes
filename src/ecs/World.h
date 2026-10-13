@@ -6,7 +6,7 @@
 #include "system/SystemScheduler.h"
 #include <memory>
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 class World {
@@ -28,7 +28,8 @@ private:
     std::unique_ptr<ComponentManager> m_ComponentManager;
     std::unique_ptr<ArchetypeManager> m_ArchetypeManager;
     std::unique_ptr<SystemScheduler> m_SystemScheduler;
+    bool m_Shutdown = false;
 };
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

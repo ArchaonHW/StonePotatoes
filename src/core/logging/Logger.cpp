@@ -4,17 +4,21 @@
 #include <cstdio>
 #include <ctime>
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace Logging {
 
 Logger::Logger()
     : m_LogLevel(LogLevel::Info)
     , m_ConsoleOutput(true)
     , m_FileOutput(false)
-    , m_LogFilename("genesis.log") {
+    , m_LogFilename("stonepotatoes.log") {
 }
 
 Logger::~Logger() {
+    if (m_FileHandle) {
+        std::fclose(m_FileHandle);
+        m_FileHandle = nullptr;
+    }
 }
 
 Logger& Logger::GetInstance() {
@@ -60,22 +64,61 @@ void Logger::EnableConsoleOutput(bool enable) {
 }
 
 void Logger::EnableFileOutput(bool enable, const char* filename) {
+    if (!enable && m_FileHandle) {
+        std::fclose(m_FileHandle);
+        m_FileHandle = nullptr;
+    }
     m_FileOutput = enable;
     if (filename) {
+        // Reopen under the new name on next write.
+        if (m_FileHandle) {
+            std::fclose(m_FileHandle);
+            m_FileHandle = nullptr;
+        }
         m_LogFilename = filename;
     }
 }
 
+namespace {
+
+const char* TimestampNow() {
+    static thread_local char buf[32];
+    std::time_t t = std::time(nullptr);
+    std::tm tm{};
+#ifdef _WIN32
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
+    return buf;
+}
+
+} // namespace
+
 void Logger::WriteToConsole(LogLevel level, const char* message) {
-    // TODO: Add timestamp and coloring
-    printf("[%s] %s\n", GetLevelString(level), message);
+    printf("[%s] [%s] %s\n", TimestampNow(), GetLevelString(level), message);
 }
 
 void Logger::WriteToFile(LogLevel level, const char* message) {
-    (void)level; // Suppress unused parameter warning
-    (void)message; // Suppress unused parameter warning
-    // TODO: Implement file logging
-    Platform::ReportError("Logger::WriteToFile: TODO - Implement file logging");
+    if (!m_FileHandle) {
+#ifdef _WIN32
+        if (fopen_s(&m_FileHandle, m_LogFilename.c_str(), "a") != 0) {
+            m_FileHandle = nullptr;
+        }
+#else
+        m_FileHandle = std::fopen(m_LogFilename.c_str(), "a");
+#endif
+        if (!m_FileHandle) {
+            m_FileOutput = false;
+            WriteToConsole(LogLevel::Error, "Logger: failed to open log file");
+            return;
+        }
+    }
+    std::fprintf(m_FileHandle, "[%s] [%s] %s\n",
+                 TimestampNow(), GetLevelString(level), message);
+    // Flush every line so logs survive a crash.
+    std::fflush(m_FileHandle);
 }
 
 const char* Logger::GetLevelString(LogLevel level) const {
@@ -90,4 +133,4 @@ const char* Logger::GetLevelString(LogLevel level) const {
 }
 
 } // namespace Logging
-} // namespace Genesis
+} // namespace StonePotatoes

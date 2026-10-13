@@ -1,6 +1,6 @@
 #include "ArchetypeManager.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 ArchetypeManager::ArchetypeManager() {
@@ -10,4 +10,4 @@ ArchetypeManager::~ArchetypeManager() {
 }
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

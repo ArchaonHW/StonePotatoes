@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 // Entity ID: 64-bit
@@ -45,4 +45,4 @@ struct Entity {
 constexpr Entity INVALID_ENTITY(0);
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

@@ -1,6 +1,6 @@
 #include "ComponentManager.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 ComponentManager::ComponentManager() {
@@ -10,4 +10,4 @@ ComponentManager::~ComponentManager() {
 }
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

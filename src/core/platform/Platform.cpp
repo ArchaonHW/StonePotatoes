@@ -1,15 +1,19 @@
 #include "Platform.h"
-#include <GLFW/glfw3.h>
+#include "../logging/Logger.h"
 
 #ifdef _WIN32
 #include <windows.h>
-#elif defined(__linux__)
+#endif
+
+#include <GLFW/glfw3.h>
+
+#if defined(__linux__)
 #include <unistd.h>
 #elif defined(__APPLE__)
 #include <sys/utsname.h>
 #endif
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace Platform {
 
 static void (*g_ErrorCallback)(const char* message) = nullptr;
@@ -17,17 +21,17 @@ static void (*g_ErrorCallback)(const char* message) = nullptr;
 bool Initialize() {
     // Initialize GLFW
     if (!glfwInit()) {
-        Platform::ReportError("Failed to initialize GLFW");
+        STONEPOTATOES_LOG_ERROR("Failed to initialize GLFW");
         return false;
     }
-    Platform::ReportError("Platform: Initialized with GLFW");
+    STONEPOTATOES_LOG_INFO("Platform: Initialized with GLFW");
     return true;
 }
 
 void Shutdown() {
     // Shutdown GLFW
     glfwTerminate();
-    Platform::ReportError("Platform: Shutdown complete");
+    STONEPOTATOES_LOG_INFO("Platform: Shutdown complete");
 }
 
 const char* GetPlatformName() {
@@ -55,15 +59,10 @@ void ReportError(const char* message) {
     if (g_ErrorCallback) {
         g_ErrorCallback(message);
     } else {
-        // Default error reporting
-#ifdef _WIN32
-        OutputDebugStringA(message);
-        OutputDebugStringA("\n");
-#else
-        fprintf(stderr, "ERROR: %s\n", message);
-#endif
+        // Default error reporting - use logger
+        STONEPOTATOES_LOG_ERROR("%s", message);
     }
 }
 
 } // namespace Platform
-} // namespace Genesis
+} // namespace StonePotatoes

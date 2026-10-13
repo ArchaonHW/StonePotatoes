@@ -23,7 +23,7 @@ option(STONEPOTATOES_ENABLE_ASSERTIONS "Enable assertions" OFF)
 
 # Compiler flags
 if(MSVC)
-    add_compile_options(/W4 /WX-)
+    add_compile_options(/W4 /WX- /utf-8)
     if(STONEPOTATOES_ENABLE_ASSERTIONS)
         add_compile_definitions(_DEBUG)
     endif()
@@ -81,6 +81,9 @@ add_subdirectory(src/api/cpp)
 add_subdirectory(src/api/python)
 add_subdirectory(src/api/lua)
 
+# Self-Developing Agent library
+add_subdirectory(src/self_developing_agent)
+
 # Tests
 if(STONEPOTATOES_BUILD_TESTS)
     enable_testing()
@@ -103,11 +106,12 @@ target_link_libraries(StonePotatoes
     PRIVATE
         StonePotatoesCore
         StonePotatoesECS
+        StonePotatoesSelfDevelopingAgent
 )
 
 # Install configuration
 include(GNUInstallDirs)
-install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesRendering StonePotatoesPhysics StonePotatoesAI StonePotatoesWorld StonePotatoesCivilization StonePotatoesAgent StonePotatoesNetworking StonePotatoesData StonePotatoesGPU StonePotatoesGame
+install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesRendering StonePotatoesPhysics StonePotatoesAI StonePotatoesWorld StonePotatoesCivilization StonePotatoesAgent StonePotatoesNetworking StonePotatoesData StonePotatoesGPU StonePotatoesGame StonePotatoesSelfDevelopingAgent
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}

@@ -3,7 +3,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace Config {
 
 class ConfigManager {
@@ -31,7 +31,8 @@ private:
     ~ConfigManager();
 
     std::unordered_map<std::string, std::string> m_Values;
+    std::unordered_map<std::string, char> m_Types; // 's' string, 'n' number, 'b' bool
 };
 
 } // namespace Config
-} // namespace Genesis
+} // namespace StonePotatoes

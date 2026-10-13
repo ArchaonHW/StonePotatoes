@@ -1,6 +1,6 @@
 #include "ResourceManager.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 ResourceManager::ResourceManager() {
@@ -10,4 +10,4 @@ ResourceManager::~ResourceManager() {
 }
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

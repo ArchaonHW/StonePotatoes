@@ -1,7 +1,15 @@
 # Build outputs
 build/
+build*/
 cmake-build-*/
 out/
+
+# Shell redirect artifacts (Git Bash on Windows)
+nul
+
+# Self-developing agent artifacts
+agent_workspace/
+agent_experience.jsonl
 
 # IDE
 .vs/

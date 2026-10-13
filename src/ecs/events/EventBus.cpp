@@ -1,6 +1,6 @@
 #include "EventBus.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 EventBus::EventBus() {
@@ -10,4 +10,4 @@ EventBus::~EventBus() {
 }
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes

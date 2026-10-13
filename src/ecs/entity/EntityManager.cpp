@@ -1,7 +1,7 @@
 #include "EntityManager.h"
 #include "../../core/logging/Logger.h"
 
-namespace Genesis {
+namespace StonePotatoes {
 namespace ECS {
 
 EntityManager::EntityManager()
@@ -31,7 +31,7 @@ Entity EntityManager::CreateEntity() {
 
 void EntityManager::DestroyEntity(Entity entity) {
     if (!IsEntityValid(entity)) {
-        GENESIS_LOG_WARNING("Attempted to destroy invalid entity");
+        STONEPOTATOES_LOG_WARNING("Attempted to destroy invalid entity");
         return;
     }
 
@@ -67,4 +67,4 @@ uint32_t EntityManager::GetCapacity() const {
 }
 
 } // namespace ECS
-} // namespace Genesis
+} // namespace StonePotatoes
