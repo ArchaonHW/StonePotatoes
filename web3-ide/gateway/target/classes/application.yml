@@ -1,0 +1,23 @@
+server:
+  port: 8087
+  address: 0.0.0.0
+
+spring:
+  application:
+    name: gateway
+  cloud:
+    gateway:
+      routes:
+        - id: agent-service
+          uri: http://localhost:8086
+          predicates:
+            - Path=/api/agent/**
+          filters:
+            - StripPrefix=0
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true

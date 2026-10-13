@@ -11,6 +11,7 @@ add_library(StonePotatoesCore STATIC
     config/Config.cpp
     logging/Logger.cpp
     plugin/Plugin.cpp
+    profiling/Profiler.cpp
 )
 
 target_include_directories(StonePotatoesCore

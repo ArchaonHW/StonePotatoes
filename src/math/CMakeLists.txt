@@ -1,7 +1,9 @@
-# Math library - Riemann ζ numerical core + zero-spectrum engine tools
-# (ported from PotatoEngine MathUtils/RiemannZeta.h RH verification work)
-# Math 函式庫 — 黎曼 ζ 數值核心 + 零點頻譜引擎工具
-# （移植自 PotatoEngine MathUtils/RiemannZeta.h 的 RH 驗證成果）
+# Math library - Riemann ζ numerical core + procedural/util tools
+# (RH core ported from PotatoEngine MathUtils/RiemannZeta.h;
+#  Pathfinding/QuasiRandom/CurlNoise ported from PotatoEngine MathUtils)
+# Math 函式庫 — 黎曼 ζ 數值核心 + 程序化/工具
+# （RH 核心移植自 PotatoEngine MathUtils/RiemannZeta.h；
+#  Pathfinding/QuasiRandom/CurlNoise 移植自 PotatoEngine MathUtils）
 add_library(StonePotatoesMath STATIC
     RiemannZeta.cpp
     ZetaSpectral.cpp

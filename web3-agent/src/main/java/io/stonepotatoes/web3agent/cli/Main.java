@@ -10,6 +10,7 @@ import io.stonepotatoes.web3agent.llm.MockLlmProvider;
 import io.stonepotatoes.web3agent.llm.OpenAiCompatibleProvider;
 import io.stonepotatoes.web3agent.p2p.ContentStore;
 import io.stonepotatoes.web3agent.p2p.PeerNode;
+import io.stonepotatoes.web3agent.server.AgentHttpServer;
 import io.stonepotatoes.web3agent.wallet.AgentWallet;
 import org.web3j.utils.Convert;
 
@@ -44,6 +45,8 @@ public final class Main {
               --max-tx-eth <dec>     per-transfer limit (default: 0.1)
               --max-daily-eth <dec>  daily transfer limit (default: 1)
               --max-steps <n>        tool steps per request (default: 6)
+              --http-port <n>        HTTP server port (default: disabled, e.g. 8088)
+              --no-p2p               disable P2P (useful for HTTP mode)
 
             Environment:
               WEB3AGENT_PASSWORD     keystore password (otherwise prompted)
@@ -59,8 +62,8 @@ public final class Main {
                 System.out.println(USAGE);
                 return;
             }
-            if (!a.startsWith("--") || i + 1 >= argv.length) fail("Bad argument: " + a + "\n\n" + USAGE);
-            String v = argv[++i];
+            if (!a.startsWith("--")) fail("Bad argument: " + a + "\n\n" + USAGE);
+            String v = i + 1 < argv.length && !argv[i + 1].startsWith("--") ? argv[++i] : "";
             if (a.equals("--peer")) peers.add(v);
             else opts.put(a.substring(2), v);
         }
@@ -81,25 +84,46 @@ public final class Main {
         };
 
         try (ChainClient chain = new ChainClient(opts.getOrDefault("rpc", "http://127.0.0.1:8545"));
-             PeerNode node = new PeerNode(wallet, opts.getOrDefault("bind", "127.0.0.1"), Integer.parseInt(opts.getOrDefault("port", "30333")))) {
-            for (String p : peers) {
-                int colon = p.lastIndexOf(':');
-                try {
-                    node.connect(p.substring(0, colon), Integer.parseInt(p.substring(colon + 1)));
-                } catch (IOException | RuntimeException e) {
-                    out.println("! could not connect to peer " + p + ": " + e.getMessage());
+             PeerNode node = opts.containsKey("no-p2p") ? null : new PeerNode(wallet, opts.getOrDefault("bind", "127.0.0.1"), Integer.parseInt(opts.getOrDefault("port", "30333")))) {
+            if (node != null) {
+                for (String p : peers) {
+                    int colon = p.lastIndexOf(':');
+                    try {
+                        node.connect(p.substring(0, colon), Integer.parseInt(p.substring(colon + 1)));
+                    } catch (IOException | RuntimeException e) {
+                        out.println("! could not connect to peer " + p + ": " + e.getMessage());
+                    }
                 }
+                node.onMessage(env -> {
+                    if (Web3Tools.TOPIC_CHAT.equals(env.topic())) out.println("\n[p2p] " + env.from() + ": " + env.payload());
+                });
             }
-            node.onMessage(env -> {
-                if (Web3Tools.TOPIC_CHAT.equals(env.topic())) out.println("\n[p2p] " + env.from() + ": " + env.payload());
-            });
 
             List<Tool> tools = Web3Tools.create(wallet, chain, policy, node, store);
             Web3Agent agent = new Web3Agent(llm, tools, Integer.parseInt(opts.getOrDefault("max-steps", "6")));
 
+            // HTTP mode
+            String httpPort = opts.get("http-port");
+            if (httpPort != null) {
+                try (AgentHttpServer http = new AgentHttpServer(Integer.parseInt(httpPort), agent, wallet, chain, node, llm)) {
+                    out.println("StonePotatoes Web3 Agent (HTTP mode)");
+                    out.println("  identity : " + wallet.address());
+                    out.println("  http     : http://127.0.0.1:" + httpPort);
+                    out.println("  chain    : " + chain.rpcUrl());
+                    out.println("  llm      : " + llm.name());
+                    out.println("  tools    : " + String.join(", ", tools.stream().map(Tool::name).toList()));
+                    out.println("Press Ctrl+C to stop.");
+                    Thread.currentThread().join();
+                }
+                return;
+            }
+
+            // Interactive REPL mode
             out.println("StonePotatoes Web3 Agent");
             out.println("  identity : " + wallet.address());
-            out.println("  p2p      : listening on " + opts.getOrDefault("bind", "127.0.0.1") + ":" + node.port());
+            if (node != null) {
+                out.println("  p2p      : listening on " + opts.getOrDefault("bind", "127.0.0.1") + ":" + node.port());
+            }
             out.println("  chain    : " + chain.rpcUrl());
             out.println("  llm      : " + llm.name());
             out.println("  tools    : " + String.join(", ", tools.stream().map(Tool::name).toList()));

@@ -74,3 +74,33 @@ target_link_libraries(StonePotatoesVulkanTests
 )
 
 add_test(NAME vulkan_unit COMMAND StonePotatoesVulkanTests)
+
+# Scale tests: spatial grid, command buffer, 10k-agent stress
+# 規模測試：空間格、指令緩衝區、一萬代理壓力
+add_executable(StonePotatoesScaleTests unit/test_scale.cpp)
+target_include_directories(StonePotatoesScaleTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesScaleTests
+    PRIVATE
+        StonePotatoesCore
+        StonePotatoesECS
+        StonePotatoesAI
+        StonePotatoesGPU
+        Threads::Threads
+)
+
+add_test(NAME scale_unit COMMAND StonePotatoesScaleTests)
+
+# Ported PotatoEngine utilities tests
+# 移植自 PotatoEngine 的工具測試
+add_executable(StonePotatoesPortedUtilsTests unit/test_ported_utils.cpp)
+target_include_directories(StonePotatoesPortedUtilsTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesPortedUtilsTests
+    PRIVATE
+        StonePotatoesCore
+        StonePotatoesMath
+        StonePotatoesCivilization
+        StonePotatoesNetworking
+        Threads::Threads
+)
+
+add_test(NAME ported_utils_unit COMMAND StonePotatoesPortedUtilsTests)

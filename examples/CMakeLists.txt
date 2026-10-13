@@ -8,3 +8,18 @@
 # add_subdirectory(civilization_demo)
 # add_subdirectory(multiplayer_demo)
 # add_subdirectory(full_game)
+
+# World visualization demo | 世界可視化 demo
+add_executable(StonePotatoesVisDemo visualization_demo.cpp)
+target_include_directories(StonePotatoesVisDemo PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesVisDemo
+    PRIVATE
+        StonePotatoesCore
+        StonePotatoesECS
+        StonePotatoesAI
+        StonePotatoesRendering
+        StonePotatoesWorld
+        Threads::Threads
+        glfw
+        imgui
+)

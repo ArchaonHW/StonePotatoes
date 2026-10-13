@@ -43,18 +43,10 @@
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
 
-        <!-- Web3j and existing agent dependencies -->
+        <!-- Spring WebClient for HTTP calls to web3-agent -->
         <dependency>
-            <groupId>org.web3j</groupId>
-            <artifactId>core</artifactId>
-            <version>6.0.0</version>
-        </dependency>
-        <dependency>
-            <groupId>io.stonepotatoes</groupId>
-            <artifactId>web3-agent</artifactId>
-            <version>0.1.0</version>
-            <scope>system</scope>
-            <systemPath>D:/HWC/StonePotatoes/web3-agent/target/web3-agent-0.1.0.jar</systemPath>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
 
         <dependency>
