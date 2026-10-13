@@ -86,19 +86,32 @@ void WorldStreamer::Update(ECS::World* world, float deltaTime) {
                     needed.insert(ChunkKey(ccx + dx, ccy + dy));
         });
 
-    // Unload chunks that fell out of range | 卸載脫離範圍的 chunk
+    // Unload chunks that fell out of range. Deferred: actual entity
+    // destruction runs at the wave boundary, so this system is not a
+    // serial structural barrier.
+    // 卸載脫離範圍的 chunk。延遲執行：實體銷毀在波次邊界進行，
+    // 本系統因此不再是序列結構屏障。
     std::vector<int64_t> drop;
     for (const auto& kv : m_Chunks)
         if (!needed.count(kv.first)) drop.push_back(kv.first);
-    for (int64_t key : drop) UnloadChunk(world, key);
+    for (int64_t key : drop)
+        world->QueueCommand([this, key](ECS::World& w) {
+            UnloadChunk(&w, key);
+        });
 
-    // Load newly needed chunks | 載入新需要的 chunk
+    // Load newly needed chunks (deferred as well). Chunk bookkeeping
+    // keys (m_Chunks) are only touched inside the commands, which run
+    // single-threaded at the wave boundary → no data race.
+    // 載入新需要的 chunk（同樣延遲）。m_Chunks 等簿記只在指令內
+    // 觸碰，而指令在波次邊界單執行緒執行 → 無資料競爭。
     for (int64_t key : needed) {
         if (m_Chunks.count(key)) continue;
         const int32_t cx = static_cast<int32_t>(key >> 32);
         const int32_t cy = static_cast<int32_t>(
             static_cast<uint32_t>(key & 0xFFFFFFFF));
-        LoadChunk(world, cx, cy);
+        world->QueueCommand([this, cx, cy](ECS::World& w) {
+            LoadChunk(&w, cx, cy);
+        });
     }
 }
 

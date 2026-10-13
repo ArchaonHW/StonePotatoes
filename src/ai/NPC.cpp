@@ -1,4 +1,5 @@
 #include "NPC.h"
+#include "SpatialGrid.h"
 
 #include "../core/logging/Logger.h"
 
@@ -39,41 +40,41 @@ void PerceptionSystem::Update(ECS::World* world, float deltaTime) {
     if (!rm.Has<SimClock>()) rm.Insert<SimClock>();
     rm.Get<SimClock>()->time = now;
 
-    // Snapshot all perceivable things once per tick (positions only —
-    // no hidden state leaks into memory).
-    // 每 tick 快照所有可感知物（僅位置 — 隱藏狀態不流入記憶）。
-    struct Seen { ECS::Entity e; uint8_t kind; float x, y; };
-    std::vector<Seen> candidates;
+    // Bucket all perceivables in a uniform spatial grid once per tick
+    // (positions only — no hidden state leaks into memory). Radius
+    // queries then cost O(overlapped cells) instead of O(all entities).
+    // 每 tick 將所有可感知物分桶進均勻空間格（僅位置 — 隱藏狀態不
+    // 流入記憶）。半徑查詢成本降為 O(覆蓋格數) 而非 O(全部實體)。
+    SpatialGrid grid(8.0f);
     world->ForEach<NPCPosition, Food>(
         [&](ECS::Entity e, NPCPosition& p, Food&) {
-            candidates.push_back({e, 1, p.x, p.y});
+            grid.Insert(e.id, p.x, p.y, 1);
         });
     world->ForEach<NPCPosition, Threat>(
         [&](ECS::Entity e, NPCPosition& p, Threat&) {
-            candidates.push_back({e, 2, p.x, p.y});
+            grid.Insert(e.id, p.x, p.y, 2);
         });
 
     world->ForEach<NPCPosition, Perception, Memory>(
         [&](ECS::Entity self, NPCPosition& p, Perception& per, Memory& mem) {
-            const float r2 = per.radius * per.radius;
-            for (const Seen& s : candidates) {
-                if (s.e == self) continue;
-                if (Dist2(p.x, p.y, s.x, s.y) > r2) continue;  // 視野外
-                uint32_t idx = mem.Find(s.e.id);
-                if (idx == Memory::kMax) {
-                    if (mem.count < Memory::kMax) {
-                        idx = mem.count++;
-                    } else {
-                        // Full: overwrite the stalest record.
-                        // 已滿：覆寫最久未見的記錄。
-                        idx = 0;
-                        for (uint32_t i = 1; i < mem.count; ++i)
-                            if (mem.records[i].lastSeen <
-                                mem.records[idx].lastSeen) idx = i;
+            grid.QueryCircle(p.x, p.y, per.radius,
+                [&](const SpatialGrid::Entry& s) {
+                    if (s.id == self.id) return;
+                    uint32_t idx = mem.Find(s.id);
+                    if (idx == Memory::kMax) {
+                        if (mem.count < Memory::kMax) {
+                            idx = mem.count++;
+                        } else {
+                            // Full: overwrite the stalest record.
+                            // 已滿：覆寫最久未見的記錄。
+                            idx = 0;
+                            for (uint32_t i = 1; i < mem.count; ++i)
+                                if (mem.records[i].lastSeen <
+                                    mem.records[idx].lastSeen) idx = i;
+                        }
                     }
-                }
-                mem.records[idx] = {s.e.id, s.kind, s.x, s.y, now};
-            }
+                    mem.records[idx] = {s.id, s.tag, s.x, s.y, now};
+                });
             // Forget stale records (swap-remove, keep POD layout).
             // 遺忘過期記錄（交換移除，維持 POD 佈局）。
             for (uint32_t i = 0; i < mem.count;) {
@@ -206,14 +207,19 @@ void ActionSystem::Update(ECS::World* world, float deltaTime) {
             }
         });
 
-    // Deferred structural change: destroy eaten food, feed the eater.
-    // 延遲結構變更：銷毀被吃掉的食物、餵飽進食者。
+    // Structural change via the command buffer: destruction applies at
+    // the next wave boundary / end of tick, so this system is no longer
+    // a serial barrier in the parallel scheduler.
+    // 經指令緩衝區做結構變更：銷毀在下一波次邊界／tick 結尾才生效，
+    // 因此本系統不再是平行排程的序列屏障。
     for (size_t i = 0; i < eaten.size(); ++i) {
-        world->GetEventBus().Queue(
-            FoodEatenEvent{eaters[i], eaten[i]});
-        world->DestroyEntity(eaten[i]);
-        if (Needs* n = world->GetComponent<Needs>(eaters[i]))
-            n->hunger = 0.0f;
+        const ECS::Entity food = eaten[i], eater = eaters[i];
+        world->QueueCommand([food, eater](ECS::World& w) {
+            w.GetEventBus().Queue(FoodEatenEvent{eater, food});
+            w.DestroyEntity(food);
+            if (Needs* n = w.GetComponent<Needs>(eater))
+                n->hunger = 0.0f;
+        });
     }
 }
 

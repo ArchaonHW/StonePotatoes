@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ResourceScatter.h"
+#include "../../ai/NPC.h"   // access spec component types | 存取宣告所需
 #include "../../ecs/World.h"
 #include "../../ecs/system/System.h"
 #include <cstdint>
@@ -43,7 +44,12 @@ public:
     void Initialize(ECS::World* world) override;
     void Update(ECS::World* world, float deltaTime) override;
     void DescribeAccess(ECS::AccessSpec& a) const override {
-        a.structural = true;  // spawns/destroys node entities | 生成/銷毀節點
+        // Reads NPC positions; chunk spawn/despawn goes through the
+        // command buffer → not structural, can share a wave.
+        // 只讀 NPC 位置；chunk 生成/卸載經指令緩衝區 → 非結構性，
+        // 可與其他系統同波。
+        a.Read<AI::NPCPosition>();
+        a.Read<AI::Memory>();
     }
 
     size_t LoadedChunkCount() const { return m_Chunks.size(); }

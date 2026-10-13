@@ -23,6 +23,7 @@ public:
     struct Entry {
         ECS::EntityID id = 0;
         float x = 0.0f, y = 0.0f;
+        uint8_t tag = 0;          // caller-defined kind | 呼叫方自訂類別
     };
 
     explicit SpatialGrid(float cellSize = 8.0f)
@@ -37,8 +38,8 @@ public:
         m_Count = 0;
     }
 
-    void Insert(ECS::EntityID id, float x, float y) {
-        m_Cells[Key(CellOf(x), CellOf(y))].push_back({id, x, y});
+    void Insert(ECS::EntityID id, float x, float y, uint8_t tag = 0) {
+        m_Cells[Key(CellOf(x), CellOf(y))].push_back({id, x, y, tag});
         ++m_Count;
     }
 

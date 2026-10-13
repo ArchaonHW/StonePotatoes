@@ -134,7 +134,8 @@ public:
         a.Write<NPCVelocity>();
         a.Write<Needs>();
         a.Write<Memory>();
-        a.structural = true;  // destroys eaten food entities | 銷毀被吃掉的實體
+        // Eaten food is destroyed via the command buffer — no longer
+        // structural. 進食銷毀改經指令緩衝區 — 不再是結構性系統。
     }
 };
 
