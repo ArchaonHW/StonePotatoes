@@ -153,6 +153,50 @@ Parallel scan to t≈2000 samples ~100k HardyZ points on 16 workers in ~111 ms.
   spawn distributions. `SpectralNoise` / `SpectralPointSampler` 將零點頻譜
   化為世界生成原語：層級排斥產生不聚集、非格狀的分佈。
 
+## Turing-Certified Verification · Turing 認證驗證
+
+`VerifyCriticalLine(-1, n)` upgrades the Gram/Rosser count to a Turing-method
+certificate (Brent 1979, Thm 3.2): if the last K ≥ 0.0061 ln²g + 0.08 ln g
+Gram blocks satisfy Rosser's rule then N(g_n) ≤ n+1; together with the n+1
+sign changes found on the line from g_{−1}, **N(g_n) = n+1 exactly — every
+zero with 0 < γ < g_n is on the critical line.** Each counted sample must
+clear the HardyZ error bound (Gabcke: 0.053·t^{−5/4} after C0+C1; measured
+6.7e-5 at t≈200 vs bound 7.0e-5); samples inside the band are nudged, and
+any survivor (`uncertainSigns`) blocks certification.
+`VerifyCriticalLine(-1, n)` 將 Gram/Rosser 計數升級為 Turing 法認證：
+最後 K 個 Gram 區塊滿足 Rosser 規則 ⇒ N(g_n) ≤ n+1；配合線上找到的 n+1 個
+變號 ⇒ **N(g_n)=n+1 精確成立：0<γ<g_n 的零點全在臨界線上。**
+每個計數樣本須超過 HardyZ 誤差界（Gabcke），否則不予認證。
+
+CLI `StonePotatoesRHVerify [gramLast] [samples] [--selftest] [--audit]`
+(key=value output, exit 0 only on PASS; ctest `rh_verify_cli`):
+
+| Range | Result (16 workers) |
+|---|---|
+| g ≤ 20,000 (t ≤ 18,048) | 20,001 zeros, 1,838 Gram failures resolved, certified N=19,999, 24 ms |
+| g ≤ 10⁶ (t ≤ 600,270) | 1,000,001 zeros, 130,102 Gram failures, 114,766 Rosser blocks, 0 uncertain signs, certified N(600268.8)=999,998, 3.6 s |
+| g ≤ 10⁷ (t ≤ 4,992,382) | 10,000,001 zeros, 1,463,568 Gram failures, 1,238,624 Rosser blocks, 10,176 refined intervals, 0 uncertain signs (min margin 1.04× bound), certified N(4992379.49)=9,999,996, 109 s |
+
+Caveat: IEEE double without interval arithmetic — strong numerical evidence,
+not a machine-checked proof. Records (Platt–Trudgian 2021) reach 3·10¹².
+注意：使用 IEEE double、未採區間算術——屬強數值證據而非機器驗證證明；
+現有紀錄（Platt–Trudgian 2021）已達 3·10¹²。
+
+## Engine Applications · 引擎應用
+
+- `IQGPU::ZetaCompute::SelfTest()` — golden known-answer workload for any
+  IQGPU backend (N(1000)=649, Odlyzko zeros, Gram failure at 126, Turing
+  certificate, bit-identical results 1 vs N workers for lockstep/replay).
+  任何 IQGPU 後端的黃金已知答案自檢（含 1 vs N worker 位元一致性）。
+- `Math::Zeta::SpectralScatter` — chunk-seamless 2D scatter. Spectral
+  rigidity (|x_k − k| = |S(γ_k)| small) makes every point addressable by
+  (row, index), so a big query and any chunk tiling return the same set.
+  跨 chunk 無接縫散佈：頻譜剛性使每點可由（列、索引）直接定址。
+- `World::ResourceScatter` (`src/world/procedural`) — streaming resource
+  layers (spacing, density, SpectralNoise biome mask) with stable 64-bit
+  node ids for saves / networking / harvested bitsets.
+  串流資源圖層（間距、密度、頻譜雜訊生態遮罩），節點 id 跨工作階段穩定。
+
 ## Roadmap | 路線圖
 
 1. **Phase 2a (done)**: CPU reference backend + graph + QI algorithms.

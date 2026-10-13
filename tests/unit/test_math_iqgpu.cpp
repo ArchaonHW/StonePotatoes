@@ -9,6 +9,9 @@
 #include "iqgpu/QuantumInspired.h"
 #include "iqgpu/ZetaCompute.h"
 #include "iqgpu/IQGPURuntime.h"
+#include "world/procedural/ResourceScatter.h"
+
+#include <algorithm>
 
 #include <atomic>
 #include <cmath>
@@ -299,6 +302,126 @@ void TestRHVerification() {
     rt.Shutdown();
 }
 
+// --- Turing/Brent certification + golden self-test | Turing 認證 + 黃金自檢 ---
+void TestTuringCertification() {
+    IQGPU::IQGPURuntime rt;
+    rt.Initialize();
+    IQGPU::ZetaCompute zc(rt);
+
+    auto gr = zc.VerifyCriticalLine(-1, 5000, 8);
+    CHECK(gr.verified);
+    CHECK(gr.uncertainSigns == 0);
+    CHECK(gr.minMarginRatio > 1.0);
+    CHECK(gr.turingCertified);
+    CHECK(gr.certifiedZeros >= 4990);
+    CHECK(gr.certifiedZeros == static_cast<uint64_t>(gr.certifiedGram + 1));
+    CHECK(gr.turingBlocksUsed >= 1);
+
+    // Without starting at g_{-1} the lower bound N(g_n) ≥ n+1 is unknown.
+    // 不從 g_{-1} 起算時，下界 N(g_n) ≥ n+1 未知 → 不得認證。
+    CHECK(!zc.VerifyCriticalLine(100, 2000, 8).turingCertified);
+
+    auto st = zc.SelfTest();
+    CHECK(st.total >= 5 && st.passed == st.total);
+    if (st.passed != st.total) std::printf("%s\n", st.ToString().c_str());
+    rt.Shutdown();
+}
+
+// --- SpectralScatter: chunk-seamless + repulsion | 跨 chunk 無接縫 + 排斥 ---
+void TestSpectralScatter() {
+    IQGPU::IQGPURuntime rt;
+    rt.Initialize();
+    IQGPU::ZetaCompute zc(rt);
+    const auto spec = zc.FindZeros(10.0, 1500.0, 0.02);
+    rt.Shutdown();
+
+    Math::Zeta::SpectralScatter::Config cfg;
+    cfg.spacing = 4.0f;
+    cfg.seed = 99;
+    Math::Zeta::SpectralScatter sc(spec, cfg);
+    CHECK(sc.IsValid());
+    CHECK(sc.MaxRigidityDeviation() < 3.0);   // spectral rigidity | 頻譜剛性
+
+    using S = Math::Zeta::SpectralScatter::Sample;
+    auto key = [](const S& a, const S& b) {
+        return a.row != b.row ? a.row < b.row : a.index < b.index;
+    };
+    auto whole = sc.Query(-60.0f, -60.0f, 140.0f, 140.0f);
+    std::vector<S> tiled;
+    for (int cy = 0; cy < 4; ++cy)
+        for (int cx = 0; cx < 4; ++cx) {
+            auto part = sc.Query(-60.0f + 50.0f * cx, -60.0f + 50.0f * cy,
+                                 -10.0f + 50.0f * cx, -10.0f + 50.0f * cy);
+            tiled.insert(tiled.end(), part.begin(), part.end());
+        }
+    std::sort(whole.begin(), whole.end(), key);
+    std::sort(tiled.begin(), tiled.end(), key);
+    CHECK(whole.size() == tiled.size());
+    bool same = whole.size() == tiled.size();
+    for (size_t i = 0; same && i < whole.size(); ++i)
+        same = whole[i].row == tiled[i].row && whole[i].index == tiled[i].index &&
+               whole[i].x == tiled[i].x && whole[i].y == tiled[i].y;
+    CHECK(same);
+
+    // Density ≈ 1 / (s · s√3/2).
+    const double expect = 200.0 * 200.0 / (4.0 * 4.0 * 0.8660254);
+    CHECK(std::fabs(whole.size() / expect - 1.0) < 0.1);
+
+    // Clumping: Poisson would put ~28% of points within 0.3·s of a neighbour.
+    // 群聚：Poisson 約 28% 的點在 0.3·s 內有鄰點。
+    size_t close = 0;
+    for (size_t i = 0; i < whole.size(); ++i)
+        for (size_t j = 0; j < whole.size(); ++j) {
+            if (i == j) continue;
+            const double dx = whole[i].x - whole[j].x, dy = whole[i].y - whole[j].y;
+            if (dx * dx + dy * dy < 1.2 * 1.2) { ++close; break; }
+        }
+    CHECK(static_cast<double>(close) / whole.size() < 0.10);
+}
+
+// --- World::ResourceScatter | 世界資源散佈 ---
+void TestResourceScatter() {
+    IQGPU::IQGPURuntime rt;
+    rt.Initialize();
+    IQGPU::ZetaCompute zc(rt);
+    const auto spec = zc.FindZeros(10.0, 1500.0, 0.02);
+    rt.Shutdown();
+
+    auto build = [&](World::ResourceScatter& rs) {
+        rs.AddLayer({1, 6.0f, 1.0f, 0.02f, -10.0f});   // trees, everywhere
+        rs.AddLayer({2, 20.0f, 0.7f, 0.01f, 0.3f});    // ore, masked
+    };
+    World::ResourceScatter a(spec, 2024), b(spec, 2024), c(spec, 7);
+    build(a);
+    build(b);
+    build(c);
+
+    auto ids = [](std::vector<World::ResourceNode> v) {
+        std::vector<uint64_t> out;
+        for (auto& n : v) out.push_back(n.id);
+        std::sort(out.begin(), out.end());
+        return out;
+    };
+    const auto big = a.Generate(0.0f, 0.0f, 256.0f, 256.0f);
+    std::vector<World::ResourceNode> chunks;
+    for (int cy = 0; cy < 4; ++cy)
+        for (int cx = 0; cx < 4; ++cx) {
+            auto part = a.GenerateChunk(cx, cy, 64.0f);
+            chunks.insert(chunks.end(), part.begin(), part.end());
+        }
+    const auto idBig = ids(big);
+    CHECK(!idBig.empty());
+    CHECK(idBig == ids(chunks));                                   // seamless
+    CHECK(std::adjacent_find(idBig.begin(), idBig.end()) == idBig.end()); // unique
+    CHECK(idBig == ids(b.Generate(0.0f, 0.0f, 256.0f, 256.0f)));   // deterministic
+    CHECK(idBig != ids(c.Generate(0.0f, 0.0f, 256.0f, 256.0f)));   // seed matters
+
+    size_t trees = 0, ore = 0;
+    for (auto& n : big) (n.type == 1 ? trees : ore)++;
+    CHECK(trees > 1000 && ore > 0);
+    CHECK(ore < 0.7 * 256.0 * 256.0 / (20.0 * 20.0 * 0.866));      // mask culls
+}
+
 int main() {
     std::printf("=== StonePotatoes Math + IQGPU Tests ===\n");
 
@@ -311,6 +434,9 @@ int main() {
     TestQuantumInspired();
     TestZetaCompute();
     TestRHVerification();
+    TestTuringCertification();
+    TestSpectralScatter();
+    TestResourceScatter();
 
     std::printf("=== %d passed, %d failed ===\n", g_Passed, g_Failed);
     return g_Failed == 0 ? 0 : 1;

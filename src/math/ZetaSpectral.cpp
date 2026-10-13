@@ -225,6 +225,66 @@ SpectralPointSampler::Sample2D(float width, float height, float meanSpacing,
 }
 
 // ---------------------------------------------------------------------------
+// SpectralScatter
+// ---------------------------------------------------------------------------
+SpectralScatter::SpectralScatter(const ZeroSpectrum& spectrum, const Config& cfg)
+    : m_Cfg(cfg) {
+    const std::vector<double> xs = spectrum.Unfolded();
+    if (xs.size() < 8 || cfg.spacing <= 0.0f) return;
+    const double n = static_cast<double>(xs.size());
+    const double mean = (xs.back() - xs.front()) / (n - 1.0);
+    m_U.reserve(xs.size());
+    for (size_t j = 0; j < xs.size(); ++j) {
+        m_U.push_back((xs[j] - xs.front()) / mean);
+        m_MaxDev = std::max(m_MaxDev, std::fabs(m_U.back() - static_cast<double>(j)));
+    }
+    m_Cfg.rowJitter = std::clamp(m_Cfg.rowJitter, 0.0f, 0.5f);
+}
+
+double SpectralScatter::U(int64_t k) const {
+    // Periodic extension with period n (the table's last gap closes at 1).
+    // 以週期 n 延拓（表尾到下一週期的間距為 1）。
+    const int64_t n = static_cast<int64_t>(m_U.size());
+    int64_t q = k / n, r = k % n;
+    if (r < 0) {
+        r += n;
+        --q;
+    }
+    return m_U[static_cast<size_t>(r)] + static_cast<double>(q) * static_cast<double>(n);
+}
+
+std::vector<SpectralScatter::Sample> SpectralScatter::Query(float x0, float y0,
+                                                            float x1, float y1) const {
+    std::vector<Sample> out;
+    if (!IsValid() || x1 <= x0 || y1 <= y0) return out;
+    const double s = m_Cfg.spacing;
+    const double rowH = s * 0.8660254037844386;
+    const int64_t n = static_cast<int64_t>(m_U.size());
+    const int64_t margin = static_cast<int64_t>(std::ceil(2.0 * m_MaxDev)) + 2;
+    const int64_t rLo = static_cast<int64_t>(std::floor(y0 / rowH)) - 1;
+    const int64_t rHi = static_cast<int64_t>(std::floor(y1 / rowH)) + 1;
+    for (int64_t r = rLo; r <= rHi; ++r) {
+        const uint64_t rs = SplitMix64((static_cast<uint64_t>(m_Cfg.seed) << 32) ^
+                                       static_cast<uint64_t>(r));
+        const int64_t o = static_cast<int64_t>(rs % static_cast<uint64_t>(n));
+        const double shift = ToUnit(SplitMix64(rs));
+        const double base = U(o);
+        int64_t i = static_cast<int64_t>(std::floor(x0 / s - shift)) - margin;
+        for (;; ++i) {
+            const float x = static_cast<float>((U(o + i) - base + shift) * s);
+            if (x >= x1) break;
+            if (x < x0) continue;
+            const double j = (ToUnit(SplitMix64(rs ^ (static_cast<uint64_t>(i) *
+                                                     0x9E3779B97F4A7C15ull))) -
+                              0.5) * 2.0 * m_Cfg.rowJitter;
+            const float y = static_cast<float>((static_cast<double>(r) + 0.5 + j) * rowH);
+            if (y >= y0 && y < y1) out.push_back({x, y, r, i});
+        }
+    }
+    return out;
+}
+
+// ---------------------------------------------------------------------------
 // SpectralNoise
 // ---------------------------------------------------------------------------
 SpectralNoise::SpectralNoise(const ZeroSpectrum& spectrum, uint32_t seed,

@@ -25,6 +25,16 @@ public:
     void Update(float deltaTime);
     void Shutdown();
 
+    // Wave-scheduled parallel update. Systems whose DescribeAccess()
+    // declarations don't conflict run in the same wave through
+    // parallelFor (e.g. GPU::CPUBackend::ParallelFor). Conflicting or
+    // undeclared systems keep sequential order.
+    // 波次平行更新。DescribeAccess() 宣告不衝突的系統經 parallelFor
+    // 同波並行（例如 GPU::CPUBackend::ParallelFor）；
+    // 衝突或未宣告的系統維持循序。
+    SystemScheduler::ParallelStats
+    UpdateParallel(float deltaTime, const ParallelForFn& parallelFor);
+
     // --- Entities | 實體 ---
     Entity CreateEntity();
     void DestroyEntity(Entity entity);

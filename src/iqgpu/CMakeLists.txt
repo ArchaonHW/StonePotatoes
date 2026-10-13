@@ -18,3 +18,8 @@ target_link_libraries(StonePotatoesIQGPU
         StonePotatoesGPU
         StonePotatoesMath
 )
+
+# RH large-scale finite-verification CLI | RH 大規模有限驗證命令列工具
+add_executable(StonePotatoesRHVerify ${CMAKE_SOURCE_DIR}/tools/benchmark/rh_verify.cpp)
+target_include_directories(StonePotatoesRHVerify PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesRHVerify PRIVATE StonePotatoesIQGPU Threads::Threads)

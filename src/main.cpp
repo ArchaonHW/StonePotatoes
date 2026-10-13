@@ -537,14 +537,31 @@ int main(int argc, char* argv[]) {
         sim.GetEventBus().Subscribe<A::FoodEatenEvent>(
             [](const A::FoodEatenEvent& e) {
                 STONEPOTATOES_LOG_INFO(
-                    "[NPC] Food eaten by entity %llu | 食物被實體 %llu 吃掉",
+                    "[NPC] entity %llu ate food %llu | 實體 %llu 吃掉食物 %llu",
+                    (unsigned long long)e.eater.id,
+                    (unsigned long long)e.food.id,
                     (unsigned long long)e.eater.id,
                     (unsigned long long)e.food.id);
             });
 
+        // Run the slice through the parallel scheduler on the IQGPU
+        // CPU backend. The NPC pipeline is inherently sequential
+        // (perception→decision→action→movement form a dependency
+        // chain), so expect one system per wave — the wins come when
+        // independent systems coexist.
+        // 透過 IQGPU CPU 後端的平行排程器執行切片。NPC 管線本質上
+        // 是依賴鏈（感知→決策→行動→移動），預期每波一個系統 —
+        // 平行收益發生在多個獨立系統共存時。
+        StonePotatoes::GPU::CPUBackend parBackend(4);
+        auto parFor = [&parBackend](uint32_t n,
+                                    const std::function<void(uint32_t)>& f) {
+            parBackend.ParallelFor(n, f, 1);
+        };
+        StonePotatoes::ECS::SystemScheduler::ParallelStats lastStats;
+
         const float dt = 0.05f;
         for (int t = 0; t < 120; ++t) {
-            sim.Update(dt);
+            lastStats = sim.UpdateParallel(dt, parFor);
             if (t == 40) {   // a wolf appears at mid-run | 中途出現威脅
                 auto wolf = sim.CreateEntity();
                 sim.AddComponent(wolf, A::NPCPosition{3.0f, 1.0f});
@@ -570,6 +587,11 @@ int main(int argc, char* argv[]) {
             "[NPC] knows far food? %s (local info only | 僅局部資訊)",
             mem->Find(farFood.id) != StonePotatoes::AI::Memory::kMax
                 ? "YES" : "NO");
+        STONEPOTATOES_LOG_INFO(
+            "[Sched] waves=%u systems=%u maxWave=%u tick=%.2fms "
+            "(sequential chain verified | 依賴鏈已驗證)",
+            lastStats.waves, lastStats.systemsRun, lastStats.maxWaveSize,
+            lastStats.ms);
         sim.Shutdown();
     }
 

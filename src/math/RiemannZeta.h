@@ -237,6 +237,32 @@ inline double GramPoint(int64_t n) {
     return t;
 }
 
+// Error bound of HardyZ(t). RS path: Gabcke (1979) remainder after the C0, C1
+// terms |R| ≤ 0.053·t^{-5/4} (t ≥ 200) — measured max error 6.7e-5 at t≈200
+// matches 0.053·200^{-5/4} = 7.0e-5. EM path (t < kHybridT): θ truncation
+// + summation rounding, conservatively 1e-8. Plus phase rounding ~1e-13·t.
+// A sample with |Z| above this bound has a certain sign.
+// HardyZ(t) 誤差界。RS 路徑：Gabcke（1979）C0、C1 之後餘項界
+// |R| ≤ 0.053·t^{-5/4}（t≥200）——實測 t≈200 最大誤差 6.7e-5，
+// 與 0.053·200^{-5/4}=7.0e-5 吻合。EM 路徑保守取 1e-8；再加相位捨入 ~1e-13·t。
+// |Z| 大於此界的樣本，其符號是確定的。
+inline double HardyZErrorBound(double t) {
+    const double base = t < kHybridT ? 1e-8 : 0.053 * std::pow(t, -1.25);
+    return base + 1e-13 * t;
+}
+
+// Brent (1979, Thm 3.2) / Turing's method: if K consecutive Gram blocks with
+// union [g_n, g_p) satisfy Rosser's rule and K ≥ 0.0061 ln²(g_p) + 0.08 ln(g_p),
+// then N(g_n) ≤ n + 1. Combined with n+1 zeros found on the line below g_n,
+// this pins N(g_n) = n + 1 exactly — no zero anywhere off the line below g_n.
+// Brent（1979, 定理 3.2）/ Turing 法：若 K 個連續 Gram 區塊 [g_n,g_p) 滿足
+// Rosser 規則且 K ≥ 0.0061 ln²(g_p)+0.08 ln(g_p)，則 N(g_n) ≤ n+1。
+// 再配合線上已找到 n+1 個零點 → N(g_n)=n+1 精確成立：g_n 以下無任何離線零點。
+inline int64_t TuringBlocksRequired(double gp) {
+    const double l = std::log(gp);
+    return static_cast<int64_t>(std::ceil(0.0061 * l * l + 0.08 * l));
+}
+
 // Dirichlet β(s) = L(s,χ₄) via Euler transform.
 // Dirichlet β(s) = L(s,χ₄)，Euler 變換加速。
 inline C BetaDirichlet(const C& s) {

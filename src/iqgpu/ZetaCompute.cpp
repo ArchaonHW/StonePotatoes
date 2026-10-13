@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 
 namespace StonePotatoes {
 namespace IQGPU {
@@ -25,18 +26,40 @@ std::string Fmt(const char* fmt, double v) {
     return buf;
 }
 
-// Sign changes of Z on [a,b] using `samples` sub-steps (endpoint values given).
-// 以 samples 個子步計數 Z 在 [a,b] 的變號（端點值已知）。
-uint32_t CountSignChanges(double a, double b, double za, double zb,
-                          uint32_t samples) {
-    uint32_t c = 0;
+struct IntervalCount {
+    uint32_t zeros = 0;
+    uint32_t uncertain = 0;   // samples left inside the error band | 誤差帶內樣本
+    uint32_t samples = 0;
+    double minRatio = 1e300;  // min |Z|/bound | 最小餘裕倍數
+};
+
+// Margin-aware variant: an interior sample whose |Z| is within the HardyZ
+// error bound is nudged (±h/4, ±h/2) until its sign is certain.
+// 餘裕感知版本：內部樣本若 |Z| 落在誤差界內，微移（±h/4、±h/2）直到符號確定。
+IntervalCount CountSignChangesCertain(double a, double b, double za, double zb,
+                                      uint32_t samples) {
+    IntervalCount r;
+    const double h = (b - a) / samples;
     double prev = za;
     for (uint32_t j = 1; j <= samples; ++j) {
-        const double z = j == samples ? zb : HardyZ(a + (b - a) * j / samples);
-        if (prev * z < 0.0) ++c;
+        double z = zb;
+        if (j < samples) {
+            const double t = a + h * j;
+            z = HardyZ(t);
+            ++r.samples;
+            static constexpr double kNudge[4] = {0.25, -0.25, 0.5, -0.5};
+            for (int k = 0; k < 4 && std::fabs(z) <= HardyZErrorBound(t); ++k) {
+                z = HardyZ(t + kNudge[k] * h);
+                ++r.samples;
+            }
+            const double ratio = std::fabs(z) / HardyZErrorBound(t);
+            if (ratio <= 1.0) ++r.uncertain;
+            r.minRatio = std::min(r.minRatio, ratio);
+        }
+        if (prev * z < 0.0) ++r.zeros;
         prev = z;
     }
-    return c;
+    return r;
 }
 
 } // namespace
@@ -104,10 +127,10 @@ ZetaCompute::GramReport ZetaCompute::VerifyCriticalLine(
         good[i] = ((n % 2 == 0) ? zg[i] : -zg[i]) > 0.0;
     }
 
-    std::vector<uint32_t> zeros(count - 1);
+    std::vector<IntervalCount> iv(count - 1);
     be.ParallelFor(static_cast<uint32_t>(count - 1), [&](uint32_t i) {
-        zeros[i] = CountSignChanges(g[i], g[i + 1], zg[i], zg[i + 1],
-                                    samplesPerInterval);
+        iv[i] = CountSignChangesCertain(g[i], g[i + 1], zg[i], zg[i + 1],
+                                        samplesPerInterval);
     }, 16);
 
     size_t a = 0, b = count - 1;
@@ -126,12 +149,17 @@ ZetaCompute::GramReport ZetaCompute::VerifyCriticalLine(
     // Rosser blocks: between consecutive good Gram points g_j < g_k there
     // must be exactly k − j zeros (assuming S(g_j) = S(g_k) = 0).
     // Rosser 區塊：相鄰好 Gram 點 g_j<g_k 之間應恰有 k−j 個零點。
+    struct Block {
+        size_t start;
+        bool ok;
+    };
+    std::vector<Block> blocks;
     for (size_t j = a; j < b;) {
         size_t k = j + 1;
         while (!good[k]) ++k;
         const uint64_t expected = k - j;
         uint64_t found = 0;
-        for (size_t i = j; i < k; ++i) found += zeros[i];
+        for (size_t i = j; i < k; ++i) found += iv[i].zeros;
         // Missing zeros come in pairs (endpoint signs fix parity) — refine.
         // 缺失零點必成對（端點符號固定奇偶）——細分重掃。
         for (uint32_t sres = samplesPerInterval * 8;
@@ -139,26 +167,53 @@ ZetaCompute::GramReport ZetaCompute::VerifyCriticalLine(
              sres *= 8) {
             found = 0;
             for (size_t i = j; i < k; ++i) {
-                zeros[i] = CountSignChanges(g[i], g[i + 1], zg[i], zg[i + 1],
-                                            sres);
-                found += zeros[i];
+                iv[i] = CountSignChangesCertain(g[i], g[i + 1], zg[i],
+                                                zg[i + 1], sres);
+                found += iv[i].zeros;
             }
             r.refinedIntervals += expected;
         }
-        if (found != expected)
-            r.unresolvedBlocks.push_back(nFirst + static_cast<int64_t>(j));
+        const bool ok = found == expected;
+        if (!ok) r.unresolvedBlocks.push_back(nFirst + static_cast<int64_t>(j));
+        blocks.push_back({j, ok});
         if (expected > 1) ++r.rosserBlocks;
         r.zerosExpected += expected;
         r.zerosFound += found;
         j = k;
     }
-    for (size_t i = a; i <= b; ++i)
+    r.minMarginRatio = 1e300;
+    for (size_t i = a; i < b; ++i) {
+        r.samplesEvaluated += iv[i].samples;
+        r.uncertainSigns += iv[i].uncertain;
+        r.minMarginRatio = std::min(r.minMarginRatio, iv[i].minRatio);
+    }
+    for (size_t i = a; i <= b; ++i) {
+        const double ratio = std::fabs(zg[i]) / HardyZErrorBound(g[i]);
+        r.minMarginRatio = std::min(r.minMarginRatio, ratio);
+        if (ratio <= 1.0) ++r.uncertainSigns;  // Gram point sign unsure
         if (!good[i]) {
             ++r.gramLawFailures;
             if (r.firstFailures.size() < 16)
                 r.firstFailures.push_back(nFirst + static_cast<int64_t>(i));
         }
+    }
     r.verified = r.unresolvedBlocks.empty() && r.zerosFound == r.zerosExpected;
+
+    // Turing/Brent: the last K Rosser-satisfying blocks bound N(g_n) from
+    // above; the zeros counted on the line from g_{−1} (N = 0) bound it from
+    // below → N(g_n) = n + 1 exactly.
+    // Turing/Brent：最後 K 個滿足 Rosser 的區塊給出 N(g_n) 上界；
+    // 從 g_{−1}（N=0）起線上計得的零點給出下界 → N(g_n)=n+1 精確成立。
+    const int64_t K = TuringBlocksRequired(g[b]);
+    r.turingBlocksUsed = K;
+    if (r.verified && r.uncertainSigns == 0 && r.firstGram == -1 &&
+        static_cast<int64_t>(blocks.size()) > K) {
+        const size_t idx = blocks[blocks.size() - static_cast<size_t>(K)].start;
+        r.turingCertified = true;
+        r.certifiedGram = nFirst + static_cast<int64_t>(idx);
+        r.certifiedHeight = g[idx];
+        r.certifiedZeros = static_cast<uint64_t>(r.certifiedGram + 1);
+    }
     r.ms = MsSince(t0);
     return r;
 }
@@ -242,7 +297,7 @@ ZetaCompute::AuditReport ZetaCompute::RunAudit(const AuditConfig& cfgIn) {
     // 3) Gram / Rosser 區塊臨界線驗證。
     {
         const GramReport gr = VerifyCriticalLine(-1, cfg.gramLast);
-        char buf[160];
+        char buf[256];
         std::snprintf(buf, sizeof(buf),
                       "%llu/%llu zeros to t=%.1f bad_gram=%llu rosser_blocks=%llu",
                       static_cast<unsigned long long>(gr.zerosFound),
@@ -250,6 +305,14 @@ ZetaCompute::AuditReport ZetaCompute::RunAudit(const AuditConfig& cfgIn) {
                       static_cast<unsigned long long>(gr.gramLawFailures),
                       static_cast<unsigned long long>(gr.rosserBlocks));
         emit("gram.critical_line", buf, gr.verified);
+        std::snprintf(buf, sizeof(buf),
+                      "N(%.2f)=%llu exact (K=%lld) uncertain_signs=%llu min_margin=%.1fx",
+                      gr.certifiedHeight,
+                      static_cast<unsigned long long>(gr.certifiedZeros),
+                      static_cast<long long>(gr.turingBlocksUsed),
+                      static_cast<unsigned long long>(gr.uncertainSigns),
+                      gr.minMarginRatio);
+        emit("turing.certified", buf, gr.turingCertified);
     }
 
     // 4) Random-matrix fingerprint: GUE spacing (KS) + Montgomery repulsion.
@@ -326,6 +389,60 @@ ZetaCompute::AuditReport ZetaCompute::RunAudit(const AuditConfig& cfgIn) {
              std::to_string(hl.size()) + " (lambda=" + Fmt("%.2f", lam) + ")",
              hl.size() + 1 >= expect);
     }
+
+    rep.ms = MsSince(t0);
+    return rep;
+}
+
+ZetaCompute::AuditReport ZetaCompute::SelfTest() {
+    const auto t0 = std::chrono::steady_clock::now();
+    AuditReport rep;
+    auto emit = [&](std::string name, std::string value, bool ok) {
+        rep.items.push_back({std::move(name), std::move(value), ok});
+        ++rep.total;
+        if (ok) ++rep.passed;
+    };
+
+    // Known answers (Odlyzko tables; N(1000) = 649; first Gram failure 126).
+    // 已知答案（Odlyzko 表；N(1000)=649；首個 Gram 失效 126）。
+    static constexpr double kZeros[5] = {14.134725141734693, 21.022039638771555,
+                                         25.010857580145688, 30.424876125859513,
+                                         32.935061587739189};
+    const ZeroSpectrum spec = FindZeros(10.0, 1000.0, 0.02);
+    emit("golden.N1000", std::to_string(spec.Size()) + "/649", spec.Size() == 649);
+    double zerr = 1.0;
+    if (spec.Size() >= 5) {
+        zerr = 0.0;
+        for (int i = 0; i < 5; ++i)
+            zerr = std::max(zerr, std::fabs(spec.Gammas()[i] - kZeros[i]));
+    }
+    emit("golden.odlyzko_max_err", Fmt("%.2e", zerr), zerr < 1e-6);
+
+    const GramReport gr = VerifyCriticalLine(-1, 1000, 8);
+    emit("golden.gram_first_failure",
+         gr.firstFailures.empty() ? "none" : std::to_string(gr.firstFailures[0]),
+         !gr.firstFailures.empty() && gr.firstFailures[0] == 126);
+    emit("golden.turing_certified",
+         std::to_string(gr.certifiedZeros) + " zeros to t=" +
+             Fmt("%.2f", gr.certifiedHeight),
+         gr.turingCertified && gr.certifiedZeros >= 990);
+
+    // Determinism: the same Z(t) bits from 1 worker and from N workers —
+    // required for lockstep networking and replay on any backend.
+    // 確定性：1 worker 與 N worker 產生相同位元的 Z(t)——
+    // 任何後端上的鎖步網路與重播皆需此性質。
+    std::vector<double> ts(4096);
+    for (size_t i = 0; i < ts.size(); ++i) ts[i] = 10.0 + 1.2207 * static_cast<double>(i);
+    const std::vector<double> par = EvaluateZ(ts);
+    GPU::CPUBackend single(1);
+    std::vector<double> seq(ts.size());
+    single.ParallelFor(static_cast<uint32_t>(ts.size()),
+                       [&](uint32_t i) { seq[i] = HardyZ(ts[i]); }, 4096);
+    const bool same = std::memcmp(par.data(), seq.data(), par.size() * sizeof(double)) == 0;
+    emit("golden.bit_determinism",
+         std::to_string(ts.size()) + " samples, " +
+             std::to_string(m_Runtime.GetBackend().WorkerCount()) + " vs 1 workers",
+         same);
 
     rep.ms = MsSince(t0);
     return rep;

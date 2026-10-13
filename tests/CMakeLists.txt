@@ -23,10 +23,15 @@ target_link_libraries(StonePotatoesMathTests
         StonePotatoesMath
         StonePotatoesGPU
         StonePotatoesIQGPU
+        StonePotatoesWorld
         Threads::Threads
 )
 
 add_test(NAME math_iqgpu_unit COMMAND StonePotatoesMathTests)
+
+# RH CLI smoke: golden self-test + Turing-certified verification to g_20000
+# RH 命令列冒煙測試：黃金自檢 + Turing 認證驗證至 g_20000
+add_test(NAME rh_verify_cli COMMAND StonePotatoesRHVerify 20000 8 --selftest)
 
 # NPC vertical-slice tests | NPC 垂直切片測試
 add_executable(StonePotatoesNpcTests unit/test_npc.cpp)
@@ -40,3 +45,16 @@ target_link_libraries(StonePotatoesNpcTests
 )
 
 add_test(NAME npc_unit COMMAND StonePotatoesNpcTests)
+
+# Parallel system scheduler tests | 平行系統排程測試
+add_executable(StonePotatoesParallelTests unit/test_parallel.cpp)
+target_include_directories(StonePotatoesParallelTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesParallelTests
+    PRIVATE
+        StonePotatoesCore
+        StonePotatoesECS
+        StonePotatoesGPU
+        Threads::Threads
+)
+
+add_test(NAME parallel_unit COMMAND StonePotatoesParallelTests)

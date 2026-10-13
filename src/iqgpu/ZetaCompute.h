@@ -50,6 +50,24 @@ public:
         std::vector<int64_t> unresolvedBlocks;
         bool verified = false;
         double ms = 0.0;
+
+        // Sign certainty: every counted sample satisfied |Z| > error bound
+        // (Gabcke); samples inside the band are nudged, survivors counted.
+        // 符號確定性：每個計數樣本皆滿足 |Z| > 誤差界（Gabcke）；
+        // 落在誤差帶內的樣本會被微移重取，仍不確定者計入此數。
+        uint64_t samplesEvaluated = 0;
+        uint64_t uncertainSigns = 0;
+        double minMarginRatio = 0.0;    // min |Z|/bound over samples | 最小餘裕倍數
+
+        // Turing/Brent certification (requires nFirst = −1): N(g_n) = n+1
+        // exactly, i.e. every zero with 0 < γ < g_n is on the critical line.
+        // Turing/Brent 認證（需 nFirst=−1）：N(g_n)=n+1 精確成立，
+        // 即 0<γ<g_n 的所有零點皆在臨界線上。
+        bool turingCertified = false;
+        int64_t certifiedGram = 0;      // n | 認證 Gram 索引
+        double certifiedHeight = 0.0;   // g_n | 認證高度
+        uint64_t certifiedZeros = 0;    // N(g_n) = n + 1
+        int64_t turingBlocksUsed = 0;   // K (Brent bound) | Brent 區塊數
     };
     GramReport VerifyCriticalLine(int64_t nFirst, int64_t nLast,
                                   uint32_t samplesPerInterval = 64);
@@ -79,6 +97,15 @@ public:
         std::string ToString() const;
     };
     AuditReport RunAudit(const AuditConfig& cfg);
+
+    // Golden-value backend self-test — a known-answer compute workload for
+    // validating any IQGPU backend (today CPU; future GPU/QPU): N(1000)=649,
+    // Odlyzko zeros, Gram failure at n=126, and bit-identical Z(t) between
+    // a 1-worker and an N-worker dispatch (determinism for lockstep/replays).
+    // 黃金值後端自檢——用於驗證任何 IQGPU 後端（現為 CPU，未來 GPU/QPU）
+    // 的已知答案計算負載：N(1000)=649、Odlyzko 零點、Gram 於 n=126 失效、
+    // 以及 1-worker 與 N-worker 派發的 Z(t) 位元一致（鎖步/重播確定性）。
+    AuditReport SelfTest();
 
     // Free-style scan helpers (backend passed directly, no runtime).
     // 自由式掃描（直接傳後端，不需 runtime）。

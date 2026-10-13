@@ -109,6 +109,52 @@ private:
     std::vector<double> m_Spacings;  // mean exactly 1 | 平均恰為 1
 };
 
+// SpectralScatter — chunk-seamless 2D scatter for streaming worlds.
+// Uses spectral rigidity: unfolded zeros satisfy x_k − k = S(γ_k) with S(T)
+// small and bounded, so point k of a row sits within maxDev spacings of k·s.
+// Any point is therefore addressable by (row, index) without walking the
+// sequence → querying one big rect or any tiling of it gives the SAME set,
+// with GUE level repulsion intact across chunk borders.
+// SpectralScatter — 串流世界用、跨 chunk 無接縫的 2D 散佈。
+// 利用頻譜剛性：展開零點滿足 x_k − k = S(γ_k)，S(T) 小且有界，
+// 故列上第 k 點必落在 k·s 的 maxDev 個間距內。任一點可由（列、索引）
+// 直接定址，無需逐點走訪 → 查詢一個大矩形或其任意切塊，結果「完全相同」，
+// 且 GUE 層級排斥跨越 chunk 邊界仍成立。
+class SpectralScatter {
+public:
+    struct Config {
+        float spacing = 4.0f;    // mean distance along a row | 列上平均間距
+        uint32_t seed = 1;
+        float rowJitter = 0.25f; // ≤ 0.5 of row height | 列高比例抖動（≤0.5）
+    };
+    struct Sample {
+        float x = 0.0f;
+        float y = 0.0f;
+        int64_t row = 0;         // stable identity (row, index) | 穩定身分
+        int64_t index = 0;
+    };
+
+    SpectralScatter() = default;
+    SpectralScatter(const ZeroSpectrum& spectrum, const Config& cfg);
+
+    bool IsValid() const { return m_U.size() >= 8; }
+    const Config& GetConfig() const { return m_Cfg; }
+
+    // Max |x_k − k| over the table, in spacings (≈ max|S(T)|).
+    // 表內 max|x_k − k|（以間距計，≈ max|S(T)|）。
+    double MaxRigidityDeviation() const { return m_MaxDev; }
+
+    // All samples with x ∈ [x0,x1), y ∈ [y0,y1) (half-open → exact tiling).
+    // 半開區間 [x0,x1)×[y0,y1) 內所有樣本（半開 → 切塊精確分割）。
+    std::vector<Sample> Query(float x0, float y0, float x1, float y1) const;
+
+private:
+    double U(int64_t k) const;   // global unfolded position | 全域展開位置
+    std::vector<double> m_U;     // u[j] − u[0], mean spacing 1 | 平均間距 1
+    double m_MaxDev = 0.0;
+    Config m_Cfg;
+};
+
 class SpectralNoise {
 public:
     SpectralNoise() = default;

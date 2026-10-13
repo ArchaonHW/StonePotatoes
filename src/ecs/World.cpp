@@ -48,6 +48,15 @@ void World::Update(float deltaTime) {
     m_EventBus->Dispatch(); // deliver queued events at end of tick
 }
 
+SystemScheduler::ParallelStats
+World::UpdateParallel(float deltaTime, const ParallelForFn& parallelFor) {
+    auto stats =
+        m_SystemScheduler->UpdateSystemsParallel(this, deltaTime,
+                                                 parallelFor);
+    m_EventBus->Dispatch();
+    return stats;
+}
+
 void World::Shutdown() {
     if (m_Shutdown) return;
     m_Shutdown = true;

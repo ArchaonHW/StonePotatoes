@@ -94,6 +94,12 @@ struct SimClock { float time = 0.0f; };
 class PerceptionSystem : public ECS::System {
 public:
     void Update(ECS::World* world, float deltaTime) override;
+    void DescribeAccess(ECS::AccessSpec& a) const override {
+        a.Read<NPCPosition>();
+        a.Read<Food>();
+        a.Read<Threat>();
+        a.Write<Memory>();
+    }
     float Time() const { return m_Time; }
 private:
     float m_Time = 0.0f;
@@ -106,6 +112,12 @@ private:
 class DecisionSystem : public ECS::System {
 public:
     void Update(ECS::World* world, float deltaTime) override;
+    void DescribeAccess(ECS::AccessSpec& a) const override {
+        a.Read<NPCPosition>();
+        a.Read<Memory>();
+        a.Read<Needs>();
+        a.Write<Decision>();
+    }
 };
 
 // Decision → Velocity; eats food on arrival (deferred destroy +
@@ -115,6 +127,15 @@ public:
 class ActionSystem : public ECS::System {
 public:
     void Update(ECS::World* world, float deltaTime) override;
+    void DescribeAccess(ECS::AccessSpec& a) const override {
+        a.Read<NPCPosition>();
+        a.Read<Decision>();
+        a.Read<NpcStats>();
+        a.Write<NPCVelocity>();
+        a.Write<Needs>();
+        a.Write<Memory>();
+        a.structural = true;  // destroys eaten food entities | 銷毀被吃掉的實體
+    }
 };
 
 // Integrates position from velocity.
@@ -122,6 +143,10 @@ public:
 class NpcMovementSystem : public ECS::System {
 public:
     void Update(ECS::World* world, float deltaTime) override;
+    void DescribeAccess(ECS::AccessSpec& a) const override {
+        a.Read<NPCVelocity>();
+        a.Write<NPCPosition>();
+    }
 };
 
 // Registers all NPC component types with stable names.
