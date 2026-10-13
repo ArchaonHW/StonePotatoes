@@ -66,17 +66,16 @@ Java_io_stonepotatoes_web3agent_engine_GameEngine_getDeviceCaps(JNIEnv* env, jcl
     jclass deviceCapsClass = env->FindClass("io/stonepotatoes/web3agent/engine/GameEngine$DeviceCaps");
     if (!deviceCapsClass) return nullptr;
 
-    jmethodID constructor = env->GetMethodID(deviceCapsClass, "<init>", "(Ljava/lang/String;Ljava/lang/String;JIZ)V");
+    jmethodID constructor = env->GetMethodID(deviceCapsClass, "<init>", "(Ljava/lang/String;JIZ)V");
     if (!constructor) return nullptr;
 
     jstring name = env->NewStringUTF(caps.name.c_str());
-    jstring vendor = env->NewStringUTF(caps.vendor.c_str());
 
     jobject result = env->NewObject(deviceCapsClass, constructor,
-        name, vendor,
-        static_cast<jlong>(caps.totalMemory),
+        name,
+        static_cast<jlong>(caps.memoryBytes),
         static_cast<jint>(caps.computeUnits),
-        static_cast<jboolean>(caps.supportsTimestampQueries));
+        static_cast<jboolean>(caps.supportsAtomics));
 
     return result;
 #else

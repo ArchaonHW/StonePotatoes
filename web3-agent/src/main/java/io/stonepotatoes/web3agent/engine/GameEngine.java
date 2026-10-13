@@ -73,25 +73,23 @@ public class GameEngine {
     // Helper classes
     public static class DeviceCaps {
         public String name;
-        public String vendor;
-        public long totalMemory;
+        public long memoryBytes;
         public int computeUnits;
-        public boolean supportsTimestampQueries;
+        public boolean supportsAtomics;
 
         public DeviceCaps() {}
 
-        public DeviceCaps(String name, String vendor, long totalMemory, int computeUnits, boolean supportsTimestampQueries) {
+        public DeviceCaps(String name, long memoryBytes, int computeUnits, boolean supportsAtomics) {
             this.name = name;
-            this.vendor = vendor;
-            this.totalMemory = totalMemory;
+            this.memoryBytes = memoryBytes;
             this.computeUnits = computeUnits;
-            this.supportsTimestampQueries = supportsTimestampQueries;
+            this.supportsAtomics = supportsAtomics;
         }
 
         @Override
         public String toString() {
-            return String.format("DeviceCaps{name='%s', vendor='%s', memory=%dMB, units=%d, timestamp=%b}",
-                    name, vendor, totalMemory / (1024 * 1024), computeUnits, supportsTimestampQueries);
+            return String.format("DeviceCaps{name='%s', memory=%dMB, units=%d, atomics=%b}",
+                    name, memoryBytes / (1024 * 1024), computeUnits, supportsAtomics);
         }
     }
 
