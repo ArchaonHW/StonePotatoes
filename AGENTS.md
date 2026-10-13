@@ -23,6 +23,8 @@ Planned targets (source: PotatoEngine, also MIT-licensed by ArchaonHW):
 - Linux deps: `cmake g++ build-essential xorg-dev libwayland-dev libxkbcommon-dev` (GLFW is fetched by CMake and needs X11/Wayland headers).
 - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSTONEPOTATOES_BUILD_EDITOR=OFF && cmake --build build -j && ctest --test-dir build --output-on-failure`
 - Vulkan is optional: without the SDK only the CPU backend is built and `vulkan_unit` skips. Force CPU-only with `-DCMAKE_DISABLE_FIND_PACKAGE_Vulkan=ON` (as CI does).
+- Coverage (optional, GCC/Clang): `-DSTONEPOTATOES_ENABLE_COVERAGE=ON`, or run `./tools/ci/coverage.sh` (needs `lcov`) → `coverage/lcov.info`, `coverage/html/`. CI uploads it as the `cpp-coverage-lcov` artifact.
+- `vulkan_unit` exits 77 without a Vulkan device; ctest reports it as Skipped (`SKIP_RETURN_CODE 77`).
 - CI: `.github/workflows/ci.yml`.
 
 ## web3-agent (Java, standalone Maven module)

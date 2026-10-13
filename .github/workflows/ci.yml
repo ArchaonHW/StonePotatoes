@@ -30,6 +30,33 @@ jobs:
       - name: Install (smoke)
         run: cmake --install build --prefix "$RUNNER_TEMP/sp-install"
 
+  coverage:
+    name: C++ coverage (gcov/lcov)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ build-essential lcov xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
+      - name: Build, test, collect coverage
+        run: ./tools/ci/coverage.sh
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage/summary.txt ]; then
+            { echo '### C++ coverage (src/)'; echo '```'; cat coverage/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cpp-coverage-lcov
+          path: |
+            coverage/lcov.info
+            coverage/summary.txt
+            coverage/html
+          if-no-files-found: warn
+
   web3-agent:
     name: web3-agent (Java 25, mvn test)
     runs-on: ubuntu-24.04

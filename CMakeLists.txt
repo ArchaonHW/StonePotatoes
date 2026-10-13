@@ -20,6 +20,18 @@ option(STONEPOTATOES_BUILD_EXAMPLES "Build examples" ON)
 option(STONEPOTATOES_BUILD_EDITOR "Build editor" ON)
 option(STONEPOTATOES_ENABLE_PROFILING "Enable profiling" ON)
 option(STONEPOTATOES_ENABLE_ASSERTIONS "Enable assertions" OFF)
+option(STONEPOTATOES_ENABLE_COVERAGE "Instrument for gcov/lcov coverage (GCC/Clang)" OFF)
+
+# Coverage | 覆蓋率（gcov/lcov）
+if(STONEPOTATOES_ENABLE_COVERAGE)
+    if(MSVC)
+        message(WARNING "STONEPOTATOES_ENABLE_COVERAGE is ignored on MSVC")
+    else()
+        message(STATUS "Coverage instrumentation enabled | 已啟用覆蓋率插樁")
+        add_compile_options(--coverage -O0 -g)
+        add_link_options(--coverage)
+    endif()
+endif()
 
 # Compiler flags
 if(MSVC)
