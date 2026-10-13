@@ -1,0 +1,54 @@
+# Build outputs
+build/
+cmake-build-*/
+out/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Generated files
+*.generated.h
+*.generated.cpp
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Dependencies (if using vendored dependencies)
+external/*/build/
+
+# Test outputs
+test_results/
+coverage/
+
+# Profiling
+*.prof
+*.trace
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# Package manager
+node_modules/
+venv/
+.venv/
+
+# Editor backup
+*~
+*.orig
