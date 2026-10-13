@@ -23,6 +23,7 @@ target_link_libraries(StonePotatoesCore
     PUBLIC
         Threads::Threads
         glfw
+        ${CMAKE_DL_LIBS}  # dlopen for SharedLibraryPluginLoader | 外掛動態載入
 )
 
 if(STONEPOTATOES_ENABLE_PROFILING)

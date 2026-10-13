@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.5</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
@@ -21,10 +21,10 @@
     <description>Spring Boot + Cloud microservices for Web3 AI Agent IDE</description>
 
     <properties>
-        <java.version>21</java.version>
-        <spring-cloud.version>2023.0.3</spring-cloud.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <java.version>25</java.version>
+        <spring-cloud.version>2025.0.3</spring-cloud.version>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
     </properties>
 
     <modules>
@@ -53,6 +53,7 @@
                 <plugin>
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>3.5.16</version>
                 </plugin>
             </plugins>
         </pluginManagement>

@@ -64,3 +64,11 @@ venv/
 web3-agent/target/
 web3-agent/contracts/out/
 web3-agent/contracts/cache/
+
+# web3-ide build artifacts
+web3-ide/**/target/
+web3-ide/web-ui/src/main/frontend/node/
+web3-ide/web-ui/src/main/frontend/dist/
+
+# coverage output
+coverage/

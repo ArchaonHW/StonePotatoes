@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  cpp:
+    name: C++ engine (CPU backend, Vulkan disabled)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ build-essential xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
+      - name: Configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DSTONEPOTATOES_BUILD_EDITOR=OFF
+          -DCMAKE_DISABLE_FIND_PACKAGE_Vulkan=ON
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --timeout 300
+      - name: Install (smoke)
+        run: cmake --install build --prefix "$RUNNER_TEMP/sp-install"
+
+  coverage:
+    name: C++ coverage (gcov/lcov)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ build-essential lcov xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
+      - name: Build, test, collect coverage
+        run: ./tools/ci/coverage.sh
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage/summary.txt ]; then
+            { echo '### C++ coverage (src/)'; echo '```'; cat coverage/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cpp-coverage-lcov
+          path: |
+            coverage/lcov.info
+            coverage/summary.txt
+            coverage/html
+          if-no-files-found: warn
+
+  web3-agent:
+    name: web3-agent (Java 25, mvn test)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web3-agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - run: mvn -B test
+
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  web3-ide:
+    name: web3-ide (Maven build + password fail-fast)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Install web3-agent to local Maven repo
+        working-directory: web3-agent
+        run: mvn -B install -DskipTests
+      - name: Build web3-ide (all modules)
+        working-directory: web3-ide
+        run: mvn -B verify
+      - name: agent-service must fail fast without WEB3AGENT_PASSWORD
+        run: ./tools/ci/check-agent-password-failfast.sh

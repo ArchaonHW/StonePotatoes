@@ -20,6 +20,18 @@ option(STONEPOTATOES_BUILD_EXAMPLES "Build examples" ON)
 option(STONEPOTATOES_BUILD_EDITOR "Build editor" ON)
 option(STONEPOTATOES_ENABLE_PROFILING "Enable profiling" ON)
 option(STONEPOTATOES_ENABLE_ASSERTIONS "Enable assertions" OFF)
+option(STONEPOTATOES_ENABLE_COVERAGE "Instrument for gcov/lcov coverage (GCC/Clang)" OFF)
+
+# Coverage | 覆蓋率（gcov/lcov）
+if(STONEPOTATOES_ENABLE_COVERAGE)
+    if(MSVC)
+        message(WARNING "STONEPOTATOES_ENABLE_COVERAGE is ignored on MSVC")
+    else()
+        message(STATUS "Coverage instrumentation enabled | 已啟用覆蓋率插樁")
+        add_compile_options(--coverage -O0 -g)
+        add_link_options(--coverage)
+    endif()
+endif()
 
 # Compiler flags
 if(MSVC)
@@ -121,10 +133,13 @@ target_link_libraries(StonePotatoes
 
 # Install configuration
 include(GNUInstallDirs)
-install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesMath StonePotatoesRendering StonePotatoesPhysics StonePotatoesAI StonePotatoesWorld StonePotatoesCivilization StonePotatoesAgent StonePotatoesNetworking StonePotatoesData StonePotatoesGPU StonePotatoesMath StonePotatoesIQGPU StonePotatoesGame StonePotatoesSelfDevelopingAgent
+install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesRendering StonePotatoesPhysics StonePotatoesAI StonePotatoesWorld StonePotatoesCivilization StonePotatoesAgent StonePotatoesNetworking StonePotatoesData StonePotatoesGPU StonePotatoesMath StonePotatoesIQGPU StonePotatoesGame StonePotatoesSelfDevelopingAgent
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+# Public headers live alongside sources under src/ (there is no include/ dir).
+# 公開標頭與原始碼同在 src/（沒有 include/ 目錄）。
+install(DIRECTORY src/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes
+    FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
