@@ -30,6 +30,21 @@ jobs:
       - name: Install (smoke)
         run: cmake --install build --prefix "$RUNNER_TEMP/sp-install"
 
+  cpp-windows:
+    name: C++ engine (Windows MSVC, Vulkan disabled)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -DSTONEPOTATOES_BUILD_EDITOR=OFF
+          -DCMAKE_DISABLE_FIND_PACKAGE_Vulkan=ON
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure --timeout 600
+
   coverage:
     name: C++ coverage (gcov/lcov)
     runs-on: ubuntu-24.04
