@@ -44,6 +44,15 @@ jobs:
         run: cmake --build build --config Release --parallel
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure --timeout 600
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Build web3-agent JNI DLL (Vulkan OFF)
+        run: |
+          cmake -S web3-agent/src/main/cpp -B build-jni -A x64 -DSP_ENGINE_ENABLE_VULKAN=OFF
+          cmake --build build-jni --config Release
+          if (-not (Test-Path build-jni/bin/Release/stonepotatoes_engine.dll)) { throw "stonepotatoes_engine.dll not produced" }
 
   coverage:
     name: C++ coverage (gcov/lcov)
