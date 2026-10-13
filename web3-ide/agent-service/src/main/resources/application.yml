@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: agent-service
+  cloud:
+    config:
+      uri: http://localhost:8888
+      fail-fast: true
+  kafka:
+    bootstrap-servers: localhost:9092
+
+server:
+  port: 8081
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+agent:
+  password: ${WEB3AGENT_PASSWORD:test123}
+  data-dir: ./data
+  chain:
+    url: http://127.0.0.1:8545
+  llm:
+    type: openai
+    url: http://127.0.0.1:11434/v1
+    model: qwen2.5:7b
+  p2p:
+    port: 30401
+  max-tx-eth: 0.1
+  max-daily-eth: 1
