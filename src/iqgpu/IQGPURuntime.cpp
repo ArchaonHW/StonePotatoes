@@ -10,14 +10,20 @@ IQGPURuntime::~IQGPURuntime() = default;
 void IQGPURuntime::Initialize() {
     if (m_Initialized) return;
     m_Device = GPU::SelectDevice(/*preferGPU=*/true);
-    m_Backend = std::make_unique<GPU::CPUBackend>(m_Device.computeUnits);
+    // CPU backend workers come from hardware concurrency — NOT from the
+    // selected device caps (a GPU caps entry would give queueCount=1).
+    // CPU 後端 worker 數取決於硬體並行度 — 非選定裝置的 caps
+    // （GPU caps 會回傳 queueCount=1）。
+    m_Backend = std::make_unique<GPU::CPUBackend>();
     m_Initialized = true;
     STONEPOTATOES_LOG_INFO(
         "[IQGPU] Initialized | 已初始化 — device=%s units=%u",
         m_Device.name.c_str(), m_Device.computeUnits);
     STONEPOTATOES_LOG_INFO(
         "[IQGPU] Backend: CPU reference | 後端：CPU 參考實作"
-        " (GPU backend: Planned | GPU 後端：計畫中)");
+        "%s", GPU::VulkanBackend::IsAvailable()
+                  ? " + Vulkan (lazy) | + Vulkan（惰性）"
+                  : " (GPU backend: Planned | GPU 後端：計畫中)");
 }
 
 void IQGPURuntime::Shutdown() {
@@ -25,6 +31,7 @@ void IQGPURuntime::Shutdown() {
     m_Graph.Clear();
     m_Buffers.clear();
     m_TypedBuffers.clear();
+    m_Vulkan.reset();
     m_Backend.reset();
     m_Initialized = false;
     STONEPOTATOES_LOG_INFO("[IQGPU] Shutdown | 關閉");
@@ -51,6 +58,24 @@ IQGPURuntime::Dispatch(const GPU::Kernel& kernel,
 
 GPU::ComputeGraph::RunResult IQGPURuntime::ExecuteGraph() {
     return m_Graph.Execute(*m_Backend);
+}
+
+GPU::VulkanBackend* IQGPURuntime::GetVulkanBackend() {
+    if (!m_Initialized) Initialize();
+    if (!m_Vulkan && GPU::VulkanBackend::IsAvailable()) {
+        auto vk = std::make_unique<GPU::VulkanBackend>();
+        if (vk->Initialize()) {
+            STONEPOTATOES_LOG_INFO(
+                "[IQGPU] Vulkan backend up | Vulkan 後端就緒 — %s",
+                vk->GetCaps().name.c_str());
+            m_Vulkan = std::move(vk);
+        } else {
+            STONEPOTATOES_LOG_INFO(
+                "[IQGPU] Vulkan init failed | Vulkan 初始化失敗 — %s",
+                vk->LastError().c_str());
+        }
+    }
+    return m_Vulkan.get();
 }
 
 } // namespace IQGPU

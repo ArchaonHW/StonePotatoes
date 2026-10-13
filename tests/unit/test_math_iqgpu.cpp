@@ -3,6 +3,12 @@
 
 #include "math/RiemannZeta.h"
 #include "math/ZetaSpectral.h"
+#include "math/HighPrecisionZ.h"
+#include "iqgpu/ZetaVerificationJob.h"
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <string>
 #include "gpu/CPUBackend.h"
 #include "gpu/ComputeGraph.h"
 #include "gpu/Kernel.h"
@@ -422,6 +428,102 @@ void TestResourceScatter() {
     CHECK(ore < 0.7 * 256.0 * 256.0 / (20.0 * 20.0 * 0.866));      // mask culls
 }
 
+// --- Double-double + high-precision Z | 雙倍精度 + 高精度 Z ---
+void TestHighPrecisionZ() {
+    using namespace Math;
+    const DD::dd l2 = DD::Sub(DD::LogD(2.0), DD::kLn2);
+    CHECK(std::fabs(DD::ToDouble(l2)) < 1e-30);
+    const DD::dd e = DD::Sub(DD::Exp(DD::LogD(10.0)), DD::dd{10.0, 0.0});
+    // Measured 4.5e-28 abs (4.5e-29 rel): 10 squarings amplify ~1024×.
+    // 實測絕對誤差 4.5e-28（相對 4.5e-29）：10 次平方放大約 1024 倍。
+    CHECK(std::fabs(DD::ToDouble(e)) < 1e-26);
+    // 12345678901 full turns reduce to ~0 | 整數圈數約化為 ~0
+    CHECK(std::fabs(DD::Reduce2Pi(DD::MulD(DD::kTwoPi, 12345678901.0))) < 1e-15);
+
+    // θ_dd agrees with the double asymptotic series at moderate t.
+    // 中等 t 時 θ_dd 與 double 漸近級數一致。
+    CHECK(std::fabs(DD::ToDouble(Zeta::ThetaDD(1000.0)) - Zeta::RSTheta(1000.0)) < 1e-11);
+
+    // dd Gram point satisfies θ(g_n) = nπ far better than the double one.
+    // dd Gram 點滿足 θ(g_n)=nπ，遠優於 double 版本。
+    const int64_t n = 1000000000;
+    const double g = Zeta::GramPointDD(n);
+    DD::dd target = DD::TwoProd(static_cast<double>(n), DD::kPi.hi);
+    target = DD::AddD(target, static_cast<double>(n) * DD::kPi.lo);
+    const double resid = DD::ToDouble(DD::Sub(Zeta::ThetaDD(g), target));
+    const double ulp = std::nextafter(g, 2.0 * g) - g;
+    CHECK(std::fabs(resid) <= Zeta::RSThetaPrime(g) * ulp);
+
+    // dd-phase Z matches double HardyZ where the latter is still accurate.
+    // 在 double HardyZ 仍精確之處，dd 相位 Z 與其一致。
+    Zeta::HighPrecisionZ hpz(2.0e5);
+    double worst = 0.0;
+    for (double t = 1.0e4; t < 2.0e5; t += 997.3)
+        worst = std::max(worst, std::fabs(hpz.Z(t) - Zeta::HardyZ(t)));
+    CHECK(worst < 1e-6);
+    CHECK(Zeta::HighPrecisionZ::ErrorBound(3.3e9) < 1e-8);
+    CHECK(Zeta::HardyZErrorBound(3.3e9) > 1e-3);  // why dd is needed | 需要 dd 的原因
+}
+
+// --- Two-sided Turing window at height | 高處雙側 Turing 視窗 ---
+void TestTuringWindow() {
+    IQGPU::IQGPURuntime rt;
+    rt.Initialize();
+    IQGPU::ZetaCompute zc(rt);
+    auto w = zc.VerifyWindow(100000000, 100001500, 8);
+    CHECK(w.highPrecision);
+    CHECK(w.verified);
+    CHECK(w.uncertainSigns == 0);
+    CHECK(w.turingCertified);
+    CHECK(w.certifiedGramLo > 100000000 && w.certifiedGram < 100001500);
+    CHECK(w.certifiedZeros == static_cast<uint64_t>(w.certifiedGram - w.certifiedGramLo));
+    CHECK(w.certifiedZeros > 1400);
+    rt.Shutdown();
+}
+
+// --- Time-sliced checkpointed job | 時間切片檢查點工作 ---
+void TestVerificationJob() {
+    IQGPU::IQGPURuntime rt;
+    rt.Initialize();
+    IQGPU::ZetaCompute zc(rt);
+    IQGPU::ZetaVerificationJob job(zc, 8, 3000);
+    for (int i = 0; i < 100 && job.GetState().certifiedGram < 30000; ++i) {
+        const auto s = job.Step(20.0);
+        CHECK(s.segments >= 1);
+        if (job.Failed()) break;
+    }
+    CHECK(!job.Failed());
+    const auto st = job.GetState();
+    CHECK(st.certifiedGram >= 30000);
+    CHECK(st.CertifiedZeros() == static_cast<uint64_t>(st.certifiedGram + 1));
+    CHECK(std::fabs(st.certifiedHeight - Math::Zeta::GramPoint(st.certifiedGram)) <
+          1e-9 * st.certifiedHeight);
+
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "sp_rhjob_test.txt").string();
+    CHECK(job.Save(path));
+    IQGPU::ZetaVerificationJob resumed(zc, 8);
+    CHECK(resumed.Load(path));
+    CHECK(resumed.GetState().certifiedGram == st.certifiedGram);
+    resumed.Step(20.0);
+    CHECK(!resumed.Failed());
+    CHECK(resumed.GetState().certifiedGram > st.certifiedGram);
+
+    // Corrupt one digit → checksum rejects it | 改壞一位數 → 校驗拒絕
+    {
+        std::ifstream in(path, std::ios::binary);
+        std::string text((std::istreambuf_iterator<char>(in)), {});
+        in.close();
+        const size_t at = text.find("certified_gram=") + 15;
+        text[at] = text[at] == '9' ? '8' : static_cast<char>(text[at] + 1);
+        std::ofstream(path, std::ios::binary | std::ios::trunc) << text;
+    }
+    IQGPU::ZetaVerificationJob bad(zc, 8);
+    CHECK(!bad.Load(path));
+    std::filesystem::remove(path);
+    rt.Shutdown();
+}
+
 int main() {
     std::printf("=== StonePotatoes Math + IQGPU Tests ===\n");
 
@@ -437,6 +539,9 @@ int main() {
     TestTuringCertification();
     TestSpectralScatter();
     TestResourceScatter();
+    TestHighPrecisionZ();
+    TestTuringWindow();
+    TestVerificationJob();
 
     std::printf("=== %d passed, %d failed ===\n", g_Passed, g_Failed);
     return g_Failed == 0 ? 0 : 1;

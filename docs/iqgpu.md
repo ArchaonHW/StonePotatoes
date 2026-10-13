@@ -26,7 +26,7 @@ IQGPURuntime                     (implemented | 已實作)
      │
      └── Backend
            ├── CPUReference      (implemented | 已實作 — std::thread pool)
-           ├── DiscreteGPU       (planned    | 計畫中 — Vulkan/D3D12)
+           ├── DiscreteGPU       (implemented | 已實作 — Vulkan)
            ├── IntegratedGPU     (planned    | 計畫中)
            ├── NPU               (research   | 研究)
            └── QPU               (research   | 研究 — 無量子硬體)
@@ -40,6 +40,7 @@ IQGPURuntime                     (implemented | 已實作)
 | `GPU::ComputeBuffer` / `TypedBuffer<T>` | ✅ Implemented | Type-erased host buffer with `Upload`/`Download` transfer hooks matching GPU semantics. 具 GPU 語意 `Upload`/`Download` 介面的型別抹除主機緩衝。 |
 | `GPU::Kernel` / `DispatchParams` | ✅ Implemented | HLSL-style dispatch model (global thread index, group size hint). HLSL 式 dispatch 模型（全域執行緒索引、群組大小提示）。 |
 | `GPU::CPUBackend` | ✅ Implemented | Real multithreaded dispatch — contiguous partition (`Dispatch`), atomic grain-stealing (`ParallelFor`), and async submission (`DispatchAsync` → `std::future`). 真實多執行緒派發 — 連續切分（`Dispatch`）、原子粒度竊取（`ParallelFor`）與非同步提交（`DispatchAsync` → `std::future`）。 |
+| `GPU::VulkanBackend` | ✅ Implemented | Real Vulkan compute — instance/device/queue init, host-visible coherent buffers, SPIR-V pipelines (GLSL via glslc at build), fence-synced dispatch with GPU timestamp queries. Verified on RTX 5050: u32add bit-identical to CPU, saxpy 4M floats gpu=1.9ms/26.4GB/s err=0. Scope: single compute queue, sync dispatch, host-visible memory only. 真實 Vulkan 計算 — 裝置初始化、host-visible 緩衝、SPIR-V 管線、fence 同步派發 + GPU 時間戳。RTX 5050 實測：u32 與 CPU 位元一致、saxpy 誤差 0。範圍：單佇列、同步派發、僅 host-visible 記憶體。 |
 | `GPU::ComputeGraph` | ✅ Implemented | DAG of KernelDispatch/HostTask/Barrier nodes; topological execution; cycle detection; `ExecuteParallel` runs independent nodes concurrently. KernelDispatch/HostTask/Barrier 節點 DAG；拓撲執行；循環偵測；`ExecuteParallel` 並行執行無相依節點。 |
 | `IQGPU::KernelOptimizer` | ✅ Implemented | Measurement-driven variant selection: warmup + repeats, median/best/worst, speedup report; results feed the agent's `LearningSystem`. 量測驅動變體選擇：暖身 + 重複量測、中位/最佳/最差、加速比報告；結果回饋 Agent 的 `LearningSystem`。 |
 | `IQGPU::ZetaCompute` | ✅ Implemented | Parallel HardyZ zero scan (`FindZeros` → `ZeroSpectrum`), parallel `EvaluateZ`, Gram/Rosser `VerifyCriticalLine`, and `RunAudit` — an 11-check RH finite-verification suite (on-line count, argument-principle winding, Gram blocks, GUE KS, Montgomery R₂, explicit formula, Mertens, Robin, Li λ₁, de Bruijn–Newman). 平行 HardyZ 零點掃描、平行求值、Gram/Rosser 臨界線驗證與 11 項 RH 有限驗證稽核。 |
@@ -52,8 +53,9 @@ IQGPURuntime                     (implemented | 已實作)
 | `IQGPU::QuantumInspiredAnnealer` | ✅ Implemented | Annealing + long-range "tunneling" jumps (transverse-field analog). 退火 + 長程「穿隧」跳躍（橫向場類比）。 |
 | `IQGPU::AmplitudeAmplifier` | ✅ Implemented | Grover-inspired: real amplitude vector, oracle phase-flip + inversion-about-mean, optimal round bound `⌊π/4·√(N/M)⌋`. Grover 啟發：真實振幅向量、神諭相位翻轉 + 均值反轉、最佳輪數上界 `⌊π/4·√(N/M)⌋`。 |
 | `IQGPU::ProbabilisticStateSpace` | ✅ Implemented | Amplitude vectors, Born-rule measurement, additive interference. 振幅向量、玻恩定則測量、加法干涉。 |
-| Vulkan / D3D12 GPU backend | 📋 Planned | No GPU API integration yet. 尚無 GPU API 整合。 |
-| Async/multi-queue scheduling | 📋 Planned | Current graph execution is sequential topological order. 目前圖執行為循序拓撲順序。 |
+| D3D12 GPU backend | 📋 Planned | Vulkan backend exists; D3D12 port not started. Vulkan 後端已實作；D3D12 未開始。 |
+| Device-local VRAM + staging | 📋 Planned | Buffers are host-visible coherent; discrete-VRAM staging + transfer queue is future work. 緩衝為 host-visible；獨立 VRAM staging 與傳輸佇列為未來工作。 |
+| Async/multi-queue scheduling | 📋 Planned | CPU graph runs parallel waves; GPU dispatch is single-queue sync. CPU 圖已波次平行；GPU 派發為單佇列同步。 |
 | Real quantum hardware (QPU) | 🔬 Research | **No quantum hardware is claimed.** Quantum-inspired algorithms run classically. **不宣稱量子硬體。** 量子啟發演算法以傳統方式執行。 |
 
 ## Measured Results | 實測結果
@@ -201,9 +203,14 @@ not a machine-checked proof. Records (Platt–Trudgian 2021) reach 3·10¹².
 
 1. **Phase 2a (done)**: CPU reference backend + graph + QI algorithms.
    已完成：CPU 參考後端 + 計算圖 + 量子啟發演算法。
-2. **Phase 2b**: Vulkan compute backend behind the same
-   `Kernel`/`Dispatch`/`ComputeBuffer` API. 以同一 API 實作 Vulkan 計算後端。
-3. **Phase 2c**: Async dispatch, multi-queue graph execution, barriers
-   with real memory ordering. 非同步派發、多佇列圖執行、具真實記憶體序的屏障。
+2. **Phase 2b (done)**: Vulkan compute backend — real device init,
+   SPIR-V pipelines (glslc), host-visible buffers, fence-synced dispatch
+   + GPU timestamps; bit-exact u32 verified vs CPU on RTX 5050.
+   已完成：Vulkan 計算後端 — 真實裝置初始化、SPIR-V 管線（glslc）、
+   host-visible 緩衝、fence 同步派發 + GPU 時間戳；
+   RTX 5050 上 u32 與 CPU 位元一致。
+3. **Phase 2c**: Device-local VRAM + staging, async dispatch,
+   multi-queue graph execution, barriers with real memory ordering.
+   獨立 VRAM + staging、非同步派發、多佇列圖執行、真實記憶體序屏障。
 4. **Phase 8**: GPU-resident simulation kernels driven by the same graph.
    以同一圖驅動 GPU 常駐模擬核心。

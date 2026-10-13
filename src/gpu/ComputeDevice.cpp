@@ -1,4 +1,5 @@
 #include "ComputeDevice.h"
+#include "VulkanBackend.h"
 #include <thread>
 #include <cstdlib>
 
@@ -25,8 +26,10 @@ std::vector<DeviceCaps> EnumerateDevices() {
     cpu.supportsAtomics = true;
     devices.push_back(cpu);
 
-    // DiscreteGPU / QPU are intentionally NOT enumerated — no backend exists.
-    // DiscreteGPU / QPU 刻意不列入 — 尚無對應後端。
+    // Vulkan GPUs when a loader + compute device exist (QPU: still none).
+    // 有 Vulkan loader 與計算裝置時列入 GPU（QPU：仍無）。
+    auto gpus = VulkanBackend::EnumerateGPUs();
+    devices.insert(devices.end(), gpus.begin(), gpus.end());
     return devices;
 }
 

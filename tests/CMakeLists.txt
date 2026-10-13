@@ -41,6 +41,8 @@ target_link_libraries(StonePotatoesNpcTests
         StonePotatoesCore
         StonePotatoesECS
         StonePotatoesAI
+        StonePotatoesMath
+        StonePotatoesWorld
         Threads::Threads
 )
 
@@ -58,3 +60,17 @@ target_link_libraries(StonePotatoesParallelTests
 )
 
 add_test(NAME parallel_unit COMMAND StonePotatoesParallelTests)
+
+# Vulkan backend tests (skips cleanly without a loader/device)
+# Vulkan 後端測試（無 loader/裝置時乾淨跳過）
+add_executable(StonePotatoesVulkanTests unit/test_vulkan.cpp)
+target_include_directories(StonePotatoesVulkanTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesVulkanTests
+    PRIVATE
+        StonePotatoesCore
+        StonePotatoesGPU
+        StonePotatoesIQGPU
+        Threads::Threads
+)
+
+add_test(NAME vulkan_unit COMMAND StonePotatoesVulkanTests)

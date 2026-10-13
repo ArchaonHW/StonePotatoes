@@ -17,6 +17,8 @@
 #include "iqgpu/ZetaCompute.h"
 #include "math/ZetaSpectral.h"
 #include "ai/NPC.h"
+#include "world/procedural/ResourceScatter.h"
+#include "world/procedural/WorldStreamer.h"
 
 #include <cmath>
 #include <iostream>
@@ -292,6 +294,57 @@ int main(int argc, char* argv[]) {
         STONEPOTATOES_LOG_INFO("[IQGPU] graph: %u nodes, %.2f ms, order=%s",
             gr.nodesExecuted, gr.totalMs,
             [&]{ std::string s; for (auto& n : gr.executionOrder) s += n + " "; return s; }().c_str());
+
+        // 3) Real GPU: Vulkan saxpy on the discrete device, verified
+        // against the CPU result. 真實 GPU：Vulkan 在獨顯上執行 saxpy，
+        // 並與 CPU 結果驗證。
+#ifdef SP_VULKAN
+        if (auto* vk = iqgpu.GetVulkanBackend()) {
+            auto devices = iqgpu.ListDevices();
+            for (const auto& d : devices)
+                if (d.type != StonePotatoes::GPU::DeviceType::CPUReference)
+                    STONEPOTATOES_LOG_INFO(
+                        "[Vulkan] device: %s (%s, %.1f GiB, f64=%d)",
+                        d.name.c_str(),
+                        d.type == StonePotatoes::GPU::DeviceType::DiscreteGPU
+                            ? "dGPU" : "iGPU",
+                        d.memoryBytes / 1073741824.0,
+                        d.supportsFloat64 ? 1 : 0);
+
+            constexpr uint32_t N = 1u << 22;
+            std::vector<float> ga(N), gb(N), gc(N);
+            for (uint32_t i = 0; i < N; ++i) {
+                ga[i] = static_cast<float>(i % 1024) * 0.5f;
+                gb[i] = static_cast<float>(i % 512) * 0.25f;
+            }
+            auto ha = vk->CreateBuffer(N * 4), hb = vk->CreateBuffer(N * 4),
+                 hc = vk->CreateBuffer(N * 4);
+            vk->WriteBuffer(ha, ga.data(), N * 4);
+            vk->WriteBuffer(hb, gb.data(), N * 4);
+            auto kernel = vk->CreateKernelFromFile(
+                SP_SHADER_DIR "/saxpy.spv", 3, 8);
+            struct { float alpha; uint32_t n; } pc{2.5f, N};
+            auto dr = vk->Dispatch(kernel, {ha, hb, hc}, (N + 255) / 256, 1, 1,
+                                   &pc, sizeof(pc));
+            vk->ReadBuffer(hc, gc.data(), N * 4);
+            double maxErr = 0.0;
+            for (uint32_t i = 0; i < N; ++i)
+                maxErr = std::max(maxErr, static_cast<double>(std::fabs(
+                                  gc[i] - (2.5f * ga[i] + gb[i]))));
+            STONEPOTATOES_LOG_INFO(
+                "[Vulkan] saxpy %u floats: gpu=%.3fms wall=%.3fms "
+                "maxErr=%.2e (%.1f GB/s) | 誤差 %.2e",
+                N, dr.gpuMs, dr.wallMs, maxErr,
+                3.0 * N * 4.0 / (dr.gpuMs * 1e6), maxErr);
+            vk->DestroyKernel(kernel);
+            vk->DestroyBuffer(ha);
+            vk->DestroyBuffer(hb);
+            vk->DestroyBuffer(hc);
+        } else {
+            STONEPOTATOES_LOG_INFO(
+                "[Vulkan] unavailable — CPU backend only | 不可用 — 僅 CPU 後端");
+        }
+#endif
         iqgpu.Shutdown();
     }
 
@@ -525,11 +578,21 @@ int main(int argc, char* argv[]) {
         sched.RegisterSystem(std::make_unique<A::ActionSystem>());
         sched.RegisterSystem(std::make_unique<A::NpcMovementSystem>());
 
+        // World-gen closed loop: spectral-scattered food streams in
+        // around the NPC; eaten nodes stay harvested forever.
+        // 世界生成閉環：頻譜散佈的食物在 NPC 周圍串流載入；
+        // 被吃掉的節點永久消失。
+        auto npcSpec =
+            StonePotatoes::Math::Zeta::ZeroSpectrum::Compute(10.0, 60.0, 0.02);
+        StonePotatoes::World::ResourceScatter scatter(npcSpec, 7);
+        scatter.AddLayer({1, 7.0f, 1.0f, 0.02f, -10.0f});
+        auto* streamer = new StonePotatoes::World::WorldStreamer(
+            &scatter, {48.0f, 1, 0.05f, {1}});
+        sched.RegisterSystem(std::unique_ptr<StonePotatoes::ECS::System>(streamer));
+        sched.InitializeSystems(&sim);   // subscribe harvest hook | 訂閱採集掛鉤
+
         auto npc = A::SpawnNpc(sim, 0.0f, 0.0f);
         sim.GetComponent<A::Needs>(npc)->hunger = 0.8f;
-        auto nearFood = sim.CreateEntity();
-        sim.AddComponent(nearFood, A::NPCPosition{5.0f, 0.0f});
-        sim.AddComponent(nearFood, A::Food{});
         auto farFood = sim.CreateEntity();
         sim.AddComponent(farFood, A::NPCPosition{80.0f, 0.0f});
         sim.AddComponent(farFood, A::Food{});
@@ -587,6 +650,11 @@ int main(int argc, char* argv[]) {
             "[NPC] knows far food? %s (local info only | 僅局部資訊)",
             mem->Find(farFood.id) != StonePotatoes::AI::Memory::kMax
                 ? "YES" : "NO");
+        STONEPOTATOES_LOG_INFO(
+            "[World] chunks=%zu spawned=%zu harvested=%zu "
+            "| 已載入 chunk、生成節點、永久採集數",
+            streamer->LoadedChunkCount(), streamer->SpawnedEntityCount(),
+            streamer->HarvestedCount());
         STONEPOTATOES_LOG_INFO(
             "[Sched] waves=%u systems=%u maxWave=%u tick=%.2fms "
             "(sequential chain verified | 依賴鏈已驗證)",

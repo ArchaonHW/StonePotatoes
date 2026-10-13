@@ -5,6 +5,7 @@
 add_library(StonePotatoesMath STATIC
     RiemannZeta.cpp
     ZetaSpectral.cpp
+    HighPrecisionZ.cpp
 )
 
 target_include_directories(StonePotatoesMath

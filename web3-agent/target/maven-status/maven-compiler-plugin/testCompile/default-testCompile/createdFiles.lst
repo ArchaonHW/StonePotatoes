@@ -1,0 +1,9 @@
+io\stonepotatoes\web3agent\agent\Web3AgentTest.class
+io\stonepotatoes\web3agent\chain\ChainClientTest$MutableClock.class
+io\stonepotatoes\web3agent\chain\ChainClientTest.class
+io\stonepotatoes\web3agent\p2p\P2PTest.class
+io\stonepotatoes\web3agent\FakeEvmNode.class
+io\stonepotatoes\web3agent\FakeEvmNode$SentTx.class
+io\stonepotatoes\web3agent\TestUtil.class
+io\stonepotatoes\web3agent\agent\Web3AgentTest$1.class
+io\stonepotatoes\web3agent\wallet\AgentWalletTest.class

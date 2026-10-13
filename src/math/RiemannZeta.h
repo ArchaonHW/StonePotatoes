@@ -239,16 +239,21 @@ inline double GramPoint(int64_t n) {
 
 // Error bound of HardyZ(t). RS path: Gabcke (1979) remainder after the C0, C1
 // terms |R| ≤ 0.053·t^{-5/4} (t ≥ 200) — measured max error 6.7e-5 at t≈200
-// matches 0.053·200^{-5/4} = 7.0e-5. EM path (t < kHybridT): θ truncation
-// + summation rounding, conservatively 1e-8. Plus phase rounding ~1e-13·t.
+// matches 0.053·200^{-5/4} = 7.0e-5 — PLUS worst-case floating-point phase
+// rounding: each of the N = √(t/2π) terms has phase θ − t·ln k of size
+// ≤ t·ln t, rounded to ≤ 4u·t·ln t (u = 2⁻⁵³: θ, log, product, subtraction);
+// cos is 1-Lipschitz and Σ1/√k ≤ 2√N, so 2·Σ ≤ 16u·t·ln t·√N.
+// EM path (t < kHybridT): θ truncation + summation rounding, ≤ 1e-8.
 // A sample with |Z| above this bound has a certain sign.
-// HardyZ(t) 誤差界。RS 路徑：Gabcke（1979）C0、C1 之後餘項界
-// |R| ≤ 0.053·t^{-5/4}（t≥200）——實測 t≈200 最大誤差 6.7e-5，
-// 與 0.053·200^{-5/4}=7.0e-5 吻合。EM 路徑保守取 1e-8；再加相位捨入 ~1e-13·t。
-// |Z| 大於此界的樣本，其符號是確定的。
+// HardyZ(t) 誤差界。RS 路徑：Gabcke（1979）餘項界 0.053·t^{-5/4}，
+// 「加上」最壞情況浮點相位捨入：N=√(t/2π) 項，每項相位量級 ≤ t·ln t，
+// 捨入 ≤ 4u·t·ln t（u=2⁻⁵³）；cos 為 1-Lipschitz 且 Σ1/√k ≤ 2√N，
+// 故總和 ≤ 16u·t·ln t·√N。EM 路徑 ≤ 1e-8。|Z| 大於此界的樣本，符號確定。
 inline double HardyZErrorBound(double t) {
-    const double base = t < kHybridT ? 1e-8 : 0.053 * std::pow(t, -1.25);
-    return base + 1e-13 * t;
+    if (t < kHybridT) return 1e-8;
+    constexpr double u = 1.1102230246251565e-16;
+    const double rounding = 16.0 * u * t * std::log(t) * std::pow(t / kTwoPi, 0.25); // √N
+    return 0.053 * std::pow(t, -1.25) + rounding;
 }
 
 // Brent (1979, Thm 3.2) / Turing's method: if K consecutive Gram blocks with

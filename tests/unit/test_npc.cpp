@@ -6,6 +6,9 @@
 
 #include "ai/NPC.h"
 #include "ecs/World.h"
+#include "math/ZetaSpectral.h"
+#include "world/procedural/ResourceScatter.h"
+#include "world/procedural/WorldStreamer.h"
 
 #include <cmath>
 #include <cstdio>
@@ -199,6 +202,59 @@ void TestForget() {
     CHECK(FindRecord(*w->GetComponent<Memory>(npc), food.id) == nullptr);
 }
 
+// --- World closed loop: streamed scatter → perceived → eaten → gone ---
+// 世界閉環：串流散佈 → 被感知 → 被吃掉 → 永久消失
+void TestWorldStreamLoop() {
+    namespace W = StonePotatoes::World;
+    auto w = MakeWorld();   // streamer registered manually below
+
+    // Small spectrum is enough — rigidity holds even for 13 zeros.
+    // 小頻譜即可 — 13 個零點的剛性已足夠。
+    auto spectrum = Math::Zeta::ZeroSpectrum::Compute(10.0, 60.0, 0.02);
+    W::ResourceScatter scatter(spectrum, 42);
+    scatter.AddLayer({1, 6.0f, 1.0f, 0.02f, -10.0f});  // edible everywhere
+
+    auto* streamer = new W::WorldStreamer(&scatter, {32.0f, 1, 0.05f, {1}});
+    w->GetSystemScheduler().RegisterSystem(
+        std::unique_ptr<ECS::System>(streamer));
+    // Re-init so the streamer subscribes to events.
+    // 重新初始化讓 streamer 訂閱事件。
+    w->GetSystemScheduler().InitializeSystems(w.get());
+
+    ECS::Entity npc = SpawnNpc(*w, 8.0f, 8.0f);
+    w->GetComponent<Needs>(npc)->hunger = 0.9f;
+
+    Tick(*w, 1);
+    CHECK(streamer->LoadedChunkCount() == 9);   // 3x3 around NPC
+    CHECK(streamer->SpawnedEntityCount() > 0);
+
+    // The NPC should perceive only streamed food, and eat one.
+    // NPC 應只感知到串流食物並吃掉其中一個。
+    int ate = 0;
+    w->GetEventBus().Subscribe<FoodEatenEvent>(
+        [&](const FoodEatenEvent&) { ++ate; });
+    Tick(*w, 60);   // ~3 sim-seconds: seek + arrive + eat
+    CHECK(ate >= 1);
+    CHECK(streamer->HarvestedCount() >= 1);
+
+    // Walk the NPC far away → nearby chunks unload.
+    // NPC 走遠 → 附近 chunk 卸載。
+    w->GetComponent<NPCPosition>(npc)->x = 1000.0f;
+    w->GetComponent<NPCPosition>(npc)->y = 1000.0f;
+    Tick(*w, 2);
+    // Old chunks gone; new 3x3 around (1000,1000) loaded.
+    CHECK(streamer->LoadedChunkCount() == 9);
+
+    // Teleport back — the eaten node must NOT respawn (harvested set).
+    // 傳送回來 — 被吃掉的節點不得重生。
+    const size_t harvested = streamer->HarvestedCount();
+    w->GetComponent<NPCPosition>(npc)->x = 8.0f;
+    w->GetComponent<NPCPosition>(npc)->y = 8.0f;
+    Tick(*w, 2);
+    CHECK(streamer->HarvestedCount() == harvested);
+    CHECK(streamer->LoadedChunkCount() == 9);
+}
+
 int main() {
     std::printf("=== StonePotatoes NPC Vertical-Slice Tests ===\n");
 
@@ -209,6 +265,7 @@ int main() {
     TestStaleMemory();
     TestDeterminism();
     TestForget();
+    TestWorldStreamLoop();
 
     std::printf("=== %d passed, %d failed ===\n", g_Passed, g_Failed);
     return g_Failed == 0 ? 0 : 1;

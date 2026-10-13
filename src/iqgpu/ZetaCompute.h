@@ -56,21 +56,40 @@ public:
         // 符號確定性：每個計數樣本皆滿足 |Z| > 誤差界（Gabcke）；
         // 落在誤差帶內的樣本會被微移重取，仍不確定者計入此數。
         uint64_t samplesEvaluated = 0;
-        uint64_t uncertainSigns = 0;
+        uint64_t uncertainSigns = 0;      // after nudging | 微移後仍不確定
+        uint64_t uncertainGramPoints = 0; // merged into bulk blocks | 併入區塊
+        bool highPrecision = false;       // dd-phase RS path used | 使用 dd 相位路徑
         double minMarginRatio = 0.0;    // min |Z|/bound over samples | 最小餘裕倍數
 
-        // Turing/Brent certification (requires nFirst = −1): N(g_n) = n+1
-        // exactly, i.e. every zero with 0 < γ < g_n is on the critical line.
-        // Turing/Brent 認證（需 nFirst=−1）：N(g_n)=n+1 精確成立，
-        // 即 0<γ<g_n 的所有零點皆在臨界線上。
+        // Turing/Brent certification: every zero with g_lo < γ ≤ g_hi is on
+        // the critical line and there are exactly certifiedZeros of them.
+        // From the origin (lo = −1) this is N(g_hi) = hi + 1.
+        // Turing/Brent 認證：g_lo < γ ≤ g_hi 的零點全在臨界線上，且恰有
+        // certifiedZeros 個。自原點（lo=−1）起算即 N(g_hi)=hi+1。
         bool turingCertified = false;
-        int64_t certifiedGram = 0;      // n | 認證 Gram 索引
-        double certifiedHeight = 0.0;   // g_n | 認證高度
-        uint64_t certifiedZeros = 0;    // N(g_n) = n + 1
+        int64_t certifiedGramLo = -1;   // lo | 認證下端 Gram 索引
+        double certifiedHeightLo = 0.0; // g_lo
+        int64_t certifiedGram = 0;      // hi | 認證上端 Gram 索引
+        double certifiedHeight = 0.0;   // g_hi | 認證高度
+        uint64_t certifiedZeros = 0;    // hi − lo
         int64_t turingBlocksUsed = 0;   // K (Brent bound) | Brent 區塊數
     };
+
+    // Anchored verification. Certifies when the lower end is exactly known:
+    // nFirst = −1 (N(g_{−1}) = 0), or startCertified = true meaning a prior
+    // report certified N(g_nFirst) = nFirst + 1 (chain segments this way).
+    // 錨定驗證。下端精確已知時才認證：nFirst=−1（N(g_{−1})=0），或
+    // startCertified=true 表示先前報告已認證 N(g_nFirst)=nFirst+1（藉此串接分段）。
     GramReport VerifyCriticalLine(int64_t nFirst, int64_t nLast,
-                                  uint32_t samplesPerInterval = 64);
+                                  uint32_t samplesPerInterval = 64,
+                                  bool startCertified = false);
+
+    // Two-sided Turing window at ANY height (e.g. around the 10⁹-th zero):
+    // Brent bounds at both ends certify all zeros in (g_lo, g_hi].
+    // 任意高度的雙側 Turing 視窗（如第 10⁹ 個零點附近）：
+    // 兩端 Brent 界共同認證 (g_lo, g_hi] 內的所有零點。
+    GramReport VerifyWindow(int64_t nFirst, int64_t nLast,
+                            uint32_t samplesPerInterval = 8);
 
     // Self-audit: on-line zero count, argument-principle strip count,
     // Gram/Rosser verification, GUE fingerprint, explicit formula,
@@ -128,6 +147,10 @@ public:
                                           double step = 0.02);
 
 private:
+    enum class CertMode { None, Anchored, Window };
+    GramReport VerifyGram(int64_t nFirst, int64_t nLast,
+                          uint32_t samplesPerInterval, CertMode mode);
+
     IQGPURuntime& m_Runtime;
 };
 

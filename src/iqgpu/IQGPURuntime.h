@@ -3,6 +3,7 @@
 #include "../gpu/ComputeDevice.h"
 #include "../gpu/ComputeBuffer.h"
 #include "../gpu/CPUBackend.h"
+#include "../gpu/VulkanBackend.h"
 #include "../gpu/ComputeGraph.h"
 #include <memory>
 #include <string>
@@ -50,9 +51,20 @@ public:
 
     GPU::CPUBackend& GetBackend() { return *m_Backend; }
 
+    // Vulkan backend — initialized lazily on first access when a Vulkan
+    // loader + compute device exist; nullptr otherwise. The CPU backend
+    // remains the default for lambda kernels (ParallelFor); SPIR-V
+    // kernels go through the Vulkan backend.
+    // Vulkan 後端 — 首次存取時惰性初始化（有 loader + 計算裝置時），
+    // 否則為 nullptr。CPU 後端仍是 lambda kernel 的預設；
+    // SPIR-V kernel 走 Vulkan 後端。
+    GPU::VulkanBackend* GetVulkanBackend();
+    bool HasGPU() { return GetVulkanBackend() != nullptr; }
+
 private:
     GPU::DeviceCaps m_Device;
     std::unique_ptr<GPU::CPUBackend> m_Backend;
+    std::unique_ptr<GPU::VulkanBackend> m_Vulkan;
     GPU::ComputeGraph m_Graph;
     std::vector<std::unique_ptr<GPU::ComputeBuffer>> m_Buffers;
     std::vector<std::unique_ptr<void, void(*)(void*)>> m_TypedBuffers;

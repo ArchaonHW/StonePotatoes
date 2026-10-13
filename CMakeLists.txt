@@ -115,6 +115,7 @@ target_link_libraries(StonePotatoes
         StonePotatoesSelfDevelopingAgent
         StonePotatoesIQGPU
         StonePotatoesAI
+        StonePotatoesWorld
         Threads::Threads
 )
 

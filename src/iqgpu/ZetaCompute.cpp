@@ -1,16 +1,19 @@
 #include "ZetaCompute.h"
 #include "IQGPURuntime.h"
 #include "../math/RiemannZeta.h"
+#include "../math/HighPrecisionZ.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 
 namespace StonePotatoes {
 namespace IQGPU {
 
 using namespace Math::Zeta;
+namespace DD = Math::DD;
 
 namespace {
 
@@ -33,11 +36,34 @@ struct IntervalCount {
     double minRatio = 1e300;  // min |Z|/bound | 最小餘裕倍數
 };
 
-// Margin-aware variant: an interior sample whose |Z| is within the HardyZ
+// Z(t) evaluator + its error bound: double path (HardyZ) or the
+// double-double-phase Riemann–Siegel path for high windows.
+// Z(t) 求值器與誤差界：double 路徑（HardyZ）或高處視窗用的 dd 相位 RS 路徑。
+struct ZEval {
+    const HighPrecisionZ* hp = nullptr;
+    double Z(double t) const { return hp ? hp->Z(t) : HardyZ(t); }
+    double Bound(double t) const {
+        return hp ? HighPrecisionZ::ErrorBound(t) : HardyZErrorBound(t);
+    }
+    // Margin for a Gram point: Z error + |Z′|·(location error of ĝ).
+    // Gram 點餘裕：Z 誤差 + |Z′|·（ĝ 位置誤差）。
+    double GramBound(double g) const {
+        constexpr double u = 1.1102230246251565e-16;
+        const double ulp = std::nextafter(g, 2.0 * g + 1.0) - g;
+        const double dg = hp ? 1e-24 * g : 4.0 * u * g + 2.0 * ulp;  // dd g_n | dd Gram 點
+        return Bound(g) + HardyZDerivativeBound(g) * dg;
+    }
+};
+
+// Above this height Gram windows switch to the double-double phase path.
+// 高於此高度時 Gram 視窗改用 double-double 相位路徑。
+constexpr double kHighPrecisionT = 1.0e6;
+
+// Margin-aware variant: an interior sample whose |Z| is within the
 // error bound is nudged (±h/4, ±h/2) until its sign is certain.
 // 餘裕感知版本：內部樣本若 |Z| 落在誤差界內，微移（±h/4、±h/2）直到符號確定。
-IntervalCount CountSignChangesCertain(double a, double b, double za, double zb,
-                                      uint32_t samples) {
+IntervalCount CountSignChangesCertain(const ZEval& ev, double a, double b,
+                                      double za, double zb, uint32_t samples) {
     IntervalCount r;
     const double h = (b - a) / samples;
     double prev = za;
@@ -45,14 +71,14 @@ IntervalCount CountSignChangesCertain(double a, double b, double za, double zb,
         double z = zb;
         if (j < samples) {
             const double t = a + h * j;
-            z = HardyZ(t);
+            z = ev.Z(t);
             ++r.samples;
             static constexpr double kNudge[4] = {0.25, -0.25, 0.5, -0.5};
-            for (int k = 0; k < 4 && std::fabs(z) <= HardyZErrorBound(t); ++k) {
-                z = HardyZ(t + kNudge[k] * h);
+            for (int k = 0; k < 4 && std::fabs(z) <= ev.Bound(t); ++k) {
+                z = ev.Z(t + kNudge[k] * h);
                 ++r.samples;
             }
-            const double ratio = std::fabs(z) / HardyZErrorBound(t);
+            const double ratio = std::fabs(z) / ev.Bound(t);
             if (ratio <= 1.0) ++r.uncertain;
             r.minRatio = std::min(r.minRatio, ratio);
         }
@@ -105,31 +131,80 @@ ZeroSpectrum ZetaCompute::FindZeros(double tLo, double tHi, double step,
 }
 
 ZetaCompute::GramReport ZetaCompute::VerifyCriticalLine(
-    int64_t nFirst, int64_t nLast, uint32_t samplesPerInterval) {
+    int64_t nFirst, int64_t nLast, uint32_t samplesPerInterval,
+    bool startCertified) {
+    const bool anchored = nFirst <= -1 || startCertified;
+    return VerifyGram(nFirst, nLast, samplesPerInterval,
+                      anchored ? CertMode::Anchored : CertMode::None);
+}
+
+ZetaCompute::GramReport ZetaCompute::VerifyWindow(int64_t nFirst, int64_t nLast,
+                                                  uint32_t samplesPerInterval) {
+    return VerifyGram(nFirst, nLast, samplesPerInterval, CertMode::Window);
+}
+
+ZetaCompute::GramReport ZetaCompute::VerifyGram(int64_t nFirst, int64_t nLast,
+                                                uint32_t samplesPerInterval,
+                                                CertMode mode) {
     const auto t0 = std::chrono::steady_clock::now();
     GramReport r;
     nFirst = std::max<int64_t>(nFirst, -1);
     if (nLast <= nFirst + 1 || samplesPerInterval == 0) return r;
     auto& be = m_Runtime.GetBackend();
 
+    // p[i] = partition point (Gram point, or a nudged point when Z(g_i) is
+    // inside the error band), zp[i] = Z(p[i]) with certain sign if possible.
+    // p[i] = 分割點（Gram 點；若 Z(g_i) 落在誤差帶內則改用微移點），
+    // zp[i] = Z(p[i])，盡可能確保符號確定。
     const size_t count = static_cast<size_t>(nLast - nFirst + 1);
-    std::vector<double> g(count), zg(count);
+    std::vector<double> g(count), p(count), zp(count);
+    std::vector<DD::dd> gd(count);  // dd Gram points (hp) | dd Gram 點
+    std::vector<char> gramSure(count, 1);
+
+    // High windows: double-double phases + dd Gram points (see HighPrecisionZ).
+    // 高處視窗：double-double 相位 + dd Gram 點（見 HighPrecisionZ）。
+    const bool hp = GramPoint(nLast) > kHighPrecisionT;
+    std::unique_ptr<HighPrecisionZ> hpz;
+    if (hp) hpz = std::make_unique<HighPrecisionZ>(GramPoint(nLast + 2) + 10.0);
+    ZEval ev;
+    ev.hp = hpz.get();
+    r.highPrecision = hp;
+
     be.ParallelFor(static_cast<uint32_t>(count), [&](uint32_t i) {
-        g[i] = GramPoint(nFirst + i);
-        zg[i] = HardyZ(g[i]);
+        gd[i] = hp ? GramPointDDExact(nFirst + i) : DD::dd{GramPoint(nFirst + i), 0.0};
+        g[i] = DD::ToDouble(gd[i]);
+    }, 256);
+    be.ParallelFor(static_cast<uint32_t>(count), [&](uint32_t i) {
+        p[i] = g[i];
+        zp[i] = hp ? hpz->Z(gd[i]) : HardyZ(g[i]);
+        if (std::fabs(zp[i]) > ev.GramBound(g[i])) return;
+        gramSure[i] = 0;
+        const double h = i + 1 < count ? g[i + 1] - g[i] : g[i] - g[i - 1];
+        static constexpr double kNudge[4] = {0.05, -0.05, 0.15, -0.15};
+        for (double f : kNudge) {
+            if ((f > 0 && i + 1 >= count) || (f < 0 && i == 0)) continue;
+            const double t = g[i] + f * h;
+            const double z = ev.Z(t);
+            if (std::fabs(z) > ev.Bound(t)) {
+                p[i] = t;
+                zp[i] = z;
+                break;
+            }
+        }
     }, 64);
 
-    // Gram's law: (−1)^n Z(g_n) > 0 marks a "good" Gram point.
-    // Gram 定律：(−1)^n Z(g_n) > 0 為「好」Gram 點。
+    // Gram's law: (−1)^n Z(g_n) > 0 marks a "good" Gram point. Only points
+    // with a CERTAIN sign may be good (i.e. serve as block boundaries).
+    // Gram 定律：(−1)^n Z(g_n) > 0 為「好」Gram 點；僅符號確定者可作區塊邊界。
     std::vector<char> good(count);
     for (size_t i = 0; i < count; ++i) {
         const int64_t n = nFirst + static_cast<int64_t>(i);
-        good[i] = ((n % 2 == 0) ? zg[i] : -zg[i]) > 0.0;
+        good[i] = gramSure[i] && ((n % 2 == 0) ? zp[i] : -zp[i]) > 0.0;
     }
 
     std::vector<IntervalCount> iv(count - 1);
     be.ParallelFor(static_cast<uint32_t>(count - 1), [&](uint32_t i) {
-        iv[i] = CountSignChangesCertain(g[i], g[i + 1], zg[i], zg[i + 1],
+        iv[i] = CountSignChangesCertain(ev, p[i], p[i + 1], zp[i], zp[i + 1],
                                         samplesPerInterval);
     }, 16);
 
@@ -147,11 +222,12 @@ ZetaCompute::GramReport ZetaCompute::VerifyCriticalLine(
     r.gramPoints = b - a + 1;
 
     // Rosser blocks: between consecutive good Gram points g_j < g_k there
-    // must be exactly k − j zeros (assuming S(g_j) = S(g_k) = 0).
+    // must be exactly k − j zeros.
     // Rosser 區塊：相鄰好 Gram 點 g_j<g_k 之間應恰有 k−j 個零點。
     struct Block {
         size_t start;
         bool ok;
+        bool merged;  // contains an uncertain Gram point | 含不確定 Gram 點
     };
     std::vector<Block> blocks;
     for (size_t j = a; j < b;) {
@@ -159,7 +235,11 @@ ZetaCompute::GramReport ZetaCompute::VerifyCriticalLine(
         while (!good[k]) ++k;
         const uint64_t expected = k - j;
         uint64_t found = 0;
-        for (size_t i = j; i < k; ++i) found += iv[i].zeros;
+        bool merged = false;
+        for (size_t i = j; i < k; ++i) {
+            found += iv[i].zeros;
+            merged = merged || (i > j && !gramSure[i]);
+        }
         // Missing zeros come in pairs (endpoint signs fix parity) — refine.
         // 缺失零點必成對（端點符號固定奇偶）——細分重掃。
         for (uint32_t sres = samplesPerInterval * 8;
@@ -167,15 +247,15 @@ ZetaCompute::GramReport ZetaCompute::VerifyCriticalLine(
              sres *= 8) {
             found = 0;
             for (size_t i = j; i < k; ++i) {
-                iv[i] = CountSignChangesCertain(g[i], g[i + 1], zg[i],
-                                                zg[i + 1], sres);
+                iv[i] = CountSignChangesCertain(ev, p[i], p[i + 1], zp[i],
+                                                zp[i + 1], sres);
                 found += iv[i].zeros;
             }
             r.refinedIntervals += expected;
         }
         const bool ok = found == expected;
         if (!ok) r.unresolvedBlocks.push_back(nFirst + static_cast<int64_t>(j));
-        blocks.push_back({j, ok});
+        blocks.push_back({j, ok, merged});
         if (expected > 1) ++r.rosserBlocks;
         r.zerosExpected += expected;
         r.zerosFound += found;
@@ -188,10 +268,11 @@ ZetaCompute::GramReport ZetaCompute::VerifyCriticalLine(
         r.minMarginRatio = std::min(r.minMarginRatio, iv[i].minRatio);
     }
     for (size_t i = a; i <= b; ++i) {
-        const double ratio = std::fabs(zg[i]) / HardyZErrorBound(g[i]);
+        const double ratio = std::fabs(zp[i]) / (gramSure[i] ? ev.GramBound(p[i]) : ev.Bound(p[i]));
         r.minMarginRatio = std::min(r.minMarginRatio, ratio);
-        if (ratio <= 1.0) ++r.uncertainSigns;  // Gram point sign unsure
-        if (!good[i]) {
+        if (ratio <= 1.0) ++r.uncertainSigns;  // nudging failed | 微移仍失敗
+        if (!gramSure[i]) ++r.uncertainGramPoints;
+        if (gramSure[i] && !good[i]) {  // genuine Gram-law failure | 真 Gram 定律失效
             ++r.gramLawFailures;
             if (r.firstFailures.size() < 16)
                 r.firstFailures.push_back(nFirst + static_cast<int64_t>(i));
@@ -199,20 +280,46 @@ ZetaCompute::GramReport ZetaCompute::VerifyCriticalLine(
     }
     r.verified = r.unresolvedBlocks.empty() && r.zerosFound == r.zerosExpected;
 
-    // Turing/Brent: the last K Rosser-satisfying blocks bound N(g_n) from
-    // above; the zeros counted on the line from g_{−1} (N = 0) bound it from
-    // below → N(g_n) = n + 1 exactly.
-    // Turing/Brent：最後 K 個滿足 Rosser 的區塊給出 N(g_n) 上界；
-    // 從 g_{−1}（N=0）起線上計得的零點給出下界 → N(g_n)=n+1 精確成立。
+    // Turing/Brent certification. Upper end: the last K Rosser blocks give
+    // N(g_hi) ≤ hi+1. Lower end: an anchor with N known exactly (g_{−1}:
+    // N=0, or a previously certified index), or — in Window mode — the
+    // first K Rosser blocks give N(g_lo) ≥ lo+1. With exactly hi−lo zeros
+    // found ON the line in (g_lo, g_hi], every zero there is on the line.
+    // Blocks inside the Turing windows must be genuine Gram blocks (no
+    // merged uncertain Gram point).
+    // Turing/Brent 認證。上端：最後 K 個 Rosser 區塊給出 N(g_hi) ≤ hi+1。
+    // 下端：精確已知的錨點（g_{−1}：N=0，或先前已認證的索引），或——視窗
+    // 模式下——最前 K 個 Rosser 區塊給出 N(g_lo) ≥ lo+1。若 (g_lo,g_hi] 內
+    // 線上恰找到 hi−lo 個零點，則該區間所有零點皆在臨界線上。
+    // Turing 視窗內的區塊必須是真正的 Gram 區塊（不可含合併的不確定點）。
     const int64_t K = TuringBlocksRequired(g[b]);
     r.turingBlocksUsed = K;
-    if (r.verified && r.uncertainSigns == 0 && r.firstGram == -1 &&
-        static_cast<int64_t>(blocks.size()) > K) {
-        const size_t idx = blocks[blocks.size() - static_cast<size_t>(K)].start;
-        r.turingCertified = true;
-        r.certifiedGram = nFirst + static_cast<int64_t>(idx);
-        r.certifiedHeight = g[idx];
-        r.certifiedZeros = static_cast<uint64_t>(r.certifiedGram + 1);
+    const size_t nb = blocks.size();
+    const size_t Ku = static_cast<size_t>(K);
+    auto clean = [&](size_t from, size_t to) {
+        for (size_t i = from; i < to; ++i)
+            if (blocks[i].merged) return false;
+        return true;
+    };
+    if (r.verified && r.uncertainSigns == 0 && mode != CertMode::None && nb > Ku) {
+        size_t loBlock = 0;
+        bool loOk = false;
+        if (mode == CertMode::Anchored) {
+            loOk = r.firstGram == nFirst;
+        } else if (nb > 2 * Ku) {
+            loBlock = Ku;
+            loOk = clean(0, Ku);
+        }
+        const size_t hiBlock = nb - Ku;
+        if (loOk && hiBlock > loBlock && clean(hiBlock, nb)) {
+            const size_t lo = blocks[loBlock].start, hi = blocks[hiBlock].start;
+            r.turingCertified = true;
+            r.certifiedGramLo = nFirst + static_cast<int64_t>(lo);
+            r.certifiedHeightLo = g[lo];
+            r.certifiedGram = nFirst + static_cast<int64_t>(hi);
+            r.certifiedHeight = g[hi];
+            r.certifiedZeros = static_cast<uint64_t>(r.certifiedGram - r.certifiedGramLo);
+        }
     }
     r.ms = MsSince(t0);
     return r;
@@ -443,6 +550,20 @@ ZetaCompute::AuditReport ZetaCompute::SelfTest() {
          std::to_string(ts.size()) + " samples, " +
              std::to_string(m_Runtime.GetBackend().WorkerCount()) + " vs 1 workers",
          same);
+
+    // Two independent Z paths (double phases vs double-double phases) must
+    // agree where both are accurate — guards the high-window evaluator.
+    // 兩條獨立 Z 路徑（double 相位 vs double-double 相位）在皆精確處須一致——
+    // 守護高處視窗求值器。
+    {
+        const HighPrecisionZ hpz(2.0e5);
+        double worst = 0.0;
+        for (int i = 0; i < 64; ++i) {
+            const double t = 1.0e4 + 2953.7 * i;
+            worst = std::max(worst, std::fabs(hpz.Z(t) - HardyZ(t)));
+        }
+        emit("golden.dd_vs_double_Z", Fmt("%.2e", worst), worst < 1e-6);
+    }
 
     rep.ms = MsSince(t0);
     return rep;

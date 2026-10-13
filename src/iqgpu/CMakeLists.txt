@@ -5,6 +5,7 @@ add_library(StonePotatoesIQGPU STATIC
     QuantumInspired.cpp
     KernelOptimizer.cpp
     ZetaCompute.cpp
+    ZetaVerificationJob.cpp
 )
 
 target_include_directories(StonePotatoesIQGPU

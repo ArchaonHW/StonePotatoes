@@ -1,0 +1,15 @@
+#version 450
+// u32add: c[i] = a[i] + b[i] — integer kernel for bit-exact CPU↔GPU checks.
+// u32add：c[i] = a[i] + b[i]——整數核心，用於 CPU↔GPU 位元一致驗證。
+layout(local_size_x = 256) in;
+
+layout(set = 0, binding = 0) readonly  buffer A { uint a[]; };
+layout(set = 0, binding = 1) readonly  buffer B { uint b[]; };
+layout(set = 0, binding = 2) writeonly buffer C { uint c[]; };
+
+layout(push_constant) uniform PC { uint n; } pc;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i < pc.n) c[i] = a[i] + b[i];
+}
