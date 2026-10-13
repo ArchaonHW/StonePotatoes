@@ -3,6 +3,7 @@
 add_library(StonePotatoesIQGPU STATIC
     IQGPURuntime.cpp
     QuantumInspired.cpp
+    KernelOptimizer.cpp
 )
 
 target_include_directories(StonePotatoesIQGPU

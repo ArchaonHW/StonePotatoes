@@ -49,6 +49,15 @@ CPUBackend::Stats CPUBackend::Dispatch(const Kernel& kernel,
     return s;
 }
 
+std::future<CPUBackend::Stats>
+CPUBackend::DispatchAsync(const Kernel& kernel,
+                          const DispatchParams& params) {
+    return std::async(std::launch::async,
+                      [this, &kernel, params] {
+                          return Dispatch(kernel, params);
+                      });
+}
+
 CPUBackend::Stats CPUBackend::ParallelFor(
     uint32_t count, const std::function<void(uint32_t)>& fn,
     uint32_t grainSize) {

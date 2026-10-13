@@ -71,6 +71,12 @@ public:
 
     RunResult Execute(CPUBackend& backend);
 
+    // Parallel variant: independent ready nodes are dispatched
+    // concurrently (real multi-queue behavior on the CPU backend).
+    // 平行版本：無相依的就緒節點並行派發
+    // （CPU 後端上的真實多佇列行為）。
+    RunResult ExecuteParallel(CPUBackend& backend);
+
     size_t NodeCount() const { return m_Nodes.size(); }
 
 private:

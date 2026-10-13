@@ -13,6 +13,7 @@
 #include "self_developing_agent/MetaProgrammingAgent.h"
 #include "iqgpu/IQGPURuntime.h"
 #include "iqgpu/QuantumInspired.h"
+#include "iqgpu/KernelOptimizer.h"
 
 #include <cmath>
 #include <iostream>
@@ -354,11 +355,85 @@ int main(int argc, char* argv[]) {
             counts[0] / 40.0, counts[1] / 40.0, counts[2] / 40.0, counts[3] / 40.0);
     }
 
+    // ------------------------------------------------------------------
+    // Agent <-> IQGPU bridge: measurement-driven kernel self-optimization
+    // Agent <-> IQGPU 橋接：量測驅動的核心自我優化
+    // Uneven workload (hotspots every 512 elements) — grain stealing
+    // should outperform contiguous partitioning. Result feeds back
+    // into the agent's LearningSystem.
+    // 不均勻工作負載（每 512 元素有熱點）— 粒度竊取應優於
+    // 連續切分。結果回饋至 Agent 的學習系統。
+    // ------------------------------------------------------------------
+    STONEPOTATOES_LOG_INFO("--- Agent-IQGPU Self-Optimization | "
+                           "Agent-IQGPU 自我優化 ---");
+    {
+        using namespace StonePotatoes;
+
+        // Workload: heavy math on a small fraction of elements.
+        // 工作負載：少部分元素執行重度數學運算。
+        constexpr uint32_t WORK = 2'000'000;
+        std::vector<double> scratch(WORK);
+        auto workload = [&scratch](uint32_t gid) {
+            double v = double(gid) * 0.001;
+            if ((gid % 512) < 8) {          // ~1.6% hot elements | 熱點元素
+                for (int k = 0; k < 200; ++k)
+                    v += std::sin(v) * std::cos(v + double(k));
+            }
+            scratch[gid] = v;
+        };
+
+        IQGPU::IQGPURuntime rt;
+        rt.Initialize();
+
+        IQGPU::KernelOptimizer optimizer;
+        std::vector<IQGPU::KernelOptimizer::Variant> variants;
+        auto mkKernel = [&workload](const char* n) {
+            return GPU::Kernel(n, [workload](uint32_t gid, void*) {
+                workload(gid);
+            });
+        };
+        variants.push_back({"contiguous",
+                            mkKernel("contig"), WORK, 0, nullptr, false, 0});
+        variants.push_back({"grain_4096",
+                            mkKernel("g4096"), WORK, 0, nullptr, true, 4096});
+        variants.push_back({"grain_1024",
+                            mkKernel("g1024"), WORK, 0, nullptr, true, 1024});
+        variants.push_back({"grain_128",
+                            mkKernel("g128"), WORK, 0, nullptr, true, 128});
+
+        auto opt = optimizer.Optimize(variants, rt.GetBackend(), 5, 1);
+        for (const auto& v : opt.variants) {
+            STONEPOTATOES_LOG_INFO(
+                "[IQGPU-OPT] %-12s median=%.2fms best=%.2fms worst=%.2fms",
+                v.name.c_str(), v.medianMs, v.bestMs, v.worstMs);
+        }
+        STONEPOTATOES_LOG_INFO(
+            "[IQGPU-OPT] Winner: %s (%.2fms) — %.2fx faster than %s",
+            opt.bestName.c_str(), opt.bestMs, opt.speedup,
+            opt.worstName.c_str());
+
+        // Feed measured result into the agent's learning memory.
+        // 將量測結果寫入 Agent 的學習記憶。
+        agent.GetLearningSystem().RecordSuccess(
+            "iqgpu_dispatch:" + opt.bestName,
+            "uneven_workload_2M", opt.speedup / 10.0);
+        STONEPOTATOES_LOG_INFO(
+            "[Agent] Learned dispatch strategy: %s",
+            agent.GetLearningSystem().SuggestApproach(
+                "uneven_workload_2M").c_str());
+        rt.Shutdown();
+    }
+
     // Main loop
     // 主迴圈
     STONEPOTATOES_LOG_INFO("Entering main loop...");
     STONEPOTATOES_LOG_INFO("進入主迴圈...");
     double frameCount = 0;
+    // Refresh the cached time before sampling it — GetTotalTime() only
+    // advances inside Update(), so a stale snapshot would end the loop early.
+    // 取樣前先刷新快取時間 — GetTotalTime() 只在 Update() 內推進，
+    // 若使用過期快照會導致迴圈提早結束。
+    StonePotatoes::Time::TimeManager::GetInstance().Update();
     double startTime = StonePotatoes::Time::TimeManager::GetInstance().GetTotalTime();
     // Run for 3 seconds for testing, then exit
     // 執行 3 秒用於測試，然後退出

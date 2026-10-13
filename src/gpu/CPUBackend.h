@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <future>
 
 namespace StonePotatoes {
 namespace GPU {
@@ -29,6 +30,11 @@ public:
     // Blocking dispatch: partitions [0, threadCount) across workers.
     // 阻塞式 dispatch：將 [0, threadCount) 切分給各 worker。
     Stats Dispatch(const Kernel& kernel, const DispatchParams& params);
+
+    // Async dispatch — non-blocking submission, result via future.
+    // 非同步 dispatch — 非阻塞提交，結果經 future 取得。
+    std::future<Stats> DispatchAsync(const Kernel& kernel,
+                                     const DispatchParams& params);
 
     // Convenience: parallel_for over an index range.
     // 便捷函式：索引範圍的 parallel_for。

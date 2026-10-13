@@ -1,6 +1,7 @@
 #include "ComputeGraph.h"
 #include <unordered_set>
 #include <chrono>
+#include <future>
 
 namespace StonePotatoes {
 namespace GPU {
@@ -104,6 +105,68 @@ ComputeGraph::RunResult ComputeGraph::Execute(CPUBackend& backend) {
                 }
             }
             return r;
+        }
+    }
+
+    r.ok = true;
+    r.nodesExecuted = static_cast<uint32_t>(executed);
+    r.totalMs = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - t0).count();
+    return r;
+}
+
+ComputeGraph::RunResult
+ComputeGraph::ExecuteParallel(CPUBackend& backend) {
+    RunResult r;
+    auto t0 = std::chrono::steady_clock::now();
+
+    std::unordered_set<ComputeNode*> done;
+    const size_t total = m_Nodes.size();
+    size_t executed = 0;
+
+    while (executed < total) {
+        // Collect all nodes whose dependencies are satisfied.
+        // 收集所有相依已滿足的節點。
+        std::vector<std::shared_ptr<ComputeNode>> ready;
+        for (auto& node : m_Nodes) {
+            if (done.count(node.get())) continue;
+            bool ok = true;
+            for (auto& dep : node->Dependencies()) {
+                if (!done.count(dep.get())) { ok = false; break; }
+            }
+            if (ok) ready.push_back(node);
+        }
+        if (ready.empty()) {
+            r.cycleDetected = true;
+            for (auto& node : m_Nodes) {
+                if (!done.count(node.get())) {
+                    r.cycleNode = node->GetName();
+                    break;
+                }
+            }
+            return r;
+        }
+
+        // Dispatch kernel nodes concurrently; tasks run inline after.
+        // 並行派發 kernel 節點；task 節點隨後內聯執行。
+        std::vector<std::future<CPUBackend::Stats>> futs;
+        futs.reserve(ready.size());
+        for (auto& node : ready) {
+            if (node->GetKind() == ComputeNode::Kind::KernelDispatch) {
+                DispatchParams p;
+                p.threadCount = node->threads;
+                p.userData = node->userData;
+                futs.push_back(backend.DispatchAsync(node->kernel, p));
+            }
+        }
+        for (auto& f : futs) f.get();
+
+        for (auto& node : ready) {
+            if (node->GetKind() == ComputeNode::Kind::HostTask && node->task)
+                node->task();
+            done.insert(node.get());
+            r.executionOrder.push_back(node->GetName());
+            ++executed;
         }
     }
 

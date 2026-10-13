@@ -39,8 +39,9 @@ IQGPURuntime                     (implemented | 已實作)
 | `GPU::ComputeDevice` / `EnumerateDevices` | ✅ Implemented | Enumerates the CPU reference device with real `hardware_concurrency`. 以真實 `hardware_concurrency` 列舉 CPU 參考裝置。 |
 | `GPU::ComputeBuffer` / `TypedBuffer<T>` | ✅ Implemented | Type-erased host buffer with `Upload`/`Download` transfer hooks matching GPU semantics. 具 GPU 語意 `Upload`/`Download` 介面的型別抹除主機緩衝。 |
 | `GPU::Kernel` / `DispatchParams` | ✅ Implemented | HLSL-style dispatch model (global thread index, group size hint). HLSL 式 dispatch 模型（全域執行緒索引、群組大小提示）。 |
-| `GPU::CPUBackend` | ✅ Implemented | Real multithreaded dispatch — contiguous partition (`Dispatch`) and atomic grain-stealing (`ParallelFor`). 真實多執行緒派發 — 連續切分（`Dispatch`）與原子粒度竊取（`ParallelFor`）。 |
-| `GPU::ComputeGraph` | ✅ Implemented | DAG of KernelDispatch/HostTask/Barrier nodes; topological execution; cycle detection. KernelDispatch/HostTask/Barrier 節點 DAG；拓撲執行；循環偵測。 |
+| `GPU::CPUBackend` | ✅ Implemented | Real multithreaded dispatch — contiguous partition (`Dispatch`), atomic grain-stealing (`ParallelFor`), and async submission (`DispatchAsync` → `std::future`). 真實多執行緒派發 — 連續切分（`Dispatch`）、原子粒度竊取（`ParallelFor`）與非同步提交（`DispatchAsync` → `std::future`）。 |
+| `GPU::ComputeGraph` | ✅ Implemented | DAG of KernelDispatch/HostTask/Barrier nodes; topological execution; cycle detection; `ExecuteParallel` runs independent nodes concurrently. KernelDispatch/HostTask/Barrier 節點 DAG；拓撲執行；循環偵測；`ExecuteParallel` 並行執行無相依節點。 |
+| `IQGPU::KernelOptimizer` | ✅ Implemented | Measurement-driven variant selection: warmup + repeats, median/best/worst, speedup report; results feed the agent's `LearningSystem`. 量測驅動變體選擇：暖身 + 重複量測、中位/最佳/最差、加速比報告；結果回饋 Agent 的 `LearningSystem`。 |
 | `IQGPU::IQGPURuntime` | ✅ Implemented | Runtime facade: device select, buffer factory, dispatch, graph execution. 執行期外觀：裝置選擇、緩衝工廠、派發、圖執行。 |
 | `IQGPU::SimulatedAnnealer` | ✅ Implemented | Classical annealing baseline. 傳統退火基準。 |
 | `IQGPU::QuantumInspiredAnnealer` | ✅ Implemented | Annealing + long-range "tunneling" jumps (transverse-field analog). 退火 + 長程「穿隧」跳躍（橫向場類比）。 |
@@ -62,6 +63,7 @@ On the development machine (16 HW threads, MSVC Release):
 | Rastrigin 8-dim minimization, 20k iters | Classical SA: E=1.00; Quantum-inspired (tunneling): **E=0.00** — reached global minimum. 傳統 SA：E=1.00；量子啟發（穿隧）：**E=0.00** — 達到全域最小值。 |
 | AmplitudeAmp, 10 marked in 1024 | 7 Grover rounds → **99.3%** probability mass on marked states (uniform = 1.0%). 7 輪 Grover → 標記狀態機率質量 **99.3%**（均勻 = 1.0%）。 |
 | Born-rule measurement, 4k samples | 12.5% / 53.3% / 3.2% / 31.0% vs theoretical 13.3% / 53.3% / 3.3% / 30.0%. 與理論值 13.3/53.3/3.3/30.0% 相符。 |
+| KernelOptimizer, uneven 2M workload | `grain_128` grain-stealing beat contiguous partition **1.51×** (11.07 vs 16.67 ms); best variant recorded into agent learning memory. `grain_128` 粒度竊取比連續切分快 **1.51×**（11.07 vs 16.67 ms）；最佳變體已寫入 Agent 學習記憶。 |
 
 ## Quantum-Inspired ≠ Quantum | 量子啟發 ≠ 量子
 
