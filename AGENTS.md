@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> Near-term roadmap & component boundaries (engine vs self_developing_agent vs web3-agent vs web3-ide): [docs/ROADMAP-near-term.md](docs/ROADMAP-near-term.md)
+
 ## PotatoEngine Ports (MIT License) — planned, not yet in this repo
 
 > **Status:** none of the files below exist in the repository yet. This is a porting

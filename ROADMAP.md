@@ -1,6 +1,8 @@
 # StonePotatoes Technical Roadmap
 # StonePotatoes 技術路線圖
 
+> **近期可執行計畫（里程碑 / issues / 元件關係）請見 [docs/ROADMAP-near-term.md](docs/ROADMAP-near-term.md)。** 本文件為長期 14 階段願景。
+
 ## Overview | 概述
 
 This roadmap breaks down the development of StonePotatoes into 14 phases, from initial architecture to AAA production. Each phase builds upon the previous, following the principle: **Vertical Slice → Expand → Optimize → Scale**.

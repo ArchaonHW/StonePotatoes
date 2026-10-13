@@ -71,6 +71,8 @@ This project is in early development. See [ROADMAP.md](ROADMAP.md) for the compl
 
 此專案處於早期開發階段。完整開發計畫請參閱 [ROADMAP.md](ROADMAP.md)。
 
+近期里程碑、issue 對照與各元件（引擎 / self_developing_agent / web3-agent / web3-ide）關係：[docs/ROADMAP-near-term.md](docs/ROADMAP-near-term.md)
+
 ### Implemented ✓ | 已實作 ✓
 - [x] Architecture documentation
   架構文件
