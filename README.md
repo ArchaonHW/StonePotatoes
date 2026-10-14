@@ -91,8 +91,8 @@ Game/Scene lifecycle and configuration: [docs/game-runtime.md](docs/game-runtime
   遊戲執行檔固定輸出至 `build/bin/`，並支援 CPack ZIP/TGZ 發行套件
 
 ### In Progress 🚧 | 進行中 🚧
-- [ ] v0.1 engine productization: fixed-step simulation, versioned data/save format, and complete public package (headless ECS + Game/Scene lifecycle and deferred scene switching are available)
-  v0.1 引擎產品化：固定步長模擬、版本化資料/存檔格式與完整公開套件（headless ECS、Game/Scene lifecycle 與延後切換場景已可使用）
+- [ ] v0.1 engine productization: fixed-step simulation and complete data module; world save format v1 is documented and validates malformed files (headless ECS + Game/Scene lifecycle and deferred scene switching are available)
+  v0.1 引擎產品化：固定步長模擬與完整資料模組；world save v1 已文件化並驗證損壞檔案（headless ECS、Game/Scene lifecycle 與延後切換場景已可使用）
 - [ ] Rendering, deterministic physics, and full civilization/networking systems
   渲染、決定性物理與完整文明/網路系統
 - [x] Game/window settings from `engine_config.json` and a user-driven runtime loop

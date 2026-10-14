@@ -1,6 +1,8 @@
 #include "EntityManager.h"
 #include "../../core/logging/Logger.h"
 
+#include <limits>
+
 namespace StonePotatoes {
 namespace ECS {
 
@@ -44,12 +46,20 @@ bool EntityManager::IsEntityValid(Entity entity) const {
 }
 
 Entity EntityManager::RestoreEntity(uint32_t index, uint32_t generation) {
+    if (index == std::numeric_limits<uint32_t>::max()) {
+        STONEPOTATOES_LOG_ERROR("Cannot restore entity with maximum index");
+        return Entity{};
+    }
     if (generation == 0) {
         generation = 1;
     }
     if (index >= m_Generations.size()) {
+        const uint32_t oldSize = static_cast<uint32_t>(m_Generations.size());
         m_Generations.resize(index + 1, 1);
         m_Alive.resize(index + 1, 0);
+        for (uint32_t missing = oldSize; missing < index; ++missing) {
+            m_FreeList.push_back(missing);
+        }
     }
     m_Generations[index] = generation;
     m_Alive[index] = 1;
