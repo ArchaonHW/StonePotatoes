@@ -38,7 +38,7 @@
 ### v0.2 可視化與模擬（Phase 3–6）
 | Issue | 主題 | 備註 |
 |---|---|---|
-| #10 | rendering | [進行中] 共用 Vulkan context、swapchain 呈現、ImGui Vulkan 與既有點／圓 2D API 已接入正式 Renderer；RTX 5050 上已本機驗證視覺化 demo 初始化、逐幀執行與正常關閉，CPU-only 建置保留 OpenGL fallback。尚待同裝置 compute + graphics 整合驗收與無視窗 CI 的 runtime 覆蓋；設計見 [`rendering-vulkan-design.md`](rendering-vulkan-design.md) |
+| #10 | rendering | [進行中] 共用 Vulkan context、swapchain 呈現、ImGui Vulkan 與既有點／圓 2D API 已接入正式 Renderer；RTX 5050 上已本機驗證 renderer 初始化、逐幀執行與正常關閉，CPU-only 建置保留 OpenGL fallback。新增 `StonePotatoesVulkanComputeRendererDemo`，將以同一 `VkDevice` 執行 SAXPY 並呈現結果；demo 已建置，互動執行與無視窗 CI runtime 覆蓋仍待驗收；設計見 [`rendering-vulkan-design.md`](rendering-vulkan-design.md) |
 | #11 | physics | 固定步長、決定性 |
 | #12 | agent 模組與各 agent 的定位 | 見下方第 2 節 |
 
