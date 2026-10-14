@@ -72,6 +72,7 @@ This project is in early development. See [ROADMAP.md](ROADMAP.md) for the compl
 此專案處於早期開發階段。完整開發計畫請參閱 [ROADMAP.md](ROADMAP.md)。
 
 近期里程碑、issue 對照與各元件（引擎 / self_developing_agent / web3-agent / web3-ide）關係：[docs/ROADMAP-near-term.md](docs/ROADMAP-near-term.md)
+Game/Scene lifecycle and configuration: [docs/game-runtime.md](docs/game-runtime.md)
 
 ### Implemented ✓ | 已實作 ✓
 - [x] Core platform, logging, configuration, memory allocators, and plugin manager
@@ -90,12 +91,12 @@ This project is in early development. See [ROADMAP.md](ROADMAP.md) for the compl
   遊戲執行檔固定輸出至 `build/bin/`，並支援 CPack ZIP/TGZ 發行套件
 
 ### In Progress 🚧 | 進行中 🚧
-- [ ] v0.1 engine productization: scene switching, versioned data/save format, complete public package (headless ECS + Game/Scene lifecycle are available)
-  v0.1 引擎產品化：場景切換、版本化資料/存檔格式、完整公開套件（headless ECS 與 Game/Scene lifecycle 已可使用）
+- [ ] v0.1 engine productization: fixed-step simulation, versioned data/save format, and complete public package (headless ECS + Game/Scene lifecycle and deferred scene switching are available)
+  v0.1 引擎產品化：固定步長模擬、版本化資料/存檔格式與完整公開套件（headless ECS、Game/Scene lifecycle 與延後切換場景已可使用）
 - [ ] Rendering, deterministic physics, and full civilization/networking systems
   渲染、決定性物理與完整文明/網路系統
-- [ ] Scene switching, game/window configuration, and a user-driven runtime loop
-  場景切換、遊戲/視窗設定與由使用者控制的執行主迴圈
+- [x] Game/window settings from `engine_config.json` and a user-driven runtime loop
+  從 `engine_config.json` 載入遊戲/視窗設定，並由使用者控制執行主迴圈
 
 ### Not Started 📋 | 尚未開始 📋
 - [ ] Editor and modding workflow

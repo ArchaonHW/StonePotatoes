@@ -1,5 +1,6 @@
 #include <ecs/World.h>
 #include <game/Game.h>
+#include <game/GameConfig.h>
 
 #include <cmath>
 #include <memory>
@@ -33,6 +34,8 @@ public:
 
 int main(int argc, char** argv) {
     if (argc != 2) return 1;
+    const StonePotatoes::Game::GameConfig defaults;
+    if (defaults.windowWidth != 1280 || defaults.windowHeight != 720) return 9;
 
     StonePotatoes::ECS::Entity savedEntity;
     {

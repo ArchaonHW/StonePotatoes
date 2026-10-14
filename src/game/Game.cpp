@@ -10,6 +10,12 @@ bool Game::SetScene(std::unique_ptr<Scene> scene) {
     return true;
 }
 
+bool Game::ChangeScene(std::unique_ptr<Scene> scene) {
+    if (!m_Running || !scene) return false;
+    m_PendingScene = std::move(scene);
+    return true;
+}
+
 bool Game::Start(ECS::World& world) {
     if (m_Running || !m_Scene) return false;
     m_World = &world;
@@ -20,6 +26,11 @@ bool Game::Start(ECS::World& world) {
 
 void Game::Update(float deltaTime) {
     if (!m_Running || !m_World) return;
+    if (m_PendingScene) {
+        m_Scene->OnExit(*m_World);
+        m_Scene = std::move(m_PendingScene);
+        m_Scene->OnEnter(*m_World);
+    }
     m_Scene->Update(*m_World, deltaTime);
     m_World->Update(deltaTime);
 }
@@ -27,6 +38,7 @@ void Game::Update(float deltaTime) {
 void Game::Stop() {
     if (!m_Running || !m_World) return;
     m_Scene->OnExit(*m_World);
+    m_PendingScene.reset();
     m_Running = false;
     m_World = nullptr;
 }

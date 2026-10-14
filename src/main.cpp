@@ -11,6 +11,7 @@
 #include "ecs/entity/Entity.h"
 #include "ecs/system/System.h"
 #include "game/Game.h"
+#include "game/GameConfig.h"
 #include "iqgpu/IQGPURuntime.h"
 #include "iqgpu/QuantumInspired.h"
 #include "iqgpu/KernelOptimizer.h"
@@ -99,27 +100,30 @@ int main(int argc, char* argv[]) {
     // Load configuration (JSON) | 載入設定（JSON）
     // Create a default config on first run | 首次執行時建立預設設定檔
     auto& config = StonePotatoes::Config::ConfigManager::GetInstance();
+    StonePotatoes::Game::GameConfig gameConfig;
     if (!StonePotatoes::IO::FileSystem::Exists("engine_config.json")) {
-        config.SetInt("window.width", 1280);
-        config.SetInt("window.height", 720);
-        config.SetString("window.title", "StonePotatoes - Self-Developing AI Agent");
+        config.SetInt("window.width", gameConfig.windowWidth);
+        config.SetInt("window.height", gameConfig.windowHeight);
+        config.SetString("window.title", gameConfig.windowTitle.c_str());
         config.SetDouble("world.timeScale", 1.0);
         config.SetBool("debug.enabled", true);
         config.SaveToFile("engine_config.json");
     } else {
         config.LoadFromFile("engine_config.json");
     }
+    gameConfig.windowWidth = config.GetInt("window.width", gameConfig.windowWidth);
+    gameConfig.windowHeight = config.GetInt("window.height", gameConfig.windowHeight);
+    gameConfig.windowTitle = config.GetString("window.title", gameConfig.windowTitle.c_str());
     STONEPOTATOES_LOG_INFO("Config: window=%dx%d title=%s",
-        config.GetInt("window.width", 1280),
-        config.GetInt("window.height", 720),
-        config.GetString("window.title", "StonePotatoes"));
+        gameConfig.windowWidth, gameConfig.windowHeight,
+        gameConfig.windowTitle.c_str());
 
     // Create window
     // 建立視窗
     StonePotatoes::Platform::WindowConfig windowConfig;
-    windowConfig.width = config.GetInt("window.width", 1280);
-    windowConfig.height = config.GetInt("window.height", 720);
-    windowConfig.title = config.GetString("window.title", "StonePotatoes");
+    windowConfig.width = gameConfig.windowWidth;
+    windowConfig.height = gameConfig.windowHeight;
+    windowConfig.title = gameConfig.windowTitle.c_str();
 
     StonePotatoes::Platform::Window window;
     if (!window.Create(windowConfig)) {
@@ -632,15 +636,8 @@ int main(int argc, char* argv[]) {
     STONEPOTATOES_LOG_INFO("Entering main loop...");
     STONEPOTATOES_LOG_INFO("進入主迴圈...");
     double frameCount = 0;
-    // Refresh the cached time before sampling it — GetTotalTime() only
-    // advances inside Update(), so a stale snapshot would end the loop early.
-    // 取樣前先刷新快取時間 — GetTotalTime() 只在 Update() 內推進，
-    // 若使用過期快照會導致迴圈提早結束。
     StonePotatoes::Time::TimeManager::GetInstance().Update();
-    double startTime = StonePotatoes::Time::TimeManager::GetInstance().GetTotalTime();
-    // Run for 3 seconds for testing, then exit
-    // 執行 3 秒用於測試，然後退出
-    while (!window.ShouldClose() && (StonePotatoes::Time::TimeManager::GetInstance().GetTotalTime() - startTime) < 3.0) {
+    while (!window.ShouldClose()) {
         // Poll events
         // 輪詢事件
         window.PollEvents();
