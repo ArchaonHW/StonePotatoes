@@ -60,6 +60,15 @@ jobs:
           name: StonePotatoes-windows-x64
           path: build/packages/StonePotatoes-*.zip
           if-no-files-found: error
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Build web3-agent JNI DLL (Vulkan OFF)
+        run: |
+          cmake -S web3-agent/src/main/cpp -B build-jni -A x64 -DSP_ENGINE_ENABLE_VULKAN=OFF
+          cmake --build build-jni --config Release
+          if (-not (Test-Path build-jni/bin/Release/stonepotatoes_engine.dll)) { throw "stonepotatoes_engine.dll not produced" }
 
   coverage:
     name: C++ coverage (gcov/lcov)
