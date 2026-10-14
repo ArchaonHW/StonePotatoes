@@ -7,6 +7,7 @@ target_link_libraries(StonePotatoesTests
     PRIVATE
         StonePotatoesCore
         StonePotatoesECS
+        StonePotatoesData
         StonePotatoesMath
         StonePotatoesIQGPU
         Threads::Threads

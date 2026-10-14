@@ -1,5 +1,9 @@
-# Data library - NOT IMPLEMENTED YET
-# TODO: Implement in Phase 1-2
-add_library(StonePotatoesData STATIC stub.cpp)
-target_include_directories(StonePotatoesData PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(StonePotatoesData PUBLIC StonePotatoesCore StonePotatoesECS)
+add_library(StonePotatoesData STATIC AssetCache.cpp)
+set_target_properties(StonePotatoesData PROPERTIES EXPORT_NAME Data)
+target_include_directories(StonePotatoesData
+    PUBLIC
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes>
+)
+target_link_libraries(StonePotatoesData PUBLIC StonePotatoesCore)
+target_compile_features(StonePotatoesData PUBLIC cxx_std_20)

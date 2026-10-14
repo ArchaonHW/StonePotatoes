@@ -7,6 +7,7 @@
 #include "core/memory/ArenaAllocator.h"
 #include "core/io/FileSystem.h"
 #include "core/config/Config.h"
+#include "data/AssetCache.h"
 #include "ecs/World.h"
 #include "ecs/system/SystemScheduler.h"
 #include "ecs/events/EventBus.h"
@@ -20,6 +21,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <vector>
 
 using namespace StonePotatoes;
@@ -189,6 +191,57 @@ void TestConfig() {
 
     IO::FileSystem::Delete(path);
     IO::FileSystem::Delete(out);
+}
+
+void TestAssetCache() {
+    namespace fs = std::filesystem;
+    const fs::path root("test_asset_cache_tmp");
+    const fs::path binaryPath = root / "sample.bin";
+    const fs::path textPath = root / "message.txt";
+    std::error_code ec;
+    fs::remove_all(root, ec);
+    CHECK(IO::FileSystem::CreateDirectories(root.string().c_str()));
+
+    const std::vector<uint8_t> original{0x00, 0x7F, 0xFF};
+    CHECK(IO::FileSystem::WriteBinaryFile(binaryPath.string().c_str(),
+                                          original.data(), original.size()));
+    const std::string message = "asset text v1";
+    CHECK(IO::FileSystem::WriteTextFile(textPath.string().c_str(), message));
+
+    Data::AssetCache cache(root.string());
+    const auto binary = cache.LoadBinary("nested/../sample.bin");
+    const auto binaryAgain = cache.LoadBinary("./sample.bin");
+    CHECK(binary && binary == binaryAgain);
+    CHECK(binary && *binary == original);
+    CHECK(cache.CachedAssetCount() == 1);
+
+    const auto text = cache.LoadText("message.txt");
+    CHECK(text && *text == message);
+    CHECK(cache.LoadText("message.txt") == text);
+    CHECK(cache.CachedAssetCount() == 2);
+    CHECK(!cache.LoadBinary("../outside.bin"));
+    CHECK(!cache.LoadText(fs::absolute(binaryPath).string()));
+    CHECK(!cache.LoadBinary("missing.bin"));
+    CHECK(cache.CachedAssetCount() == 2); // failed loads are not cached
+
+    const std::vector<uint8_t> updated{0x01, 0x02};
+    CHECK(IO::FileSystem::WriteBinaryFile(binaryPath.string().c_str(),
+                                          updated.data(), updated.size()));
+    CHECK(cache.LoadBinary("sample.bin") == binary); // cached until invalidated
+    CHECK(cache.Invalidate("sample.bin"));
+    const auto reloaded = cache.LoadBinary("sample.bin");
+    CHECK(reloaded && reloaded != binary && *reloaded == updated);
+    CHECK(binary && *binary == original); // outstanding handles remain valid
+
+    cache.Clear();
+    CHECK(cache.CachedAssetCount() == 0);
+    const auto textReloaded = cache.LoadText("message.txt");
+    CHECK(textReloaded && textReloaded != text && *textReloaded == message);
+    CHECK(text && *text == message); // old handle remains valid
+    CHECK(cache.Invalidate("missing.bin") == false);
+    CHECK(IO::FileSystem::Delete(binaryPath.string().c_str()));
+    CHECK(IO::FileSystem::Delete(textPath.string().c_str()));
+    fs::remove(root, ec);
 }
 
 // --- ECS: components, archetypes, query | ECS：組件、archetype、查詢 ---
@@ -489,6 +542,7 @@ int main() {
     TestArenaAllocator();
     TestFileSystem();
     TestConfig();
+    TestAssetCache();
     TestECS();
     TestUnregisterSystem();
     TestEventBus();
