@@ -21,6 +21,12 @@ target_include_directories(StonePotatoesGameTests PRIVATE ${CMAKE_SOURCE_DIR}/sr
 target_link_libraries(StonePotatoesGameTests PRIVATE StonePotatoesGame)
 add_test(NAME game_lifecycle_unit COMMAND StonePotatoesGameTests)
 
+# Deterministic fixed-tick 2D physics vertical slice.
+add_executable(StonePotatoesPhysicsTests unit/test_physics.cpp)
+target_link_libraries(StonePotatoesPhysicsTests
+    PRIVATE StonePotatoesPhysics StonePotatoesGame)
+add_test(NAME physics_fixed_tick_unit COMMAND StonePotatoesPhysicsTests)
+
 # Math + IQGPU module tests | 數學 + IQGPU 模組測試
 add_executable(StonePotatoesMathTests unit/test_math_iqgpu.cpp)
 target_include_directories(StonePotatoesMathTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
