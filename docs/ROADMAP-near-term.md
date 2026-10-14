@@ -14,7 +14,7 @@
 | web3-agent（Java 25） | `web3-agent/` | 可運作；EIP-1559、合約、P2P、LLM | `mvn test`（離線）+ 可選 Anvil/LLM 整合測試 |
 | web3-ide（Spring Boot 3.5 / Cloud 2025.0 + Vue） | `web3-ide/` | 可建置；agent-service 可啟動，其他服務為骨架 | agent-service 冒煙測試 + 密碼 fail-fast 檢查 |
 
-已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Game`、`StonePotatoes::Data`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。`install_consumer` 會在獨立 CMake 專案連結 ECS、Game 與 Data，驗證場景進出與延遲切換、變動／固定步長更新、存檔往返與錯誤存檔拒絕且不改變既有世界，以及資產文字／binary 載入、快取失效、舊 handle 存活和根目錄限制；GLFW 視窗層仍只供 repo 內建置使用。
+已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Game`、`StonePotatoes::Data`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。`install_consumer` 會在獨立 CMake 專案連結 Core、ECS、Game 與 Data，驗證 PluginManager 依賴載入與反向卸載、場景進出與延遲切換、變動／固定步長更新、存檔往返與錯誤存檔拒絕且不改變既有世界，以及資產文字／binary 載入、快取失效、舊 handle 存活和根目錄限制；GLFW 視窗層仍只供 repo 內建置使用。
 
 遊戲主程式建置輸出固定在 `build/bin/<Config>/StonePotatoes[.exe]`（Visual Studio 多組態）或 `build/bin/StonePotatoes`（單組態）；`cmake --install` 會將遊戲、headless C++ 開發套件與文件整理到安裝前綴，`cpack` 會在 `build/packages/` 產生 ZIP（Windows）或 TGZ（Linux/macOS）。`self_developing_agent` 是開發工具，不會打進遊戲套件。
 
@@ -25,11 +25,11 @@
 
 | Issue | 主題 | 備註 |
 |---|---|---|
-| #3 | PluginManager 外掛系統 | 解鎖 Phase 11 Modding 的基礎 |
+| #3 | PluginManager 外掛系統 | 已由 PR #18 完成並關閉；具依賴排序、生命週期、動態載入與單元測試；安裝後 public API 驗收補充中 |
 | #4 | `SystemScheduler::UnregisterSystem` | 已支援更新期間延遲移除，並呼叫可選的 `Shutdown(world)` |
-| #5 | 多尺度時間 + OS 版本偵測 | 時間管理器可用明確 delta 決定性推進，並換算累積遊戲分鐘／小時／日／月／年；`Platform::GetOSVersion()` 回報原生版本識別 |
-| #6 | game 模組 | 已有 headless Game/Scene lifecycle、逐幀邊界切換、可選固定步長及補步上限；設定驅動視窗，demo 主迴圈由使用者關窗結束。場景資源管理仍待補 |
-| #7 | data 模組（資產、設定、存檔） | 存檔 v1 已文件化並拒絕損壞／不支援版本；`AssetCache` 提供根目錄限制、binary/text 載入、快取失效；設定仍由 core 管理 |
+| #5 | 多尺度時間 + OS 版本偵測 | 已完成：明確 delta 決定性推進、多尺度累積時間與原生 OS 版本識別 |
+| #6 | game 模組 | 核心範圍已完成：headless Game/Scene lifecycle、逐幀邊界切換、可選固定步長及補步上限、設定驅動視窗與正常主迴圈。場景資源生命週期屬後續增量，不阻擋本 issue 完成 |
+| #7 | data 模組（資產、設定、存檔） | 核心範圍已完成：存檔 v1 格式及錯誤輸入拒絕、`AssetCache` 根目錄限制與 binary/text 載入和快取失效。既有 `ConfigManager` 保留在 `core`，不因本 issue 搬移模組 |
 | #8 | API 綁定（C++/Lua/Python/Rust） | **建議 v0.1 先做 C++ 公開 API；腳本綁定待具體需求出現後再選一種** |
 | #9 | 清理殘留 stub | — |
 
