@@ -3,6 +3,7 @@
 #include <core/plugin/Plugin.h>
 #include <game/Game.h>
 #include <game/GameConfig.h>
+#include <api/cpp/StonePotatoes.h>
 
 #include <cmath>
 #include <filesystem>
@@ -84,6 +85,26 @@ int main(int argc, char** argv) {
     if (argc != 2) return 1;
     const StonePotatoes::Game::GameConfig defaults;
     if (defaults.windowWidth != 1280 || defaults.windowHeight != 720) return 9;
+
+    // Exercise only the installed public C++ facade: registration, scene
+    // lifecycle and frame updates through StonePotatoes::Runtime.
+    {
+        StonePotatoes::API::Runtime runtime;
+        runtime.GetWorld().RegisterComponent<Position>("RuntimePosition");
+        auto scene = std::make_unique<ConsumerScene>();
+        auto* sceneView = scene.get();
+        if (!runtime.SetScene(std::move(scene)) || !runtime.Start() ||
+            !runtime.IsRunning()) {
+            return 41;
+        }
+        runtime.Update(0.25f);
+        if (sceneView->updateCount != 1 ||
+            std::fabs(sceneView->observedDelta - 0.25f) > 0.0001f) {
+            return 42;
+        }
+        runtime.Stop();
+        if (runtime.IsRunning()) return 43;
+    }
 
     // Exercise the installed Core target's public PluginManager API.
     {

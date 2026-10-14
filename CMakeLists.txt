@@ -154,11 +154,12 @@ set_target_properties(StonePotatoesAI PROPERTIES EXPORT_NAME AI)
 set_target_properties(StonePotatoesWorld PROPERTIES EXPORT_NAME World)
 set_target_properties(StonePotatoesGame PROPERTIES EXPORT_NAME Game)
 set_target_properties(StonePotatoesData PROPERTIES EXPORT_NAME Data)
+set_target_properties(StonePotatoesAPI_CPP PROPERTIES EXPORT_NAME CppAPI)
 foreach(_target StonePotatoesCore StonePotatoesECS StonePotatoesMath StonePotatoesAI StonePotatoesWorld StonePotatoesGame StonePotatoesData)
     target_compile_options(${_target} PUBLIC "$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 endforeach()
 
-install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesMath StonePotatoesAI StonePotatoesWorld StonePotatoesGame StonePotatoesData
+install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesMath StonePotatoesAI StonePotatoesWorld StonePotatoesGame StonePotatoesData StonePotatoesAPI_CPP
     EXPORT StonePotatoesTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -176,6 +177,8 @@ foreach(_module ecs math ai world data)
 endforeach()
 install(DIRECTORY src/game/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes/game
     FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
+install(FILES src/api/cpp/StonePotatoes.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes/api/cpp)
 
 install(EXPORT StonePotatoesTargets
     FILE StonePotatoesTargets.cmake
