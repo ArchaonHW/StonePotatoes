@@ -1,6 +1,6 @@
 # Rendering backend decision: shared Vulkan context
 
-Status: proposed for Issue #10
+Status: Phase 1 implementation in progress for Issue #10
 
 ## Decision
 
@@ -9,11 +9,13 @@ Build the windowed renderer on a shared internal Vulkan context used by both
 types out of the installed C++ API. Do not grow the current OpenGL renderer into
 a second long-term backend.
 
-The first implementation slice should extract instance/device/queue ownership
+The first implementation slice extracts instance/device/compute-queue ownership
 from `GPU::VulkanBackend` into an internal `GPU::VulkanContext`. The compute
-backend and graphics renderer borrow this context; neither creates or destroys
-the shared instance or device. A headless CPU-only build remains supported when
-the Vulkan SDK is unavailable.
+backend and future graphics renderer can share this context; neither should
+create or destroy the shared instance or device. Vulkan-enabled software-device
+CI compiles and exercises the compute path, while a headless CPU-only build
+remains supported when the Vulkan SDK is unavailable. Window-system extensions,
+surface selection, and graphics queue negotiation remain future work.
 
 ## Why an extraction is required
 
@@ -49,8 +51,9 @@ device/API problem Issue #10 calls out.
 
 ## Delivery sequence
 
-1. Extract context ownership without changing compute behavior; keep the
-   existing compute tests passing on Vulkan SDK builds and CPU-only builds.
+1. [In progress] Extract context ownership without changing compute behavior;
+   compile and exercise the existing compute path in software-device CI while
+   preserving CPU-only builds.
 2. Add windowed surface/device capability negotiation and a minimal Vulkan
    graphics smoke path that clears and presents a frame.
 3. Move ImGui to its Vulkan backend and port the existing 2D point/circle
