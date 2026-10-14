@@ -8,13 +8,13 @@
 
 | 區塊 | 位置 | 狀態 | 測試／CI |
 |---|---|---|---|
-| C++ 引擎核心（core / ecs / math / iqgpu / gpu / ai / world） | `src/` | 可運作；ECS、wave 平行排程、IQGPU CPU 後端、Vulkan 計算後端、NPC 垂直切片、程序化世界串流 | `ctest` 註冊 10 項（Vulkan 無 GPU 時 Skipped；執行結果以 CI 為準） |
-| C++ 未完成模組 | `src/{game,data,rendering,physics,agent,civilization,networking,editor,api/*}` | 多數仍為 stub；civilization/networking 含已移植工具，但完整子系統尚未完成 | — |
+| C++ 引擎核心（core / ecs / game / math / iqgpu / gpu / ai / world） | `src/` | 可運作；含 ECS、Game/Scene lifecycle、wave 平行排程、IQGPU CPU 後端、Vulkan 計算後端、NPC 切片、程序化世界串流 | `ctest` 註冊 11 項（Vulkan 無 GPU 時 Skipped；執行結果以 CI 為準） |
+| C++ 未完成模組 | `src/{data,rendering,physics,agent,civilization,networking,editor,api/*}` | 多數仍為 stub；civilization/networking 含已移植工具，但完整子系統尚未完成 | — |
 | self_developing_agent | `tools/self_developing_agent/` | 實驗性獨立開發工具；不連結至遊戲執行檔 | CMake target `StonePotatoesSelfDevelopingAgent` |
 | web3-agent（Java 25） | `web3-agent/` | 可運作；EIP-1559、合約、P2P、LLM | `mvn test`（離線）+ 可選 Anvil/LLM 整合測試 |
 | web3-ide（Spring Boot 3.5 / Cloud 2025.0 + Vue） | `web3-ide/` | 可建置；agent-service 可啟動，其他服務為骨架 | agent-service 冒煙測試 + 密碼 fail-fast 檢查 |
 
-已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。`install_consumer` 會安裝套件、在獨立 CMake 專案中連結 ECS，並驗證世界更新與存檔往返；GLFW 視窗層仍只供 repo 內建置使用。
+已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Game`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。`install_consumer` 會在獨立 CMake 專案連結 ECS 與 Game，驗證場景生命週期、世界更新與存檔往返；GLFW 視窗層仍只供 repo 內建置使用。
 
 遊戲主程式建置輸出固定在 `build/bin/<Config>/StonePotatoes[.exe]`（Visual Studio 多組態）或 `build/bin/StonePotatoes`（單組態）；`cmake --install` 會將遊戲、headless C++ 開發套件與文件整理到安裝前綴，`cpack` 會在 `build/packages/` 產生 ZIP（Windows）或 TGZ（Linux/macOS）。`self_developing_agent` 是開發工具，不會打進遊戲套件。
 
@@ -28,7 +28,7 @@
 | #3 | PluginManager 外掛系統 | 解鎖 Phase 11 Modding 的基礎 |
 | #4 | `SystemScheduler::UnregisterSystem` | — |
 | #5 | 多尺度時間 + OS 版本偵測 | 時間系統須具決定性（為 #14 lockstep 鋪路） |
-| #6 | game 模組 | 把 `src/main.cpp` 的 demo 流程收斂為 Game/Scene 入口 |
+| #6 | game 模組 | 已有 headless Game/Scene lifecycle 並由 demo 主迴圈使用；後續需補場景切換與視窗/遊戲設定整合 |
 | #7 | data 模組（資產、設定、存檔） | 將 `world_save.bin` 格式版本化 |
 | #8 | API 綁定（C++/Lua/Python/Rust） | **建議 v0.1 先做 C++ 公開 API；腳本綁定待具體需求出現後再選一種** |
 | #9 | 清理殘留 stub | — |

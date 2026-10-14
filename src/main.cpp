@@ -10,6 +10,7 @@
 #include "ecs/World.h"
 #include "ecs/entity/Entity.h"
 #include "ecs/system/System.h"
+#include "game/Game.h"
 #include "iqgpu/IQGPURuntime.h"
 #include "iqgpu/QuantumInspired.h"
 #include "iqgpu/KernelOptimizer.h"
@@ -45,6 +46,34 @@ public:
     }
 };
 
+class DemoScene final : public StonePotatoes::Game::Scene {
+public:
+    StonePotatoes::ECS::Entity FirstEntity() const { return m_FirstEntity; }
+
+    void OnEnter(StonePotatoes::ECS::World& world) override {
+        world.RegisterComponent<Position>("Position");
+        world.RegisterComponent<Velocity>("Velocity");
+        world.RegisterComponent<Health>("Health");
+        world.GetSystemScheduler().RegisterSystem(std::make_unique<MovementSystem>());
+        world.GetEventBus().Subscribe<EntityDamagedEvent>(
+            [](const EntityDamagedEvent& event) {
+                STONEPOTATOES_LOG_INFO("Event: entity %u took %d damage",
+                    event.entity.GetIndex(), event.amount);
+            });
+        for (int i = 0; i < 100; ++i) {
+            const auto entity = world.CreateEntity();
+            if (i == 0) m_FirstEntity = entity;
+            world.AddComponent<Position>(entity,
+                Position{static_cast<float>(i), 0.0f, 0.0f});
+            world.AddComponent<Velocity>(entity, Velocity{1.0f, 0.5f, 0.0f});
+            world.AddComponent<Health>(entity, Health{100});
+        }
+    }
+
+private:
+    StonePotatoes::ECS::Entity m_FirstEntity;
+};
+
 int main(int argc, char* argv[]) {
     (void)argc; // Suppress unused parameter warning
     (void)argv; // Suppress unused parameter warning
@@ -52,8 +81,8 @@ int main(int argc, char* argv[]) {
     // Enable file logging | 啟用檔案日誌
     StonePotatoes::Logging::Logger::GetInstance().EnableFileOutput(true, "stonepotatoes.log");
 
-    STONEPOTATOES_LOG_INFO("StonePotatoes - Phase 1 Core with Self-Developing AI Agent");
-    STONEPOTATOES_LOG_INFO("StonePotatoes - 第一階段核心配備自我開發 AI Agent");
+    STONEPOTATOES_LOG_INFO("StonePotatoes - Engine Demo");
+    STONEPOTATOES_LOG_INFO("StonePotatoes - 引擎展示");
 
     // Initialize platform
     // 初始化平台
@@ -108,39 +137,21 @@ int main(int argc, char* argv[]) {
     StonePotatoes::ECS::World world;
     world.Initialize();
 
-    // Register component types with stable serialization names.
-    // 以穩定的序列化名稱註冊組件型別。
-    world.RegisterComponent<Position>("Position");
-    world.RegisterComponent<Velocity>("Velocity");
-    world.RegisterComponent<Health>("Health");
-
-    // Register movement system
-    // 註冊移動系統
-    auto movementSystem = std::make_unique<MovementSystem>();
-    world.GetSystemScheduler().RegisterSystem(std::move(movementSystem));
-
-    // Subscribe to damage events (queued, dispatched at end of Update).
-    // 訂閱傷害事件（佇列方式，於 Update 結尾分派）。
-    world.GetEventBus().Subscribe<EntityDamagedEvent>(
-        [](const EntityDamagedEvent& e) {
-            STONEPOTATOES_LOG_INFO(
-                "Event: entity %u took %d damage", e.entity.GetIndex(),
-                e.amount);
-        });
-
-    // Create 100 test entities with real components.
-    // 建立 100 個帶有真實組件的測試實體。
-    STONEPOTATOES_LOG_INFO("Creating 100 test entities...");
-    STONEPOTATOES_LOG_INFO("建立 100 個測試實體...");
-    StonePotatoes::ECS::Entity firstEntity;
-    for (int i = 0; i < 100; i++) {
-        StonePotatoes::ECS::Entity entity = world.CreateEntity();
-        if (i == 0) firstEntity = entity;
-        world.AddComponent<Position>(entity,
-                                     Position{static_cast<float>(i), 0.0f, 0.0f});
-        world.AddComponent<Velocity>(entity, Velocity{1.0f, 0.5f, 0.0f});
-        world.AddComponent<Health>(entity, Health{100});
+    StonePotatoes::Game::Game game;
+    auto scene = std::make_unique<DemoScene>();
+    auto* demoScene = scene.get();
+    if (!game.SetScene(std::move(scene)) || !game.Start(world)) {
+        STONEPOTATOES_LOG_FATAL("Failed to start game scene");
+        world.Shutdown();
+        window.Destroy();
+        StonePotatoes::Time::TimeManager::GetInstance().Shutdown();
+        StonePotatoes::Platform::Shutdown();
+        return -1;
     }
+
+    // The active scene creates the demo entities and registers their systems.
+    STONEPOTATOES_LOG_INFO("Creating 100 test entities...");
+    STONEPOTATOES_LOG_INFO("建立 100 個帶有真實組件的實體...");
     STONEPOTATOES_LOG_INFO("Created %u entities", world.GetEntityManager().GetEntityCount());
     STONEPOTATOES_LOG_INFO("已建立 %u 個實體", world.GetEntityManager().GetEntityCount());
     STONEPOTATOES_LOG_INFO("Archetypes: %zu",
@@ -184,7 +195,7 @@ int main(int argc, char* argv[]) {
 
     // Queue a demo event (dispatched on first World::Update).
     // 佇列一個演示事件（於第一次 World::Update 時分派）。
-    world.GetEventBus().Queue(EntityDamagedEvent{firstEntity, 25});
+    world.GetEventBus().Queue(EntityDamagedEvent{demoScene->FirstEntity(), 25});
 
     // Save/Load round-trip demo | 儲存/載入往返演示
     world.SaveToFile("world_save.bin");
@@ -640,7 +651,7 @@ int main(int argc, char* argv[]) {
 
         // Update world
         // 更新世界
-        world.Update(static_cast<float>(StonePotatoes::Time::TimeManager::GetInstance().GetDeltaTime()));
+        game.Update(static_cast<float>(StonePotatoes::Time::TimeManager::GetInstance().GetDeltaTime()));
 
         // Swap buffers
         // 交換緩衝區
@@ -654,6 +665,7 @@ int main(int argc, char* argv[]) {
 
     // Shutdown
     // 關閉
+    game.Stop();
     world.Shutdown();
     window.Destroy();
     StonePotatoes::Time::TimeManager::GetInstance().Shutdown();

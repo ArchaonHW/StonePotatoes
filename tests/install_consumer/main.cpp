@@ -1,4 +1,5 @@
 #include <ecs/World.h>
+#include <game/Game.h>
 
 #include <cmath>
 #include <memory>
@@ -22,6 +23,14 @@ public:
     }
 };
 
+class ConsumerScene final : public StonePotatoes::Game::Scene {
+public:
+    void Update(StonePotatoes::ECS::World&, float deltaTime) override {
+        observedDelta = deltaTime;
+    }
+    float observedDelta = 0.0f;
+};
+
 int main(int argc, char** argv) {
     if (argc != 2) return 1;
 
@@ -37,7 +46,13 @@ int main(int argc, char** argv) {
         savedEntity = world.CreateEntity();
         world.AddComponent(savedEntity, Position{1.0f});
         world.AddComponent(savedEntity, Velocity{2.0f});
-        world.Update(0.5f);
+        StonePotatoes::Game::Game game;
+        auto scene = std::make_unique<ConsumerScene>();
+        auto* sceneView = scene.get();
+        if (!game.SetScene(std::move(scene)) || !game.Start(world)) return 7;
+        game.Update(0.5f);
+        if (std::fabs(sceneView->observedDelta - 0.5f) > 0.0001f) return 8;
+        game.Stop();
 
         const auto* position = world.GetComponent<Position>(savedEntity);
         if (!position || std::fabs(position->x - 2.0f) > 0.0001f) return 2;

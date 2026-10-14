@@ -90,12 +90,12 @@ This project is in early development. See [ROADMAP.md](ROADMAP.md) for the compl
   遊戲執行檔固定輸出至 `build/bin/`，並支援 CPack ZIP/TGZ 發行套件
 
 ### In Progress 🚧 | 進行中 🚧
-- [ ] v0.1 engine productization: Game/Scene entry, versioned data/save format, complete public package (headless ECS package is available)
-  v0.1 引擎產品化：Game/Scene 入口、版本化資料/存檔格式、完整公開套件（headless ECS 套件已可使用）
+- [ ] v0.1 engine productization: scene switching, versioned data/save format, complete public package (headless ECS + Game/Scene lifecycle are available)
+  v0.1 引擎產品化：場景切換、版本化資料/存檔格式、完整公開套件（headless ECS 與 Game/Scene lifecycle 已可使用）
 - [ ] Rendering, deterministic physics, and full civilization/networking systems
   渲染、決定性物理與完整文明/網路系統
-- [ ] Decide the boundaries between `src/ai`, `src/agent`, and development tooling
-  決定 `src/ai`、`src/agent` 與開發工具的邊界
+- [ ] Scene switching, game/window configuration, and a user-driven runtime loop
+  場景切換、遊戲/視窗設定與由使用者控制的執行主迴圈
 
 ### Not Started 📋 | 尚未開始 📋
 - [ ] Editor and modding workflow

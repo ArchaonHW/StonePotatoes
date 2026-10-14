@@ -14,6 +14,11 @@ target_link_libraries(StonePotatoesTests
 
 add_test(NAME phase1_unit COMMAND StonePotatoesTests)
 
+add_executable(StonePotatoesGameTests unit/test_game.cpp)
+target_include_directories(StonePotatoesGameTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesGameTests PRIVATE StonePotatoesGame)
+add_test(NAME game_lifecycle_unit COMMAND StonePotatoesGameTests)
+
 # Math + IQGPU module tests | 數學 + IQGPU 模組測試
 add_executable(StonePotatoesMathTests unit/test_math_iqgpu.cpp)
 target_include_directories(StonePotatoesMathTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
