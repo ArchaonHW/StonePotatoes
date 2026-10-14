@@ -7,11 +7,11 @@
 
 #include <GLFW/glfw3.h>
 
-#if defined(__linux__)
-#include <unistd.h>
-#elif defined(__APPLE__)
+#if defined(__linux__) || defined(__APPLE__)
 #include <sys/utsname.h>
 #endif
+
+#include <string>
 
 namespace StonePotatoes {
 namespace Platform {
@@ -47,8 +47,41 @@ const char* GetPlatformName() {
 }
 
 const char* GetOSVersion() {
-    // TODO: Implement OS version detection
-    return "Unknown";
+    static const std::string version = [] {
+#ifdef _WIN32
+        using RtlGetVersionFn = LONG(WINAPI*)(OSVERSIONINFOW*);
+        const HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+        const auto rtlGetVersion = ntdll
+            ? reinterpret_cast<RtlGetVersionFn>(GetProcAddress(ntdll, "RtlGetVersion"))
+            : nullptr;
+        if (!rtlGetVersion) {
+            return std::string("Windows (version unavailable)");
+        }
+
+        OSVERSIONINFOW info{};
+        info.dwOSVersionInfoSize = sizeof(info);
+        if (rtlGetVersion(&info) != 0) {
+            return std::string("Windows (version unavailable)");
+        }
+
+        return std::string("Windows ") + std::to_string(info.dwMajorVersion) + "." +
+            std::to_string(info.dwMinorVersion) + "." + std::to_string(info.dwBuildNumber);
+#elif defined(__linux__) || defined(__APPLE__)
+        struct utsname info{};
+        if (uname(&info) != 0) {
+            return std::string(GetPlatformName()) + " (version unavailable)";
+        }
+#ifdef __APPLE__
+        // macOS exposes its Darwin kernel release through uname.
+        return std::string("Darwin ") + info.release;
+#else
+        return std::string(info.release);
+#endif
+#else
+        return std::string("Unknown");
+#endif
+    }();
+    return version.c_str();
 }
 
 void SetErrorCallback(void (*callback)(const char* message)) {

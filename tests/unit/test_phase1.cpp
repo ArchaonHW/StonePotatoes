@@ -8,6 +8,7 @@
 #include "core/io/FileSystem.h"
 #include "core/config/Config.h"
 #include "core/time/Time.h"
+#include "core/platform/Platform.h"
 #include "data/AssetCache.h"
 #include "ecs/World.h"
 #include "ecs/system/SystemScheduler.h"
@@ -42,6 +43,15 @@ static int g_Failed = 0;
     } while (0)
 
 struct Pod { float x; float y; float z; int tag; };
+
+void TestPlatformVersion() {
+    const char* platform = Platform::GetPlatformName();
+    const char* version = Platform::GetOSVersion();
+    CHECK(platform != nullptr && platform[0] != '\0');
+    CHECK(version != nullptr && version[0] != '\0');
+    CHECK(std::strcmp(version, "Unknown") != 0);
+    CHECK(std::strcmp(version, Platform::GetOSVersion()) == 0);
+}
 
 // --- EntityManager | 實體管理器 ---
 void TestEntityManager() {
@@ -571,6 +581,7 @@ int main() {
     TestArenaAllocator();
     TestFileSystem();
     TestConfig();
+    TestPlatformVersion();
     TestDeterministicTime();
     TestAssetCache();
     TestECS();

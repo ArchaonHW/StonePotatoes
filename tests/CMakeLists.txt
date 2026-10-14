@@ -6,6 +6,7 @@ target_include_directories(StonePotatoesTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(StonePotatoesTests
     PRIVATE
         StonePotatoesCore
+        StonePotatoesPlatform
         StonePotatoesECS
         StonePotatoesData
         StonePotatoesMath
