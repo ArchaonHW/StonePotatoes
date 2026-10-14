@@ -26,7 +26,6 @@ target_link_libraries(StonePotatoesGPU
 )
 
 # --- Optional Vulkan backend | 可選 Vulkan 後端 ---
-find_package(Vulkan QUIET)
 if(Vulkan_FOUND)
     target_compile_definitions(StonePotatoesGPU PUBLIC SP_VULKAN=1)
     target_link_libraries(StonePotatoesGPU PUBLIC Vulkan::Vulkan)

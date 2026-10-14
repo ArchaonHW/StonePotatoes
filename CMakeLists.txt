@@ -51,6 +51,7 @@ endif()
 
 # Find dependencies
 find_package(Threads REQUIRED)
+find_package(Vulkan QUIET)
 
 # External dependencies
 add_subdirectory(external)
@@ -60,9 +61,6 @@ add_subdirectory(src/core)
 
 # ECS library
 add_subdirectory(src/ecs)
-
-# Rendering library
-add_subdirectory(src/rendering)
 
 # Physics library
 add_subdirectory(src/physics)
@@ -84,6 +82,9 @@ add_subdirectory(src/data)
 
 # GPU library
 add_subdirectory(src/gpu)
+
+# Rendering library (uses the shared GPU/Vulkan context)
+add_subdirectory(src/rendering)
 
 # Math library (Riemann zeta core + spectral tools)
 add_subdirectory(src/math)

@@ -966,8 +966,8 @@ StonePotatoes/
 │   # 核心引擎系統 ✓
 │   ├── ecs/                     # Entity-Component-System ✓
 │   # 實體-組件-系統 ✓
-│   ├── rendering/               # Rendering engine (stub)
-│   # 渲染引擎（存根）
+│   ├── rendering/               # OpenGL renderer; Vulkan presentation smoke path in progress
+│   # OpenGL 渲染器；Vulkan 呈現 smoke path 開發中
 │   ├── physics/                 # Physics engine (stub)
 │   # 物理引擎（存根）
 │   ├── ai/                      # AI engine (stub)
