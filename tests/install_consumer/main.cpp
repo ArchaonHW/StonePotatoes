@@ -30,8 +30,10 @@ class ConsumerScene final : public StonePotatoes::Game::Scene {
 public:
     void Update(StonePotatoes::ECS::World&, float deltaTime) override {
         observedDelta = deltaTime;
+        ++updateCount;
     }
     float observedDelta = 0.0f;
+    int updateCount = 0;
 };
 
 int main(int argc, char** argv) {
@@ -62,6 +64,42 @@ int main(int argc, char** argv) {
         const auto* position = world.GetComponent<Position>(savedEntity);
         if (!position || std::fabs(position->x - 2.0f) > 0.0001f) return 2;
         if (!world.SaveToFile(argv[1])) return 3;
+    }
+
+    // Validate fixed-step Game APIs and their ECS behavior from the installed
+    // package, independently of the repository's in-tree unit target.
+    {
+        StonePotatoes::ECS::World world;
+        world.RegisterComponent<Position>("Position");
+        world.RegisterComponent<Velocity>("Velocity");
+        world.GetSystemScheduler().RegisterSystem(
+            std::make_unique<MovementSystem>());
+        world.Initialize();
+        const auto entity = world.CreateEntity();
+        world.AddComponent(entity, Position{});
+        world.AddComponent(entity, Velocity{2.0f});
+
+        StonePotatoes::Game::Game game;
+        auto scene = std::make_unique<ConsumerScene>();
+        auto* sceneView = scene.get();
+        if (!game.SetScene(std::move(scene)) ||
+            !game.SetFixedStep(0.1f, 2) || !game.Start(world)) {
+            return 11;
+        }
+        game.Update(0.05f);
+        if (sceneView->updateCount != 0) return 12;
+        game.Update(0.05f);
+        if (sceneView->updateCount != 1 ||
+            std::fabs(sceneView->observedDelta - 0.1f) > 0.0001f) {
+            return 13;
+        }
+        const auto* fixedPosition = world.GetComponent<Position>(entity);
+        if (!fixedPosition || std::fabs(fixedPosition->x - 0.2f) > 0.0001f) {
+            return 14;
+        }
+        game.Stop();
+        if (!game.DisableFixedStep()) return 15;
+        world.Shutdown();
     }
 
     StonePotatoes::ECS::World restored;

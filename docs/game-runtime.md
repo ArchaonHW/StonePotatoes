@@ -34,5 +34,8 @@ Fixed-step mode bounds catch-up work to `maxCatchUpSteps` per frame. If the
 accumulator still contains whole ticks after that budget, those overdue ticks
 are dropped while the fractional remainder is retained. This prevents an
 overloaded frame from causing unbounded update work. `DisableFixedStep()`
-restores variable-delta mode when the game is stopped. Scene resource ownership
-and richer transition failure handling remain future work.
+restores variable-delta mode when the game is stopped. The installed-package
+consumer exercises both variable- and fixed-step updates through the public
+CMake targets, including that scene and ECS updates share the same fixed tick.
+Scene resource ownership and richer transition failure handling remain future
+work.
