@@ -1,5 +1,5 @@
-# Rendering library - simple 2D OpenGL 2.1 renderer + ImGui
-# 渲染庫 — 簡單 2D OpenGL 2.1 渲染器 + ImGui
+# Rendering library - 2D Vulkan renderer + ImGui (OpenGL fallback without Vulkan)
+# 渲染庫 — 2D Vulkan 渲染器 + ImGui（無 Vulkan 時使用 OpenGL 後備）
 add_library(StonePotatoesRendering STATIC
     Renderer.cpp
     VulkanPresentationSmoke.cpp
@@ -24,9 +24,11 @@ if(Vulkan_FOUND)
     target_link_libraries(StonePotatoesVulkanPresentationSmoke
         PRIVATE StonePotatoesRendering)
 endif()
-if(WIN32)
-    target_link_libraries(StonePotatoesRendering PUBLIC opengl32)
-else()
-    find_package(OpenGL REQUIRED)
-    target_link_libraries(StonePotatoesRendering PUBLIC OpenGL::GL)
+if(NOT Vulkan_FOUND)
+    if(WIN32)
+        target_link_libraries(StonePotatoesRendering PUBLIC opengl32)
+    else()
+        find_package(OpenGL REQUIRED)
+        target_link_libraries(StonePotatoesRendering PUBLIC OpenGL::GL)
+    endif()
 endif()

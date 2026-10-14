@@ -38,7 +38,7 @@
 ### v0.2 可視化與模擬（Phase 3–6）
 | Issue | 主題 | 備註 |
 |---|---|---|
-| #10 | rendering | [進行中] 共用 Vulkan context 與 surface/device/queue 能力協商已完成；目前加入 swapchain clear/present smoke path，之後再接入正式 Renderer、ImGui Vulkan 與 2D API；設計見 [`rendering-vulkan-design.md`](rendering-vulkan-design.md) |
+| #10 | rendering | [進行中] 共用 Vulkan context、swapchain 呈現、ImGui Vulkan 與既有點／圓 2D API 已接入正式 Renderer；CPU-only 建置保留 OpenGL fallback。尚待同裝置 compute + graphics 整合驗收與無視窗 CI 的 runtime 覆蓋；設計見 [`rendering-vulkan-design.md`](rendering-vulkan-design.md) |
 | #11 | physics | 固定步長、決定性 |
 | #12 | agent 模組與各 agent 的定位 | 見下方第 2 節 |
 

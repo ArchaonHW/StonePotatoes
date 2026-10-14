@@ -10,6 +10,9 @@
 #include <memory>
 
 namespace StonePotatoes {
+namespace GPU {
+class VulkanContext;
+}
 namespace Rendering {
 
 class Renderer {
@@ -21,6 +24,9 @@ public:
     };
 
     Renderer();
+    // The supplied context must be uninitialized; Renderer enables GLFW's
+    // presentation extensions before selecting the shared compute/graphics device.
+    explicit Renderer(std::shared_ptr<GPU::VulkanContext> context);
     ~Renderer();
 
     bool Initialize(const Config& cfg);
@@ -39,6 +45,10 @@ public:
     // Immediate-mode ImGui API | ImGui 即時模式 API
     void BeginImGui();
     void EndImGui();
+
+    // Internal GPU context for engine subsystems that share the renderer device.
+    // Available after successful initialization; empty in CPU-only builds.
+    std::shared_ptr<GPU::VulkanContext> GetVulkanContext() const;
 
 private:
     struct Impl;
