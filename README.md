@@ -980,8 +980,8 @@ StonePotatoes/
 │   # 代理系統（存根）
 │   ├── networking/              # Networking (stub)
 │   # 網路（存根）
-│   ├── data/                    # Data and assets (stub)
-│   # 資料與資產（存根）
+│   ├── data/                    # Root-scoped binary/text asset cache
+│   # 資料與資產（根目錄限制的二進位／文字快取）
 │   ├── gpu/                     # GPU compute (stub)
 │   # GPU 計算（存根）
 │   ├── game/                    # Game engine API (stub)

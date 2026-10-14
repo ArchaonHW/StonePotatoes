@@ -1,8 +1,10 @@
 #include <ecs/World.h>
+#include <data/AssetCache.h>
 #include <game/Game.h>
 #include <game/GameConfig.h>
 
 #include <cmath>
+#include <filesystem>
 #include <memory>
 
 struct Position {
@@ -73,6 +75,14 @@ int main(int argc, char** argv) {
     if (std::fabs(position->x - 2.0f) > 0.0001f ||
         std::fabs(velocity->x - 2.0f) > 0.0001f) {
         return 6;
+    }
+
+    const std::filesystem::path savePath(argv[1]);
+    StonePotatoes::Data::AssetCache assets(savePath.parent_path().string());
+    const auto saveBytes = assets.LoadBinary(savePath.filename().string());
+    const auto sameSaveBytes = assets.LoadBinary(savePath.filename().string());
+    if (!saveBytes || saveBytes->size() < 12 || saveBytes != sameSaveBytes) {
+        return 10;
     }
     return 0;
 }

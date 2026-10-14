@@ -14,7 +14,7 @@
 | web3-agent（Java 25） | `web3-agent/` | 可運作；EIP-1559、合約、P2P、LLM | `mvn test`（離線）+ 可選 Anvil/LLM 整合測試 |
 | web3-ide（Spring Boot 3.5 / Cloud 2025.0 + Vue） | `web3-ide/` | 可建置；agent-service 可啟動，其他服務為骨架 | agent-service 冒煙測試 + 密碼 fail-fast 檢查 |
 
-已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Game`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。`install_consumer` 會在獨立 CMake 專案連結 ECS 與 Game，驗證場景生命週期、世界更新與存檔往返；GLFW 視窗層仍只供 repo 內建置使用。
+已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Game`、`StonePotatoes::Data`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。`install_consumer` 會在獨立 CMake 專案連結 ECS、Game 與 Data，驗證場景生命週期、世界更新、存檔往返及資產快取；GLFW 視窗層仍只供 repo 內建置使用。
 
 遊戲主程式建置輸出固定在 `build/bin/<Config>/StonePotatoes[.exe]`（Visual Studio 多組態）或 `build/bin/StonePotatoes`（單組態）；`cmake --install` 會將遊戲、headless C++ 開發套件與文件整理到安裝前綴，`cpack` 會在 `build/packages/` 產生 ZIP（Windows）或 TGZ（Linux/macOS）。`self_developing_agent` 是開發工具，不會打進遊戲套件。
 
@@ -29,7 +29,7 @@
 | #4 | `SystemScheduler::UnregisterSystem` | — |
 | #5 | 多尺度時間 + OS 版本偵測 | 時間系統須具決定性（為 #14 lockstep 鋪路） |
 | #6 | game 模組 | 已有 headless Game/Scene lifecycle、逐幀邊界切換與設定驅動視窗；demo 主迴圈由使用者關窗結束。固定步長與場景資源管理仍待補 |
-| #7 | data 模組（資產、設定、存檔） | `world_save.bin` v1 已文件化並拒絕損壞／不支援版本；資產載入與設定管理仍待實作 |
+| #7 | data 模組（資產、設定、存檔） | 存檔 v1 已文件化並拒絕損壞／不支援版本；`AssetCache` 提供根目錄限制、binary/text 載入、快取失效；設定仍由 core 管理 |
 | #8 | API 綁定（C++/Lua/Python/Rust） | **建議 v0.1 先做 C++ 公開 API；腳本綁定待具體需求出現後再選一種** |
 | #9 | 清理殘留 stub | — |
 
