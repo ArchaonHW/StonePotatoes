@@ -10,7 +10,6 @@
 #include "ecs/World.h"
 #include "ecs/entity/Entity.h"
 #include "ecs/system/System.h"
-#include "self_developing_agent/MetaProgrammingAgent.h"
 #include "iqgpu/IQGPURuntime.h"
 #include "iqgpu/QuantumInspired.h"
 #include "iqgpu/KernelOptimizer.h"
@@ -200,42 +199,6 @@ int main(int argc, char* argv[]) {
                                loaded.GetEntityManager().GetEntityCount());
         loaded.Shutdown();
     }
-
-    // Initialize Self-Developing AI Agent
-    // 初始化自我開發 AI Agent
-    STONEPOTATOES_LOG_INFO("Initializing Self-Developing AI Agent...");
-    STONEPOTATOES_LOG_INFO("初始化自我開發 AI Agent...");
-    
-    StonePotatoes::SelfDevelopingAgent::MetaProgrammingAgent agent;
-    agent.Initialize();
-    
-    // Set development goal
-    // 設定開發目標
-    agent.SetDevelopmentGoal("Optimize ECS performance for 10,000 entities");
-    agent.SetDevelopmentGoal("優化 10,000 個實體的 ECS 效能");
-
-    // Run one development cycle
-    // 執行一個開發週期
-    STONEPOTATOES_LOG_INFO("Running development cycle...");
-    STONEPOTATOES_LOG_INFO("執行開發週期...");
-    agent.DevelopmentCycle();
-
-    // Get agent statistics
-    // 獲取 Agent 統計資料
-    auto stats = agent.GetStatistics();
-    STONEPOTATOES_LOG_INFO("Agent Statistics:");
-    STONEPOTATOES_LOG_INFO("Code Generated: %d lines", stats.codeGeneratedLines);
-    STONEPOTATOES_LOG_INFO("Tests Generated: %d", stats.testsGenerated);
-    STONEPOTATOES_LOG_INFO("Bugs Found: %d", stats.bugsFound);
-    STONEPOTATOES_LOG_INFO("Optimizations: %d", stats.optimizationsPerformed);
-    STONEPOTATOES_LOG_INFO("Self-Improvement Score: %.2f", stats.selfImprovementScore);
-    
-    STONEPOTATOES_LOG_INFO("Agent 統計資料：");
-    STONEPOTATOES_LOG_INFO("程式碼生成：%d 行", stats.codeGeneratedLines);
-    STONEPOTATOES_LOG_INFO("測試生成：%d", stats.testsGenerated);
-    STONEPOTATOES_LOG_INFO("錯誤發現：%d", stats.bugsFound);
-    STONEPOTATOES_LOG_INFO("優化執行：%d", stats.optimizationsPerformed);
-    STONEPOTATOES_LOG_INFO("自我改進分數：%.2f", stats.selfImprovementScore);
 
     // ------------------------------------------------------------------
     // IQGPU demonstration | IQGPU 演示
@@ -468,16 +431,6 @@ int main(int argc, char* argv[]) {
             opt.bestName.c_str(), opt.bestMs, opt.speedup,
             opt.worstName.c_str());
 
-        // Feed measured result into the agent's learning memory.
-        // 將量測結果寫入 Agent 的學習記憶。
-        agent.GetLearningSystem().RecordSuccess(
-            "iqgpu_dispatch:" + opt.bestName,
-            "uneven_workload_2M", opt.speedup / 10.0);
-        STONEPOTATOES_LOG_INFO(
-            "[Agent] Learned dispatch strategy: %s",
-            agent.GetLearningSystem().SuggestApproach(
-                "uneven_workload_2M").c_str());
-
         // ------------------------------------------------------------------
         // ZetaCompute: parallel zero scan + spectral world-gen tools
         // ZetaCompute：平行零點掃描 + 頻譜世界生成工具
@@ -701,7 +654,6 @@ int main(int argc, char* argv[]) {
 
     // Shutdown
     // 關閉
-    agent.Shutdown();
     world.Shutdown();
     window.Destroy();
     StonePotatoes::Time::TimeManager::GetInstance().Shutdown();

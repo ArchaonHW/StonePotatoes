@@ -102,8 +102,8 @@ add_subdirectory(src/api/cpp)
 add_subdirectory(src/api/python)
 add_subdirectory(src/api/lua)
 
-# Self-Developing Agent library
-add_subdirectory(src/self_developing_agent)
+# Standalone self-developing development tool
+add_subdirectory(tools/self_developing_agent)
 
 # Tests
 if(STONEPOTATOES_BUILD_TESTS)
@@ -128,7 +128,6 @@ target_link_libraries(StonePotatoes
         StonePotatoesCore
         StonePotatoesPlatform
         StonePotatoesECS
-        StonePotatoesSelfDevelopingAgent
         StonePotatoesIQGPU
         StonePotatoesAI
         StonePotatoesWorld

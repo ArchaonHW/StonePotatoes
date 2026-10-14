@@ -10,7 +10,7 @@
 |---|---|---|---|
 | C++ 引擎核心（core / ecs / math / iqgpu / gpu / ai / world） | `src/` | 可運作；ECS、wave 平行排程、IQGPU CPU 後端、Vulkan 計算後端、NPC 垂直切片、程序化世界串流 | `ctest` 註冊 10 項（Vulkan 無 GPU 時 Skipped；執行結果以 CI 為準） |
 | C++ 未完成模組 | `src/{game,data,rendering,physics,agent,civilization,networking,editor,api/*}` | 多數仍為 stub；civilization/networking 含已移植工具，但完整子系統尚未完成 | — |
-| self_developing_agent | `src/self_developing_agent/` | 實驗性；`src/main.cpp` demo 使用 | 無專屬測試 |
+| self_developing_agent | `tools/self_developing_agent/` | 實驗性獨立開發工具；不連結至遊戲執行檔 | CMake target `StonePotatoesSelfDevelopingAgent` |
 | web3-agent（Java 25） | `web3-agent/` | 可運作；EIP-1559、合約、P2P、LLM | `mvn test`（離線）+ 可選 Anvil/LLM 整合測試 |
 | web3-ide（Spring Boot 3.5 / Cloud 2025.0 + Vue） | `web3-ide/` | 可建置；agent-service 可啟動，其他服務為骨架 | agent-service 冒煙測試 + 密碼 fail-fast 檢查 |
 
@@ -56,7 +56,9 @@ Phase 11–13（Modding、雲端、AAA）維持在長期 `ROADMAP.md`，暫不�
 │ 引擎核心 src/core, ecs, math, gpu, iqgpu                       │
 │   ├─ 遊戲層 src/ai, world, game, civilization, physics …       │
 │   ├─ src/agent（stub）──── 遊戲內「代理人」的高階行為？          │
-│   └─ src/self_developing_agent ── 開發工具：程式碼分析/生成     │
+└──────────────────────────────────────────────────────────────┘
+┌──────────────────────── 開發工具（CMake）─────────────────────┐
+│ tools/self_developing_agent ── 程式碼分析/生成，不屬於遊戲執行期 │
 └──────────────────────────────────────────────────────────────┘
 ┌──────────────────────── Java（Maven） ────────────────────────┐
 │ web3-agent  ── 獨立函式庫 + CLI：錢包、鏈、P2P、LLM            │
@@ -69,7 +71,7 @@ Phase 11–13（Modding、雲端、AAA）維持在長期 `ROADMAP.md`，暫不�
 
 ### 建議採用的決策
 1. **`src/agent` vs `src/ai`**：保留 `src/ai` 作為遊戲內 NPC 行為模組，移除目前空的 `src/agent` stub target；未來出現獨立且可測試的長期目標／記憶／規劃 API 時，再以 `src/ai/agent` 或明確的子模組加入。
-2. **`src/self_developing_agent`**：移出 `StonePotatoes` 遊戲執行檔，改成 `tools/` 下獨立開發工具。它依賴程式碼分析與生成，與執行期沒有必要的依賴；保留 demo 時應由工具自身提供入口。
+2. **`tools/self_developing_agent`**：已移出 `StonePotatoes` 遊戲執行檔，提供獨立命令列入口；以 `StonePotatoesSelfDevelopingAgent <development goal>` 執行。它目前會在工作目錄建立 `agent_workspace/`，仍屬實驗工具，不會自動修改引擎原始碼。
 3. **web3-agent / web3-ide**：目前留在同一 repo 作為分離產品線，各自維持 Maven/前端建置與 CI。現在沒有 C++ 相依，拆 repo 會增加版本與維護成本；只有在獨立發布、權限或維護者明確分流時再拆。遊戲整合維持 HTTP/gRPC 邊界。
 4. **web3-ide 微服務規模**：凍結現有服務骨架，等第二個業務服務出現再擴充。
 5. **#8 腳本 API**：v0.1 先提供穩定 C++ API，不承諾 Lua/Python/Rust 綁定；待遊戲切片確認腳本需求後，再選一種語言。

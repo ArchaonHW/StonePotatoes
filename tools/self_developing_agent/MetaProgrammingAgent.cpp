@@ -1,5 +1,5 @@
 #include "MetaProgrammingAgent.h"
-#include "../core/logging/Logger.h"
+#include "core/logging/Logger.h"
 
 #include <algorithm>
 #include <cctype>
