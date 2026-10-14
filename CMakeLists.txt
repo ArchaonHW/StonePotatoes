@@ -76,9 +76,6 @@ add_subdirectory(src/world)
 # Civilization library
 add_subdirectory(src/civilization)
 
-# Agent library
-add_subdirectory(src/agent)
-
 # Networking library
 add_subdirectory(src/networking)
 
