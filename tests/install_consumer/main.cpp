@@ -224,5 +224,44 @@ int main(int argc, char** argv) {
     }
     assets.Clear();
     if (assets.CachedAssetCount() != 0) return 31;
+
+    // Malformed saves are validated before LoadFromFile mutates the world.
+    auto writeBytes = [](const std::filesystem::path& path,
+                         const std::vector<std::uint8_t>& bytes) {
+        std::ofstream file(path, std::ios::binary | std::ios::trunc);
+        file.write(reinterpret_cast<const char*>(bytes.data()),
+                   static_cast<std::streamsize>(bytes.size()));
+        return static_cast<bool>(file);
+    };
+    const auto invalidSavePath = savePath.parent_path() / "invalid_save.bin";
+    const std::vector<std::uint8_t> unsupportedVersion{
+        0x44, 0x57, 0x50, 0x53, // SPWD, little endian
+        0x63, 0x00, 0x00, 0x00, // unsupported format version 99
+        0x00, 0x00, 0x00, 0x00  // entity count
+    };
+    if (!writeBytes(invalidSavePath, unsupportedVersion) ||
+        restored.LoadFromFile(invalidSavePath.string().c_str())) {
+        return 32;
+    }
+    auto truncatedSave = *saveBytes;
+    truncatedSave.resize(8);
+    if (!writeBytes(invalidSavePath, truncatedSave) ||
+        restored.LoadFromFile(invalidSavePath.string().c_str())) {
+        return 33;
+    }
+    auto trailingSave = *saveBytes;
+    trailingSave.push_back(0xFF);
+    if (!writeBytes(invalidSavePath, trailingSave) ||
+        restored.LoadFromFile(invalidSavePath.string().c_str())) {
+        return 34;
+    }
+    const auto* preservedPosition = restored.GetComponent<Position>(savedEntity);
+    const auto* preservedVelocity = restored.GetComponent<Velocity>(savedEntity);
+    if (restored.GetEntityManager().GetEntityCount() != 1 ||
+        !restored.IsEntityValid(savedEntity) || !preservedPosition ||
+        !preservedVelocity || std::fabs(preservedPosition->x - 2.0f) > 0.0001f ||
+        std::fabs(preservedVelocity->x - 2.0f) > 0.0001f) {
+        return 35;
+    }
     return 0;
 }

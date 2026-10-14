@@ -19,6 +19,10 @@ truncated, an entity or component is duplicated, a generation is zero, or
 trailing bytes remain. The full file is validated before the destination world
 is changed.
 
+The installed-package consumer verifies that unsupported versions, truncated
+headers, and trailing bytes are rejected without changing an existing world's
+entity count, entity validity, or component values.
+
 Version 1 payloads are ABI-specific: raw component bytes do not provide
 cross-compiler, cross-architecture, or schema migration guarantees. Keep
 component layouts stable for existing saves or introduce a new format version
