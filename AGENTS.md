@@ -24,6 +24,7 @@ Ported from PotatoEngine by ArchaonHW (MIT):
 - Vulkan is optional: without the SDK only the CPU backend is built and `vulkan_unit` skips. Force CPU-only with `-DCMAKE_DISABLE_FIND_PACKAGE_Vulkan=ON` (as CI does).
 - Coverage (optional, GCC/Clang): `-DSTONEPOTATOES_ENABLE_COVERAGE=ON`, or run `./tools/ci/coverage.sh` (needs `lcov`) → `coverage/lcov.info`, `coverage/html/`. CI uploads it as the `cpp-coverage-lcov` artifact.
 - `vulkan_unit` exits 77 without a Vulkan device; ctest reports it as Skipped (`SKIP_RETURN_CODE 77`).
+- With the Vulkan SDK installed, build the windowed clear/present demo with `cmake --build build --config Release --target StonePotatoesVulkanPresentationSmoke`; CI compiles this target in the software-device job. The demo needs a display to run.
 - `install_consumer` validates the installed headless package by building a separate CMake consumer against `StonePotatoes::ECS`, `StonePotatoes::Game`, and `StonePotatoes::Data`, exercising scene lifecycle, world update, save/load, and asset caching.
 - Game runtime responsibilities and the scene transition lifecycle are documented in `docs/game-runtime.md`.
 - The game executable is built to `build/bin/<Config>/StonePotatoes[.exe]` with multi-config generators or `build/bin/StonePotatoes` with single-config generators; `cmake --install` stages the runtime and headless SDK, and `cpack` writes a platform ZIP/TGZ package under `build/packages/`. The self-developing agent remains a developer tool and is not included in the game package.

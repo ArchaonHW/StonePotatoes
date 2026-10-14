@@ -1,6 +1,6 @@
 # Rendering backend decision: shared Vulkan context
 
-Status: Phase 1 complete; Phase 2 context negotiation in progress for Issue #10
+Status: Phase 1 complete; Phase 2 presentation smoke path in progress for Issue #10
 
 ## Decision
 
@@ -14,23 +14,26 @@ from `GPU::VulkanBackend` into an internal `GPU::VulkanContext`. The compute
 backend and future graphics renderer can share this context; neither should
 create or destroy the shared instance or device. Vulkan-enabled software-device
 CI compiles and exercises the compute path, while a headless CPU-only build
-remains supported when the Vulkan SDK is unavailable. Connecting the renderer
-to this negotiation and implementing presentation remain future work.
+remains supported when the Vulkan SDK is unavailable. A focused internal
+`VulkanPresentationSmoke` now creates a GLFW surface and exercises a clear-only
+swapchain frame; the production `Renderer` still uses OpenGL while this path is
+validated and then integrated.
 
 Phase 2 separates instance creation from device selection. Callers may provide
 required instance extensions before creating a window surface, then pass the
 non-owning surface to device initialization. A presentation-capable device must
 provide compute and graphics queues, surface presentation support, and
-`VK_KHR_swapchain`; unique queue families are requested once. The renderer still
-uses OpenGL until the later swapchain and presentation slice lands.
+`VK_KHR_swapchain`; unique queue families are requested once. The smoke helper
+owns the window, surface, swapchain, render pass, and frame synchronization,
+while borrowing the context. The current 2D renderer remains OpenGL.
 
 ## Why an extraction is required
 
-`VulkanBackend::Impl` currently owns its `VkInstance`, `VkDevice`, compute queue,
-and command pool. It creates the instance without window-system extensions,
-prefers a dedicated compute-only queue, and exposes no context handle. GLFW
-therefore cannot create a presentation surface for that instance, and a second
-renderer-owned device would not share GPU resources with compute.
+`VulkanContext` now owns the `VkInstance`, `VkDevice`, and compute queue, and
+`VulkanBackend` exposes a shared internal context handle. A headless context
+created before GLFW's window-system extensions are known cannot later create a
+presentation surface; the windowed owner must provide those extensions before
+instance creation and initialize the device after creating its surface.
 
 `src/rendering/Renderer.cpp` currently uses GLFW, OpenGL 2.1 immediate-mode
 calls, and ImGui's OpenGL2 backend. Reusing that path would preserve the split
@@ -41,8 +44,8 @@ device/API problem Issue #10 calls out.
 1. Initialize GLFW and obtain its required Vulkan instance extensions before
    creating the context. The context enables those extensions only when a
    windowed renderer is requested; headless compute initialization stays valid.
-2. Create the Vulkan instance, then let `Renderer` create its GLFW window and
-   `VkSurfaceKHR` using that instance.
+2. Create the Vulkan instance, then let the presentation owner create its GLFW
+   window and `VkSurfaceKHR` using that instance.
 3. Complete device selection after the surface exists. A windowed device must
    support compute, graphics, and presentation to that surface. Queue families
    may differ; request each unique family once and serialize submissions to
@@ -50,9 +53,9 @@ device/API problem Issue #10 calls out.
 4. `VulkanContext` owns the instance, physical device, logical device, and
    queue handles. It does not own a GLFW window or surface; the surface is
    passed as a non-owning device-selection requirement.
-5. `Renderer` owns its GLFW window, Vulkan surface, swapchain, image views,
-   render pass, framebuffers, and presentation synchronization. It borrows the
-   context and destroys those resources before the context is shut down.
+5. The presentation owner owns its GLFW window, Vulkan surface, swapchain,
+   image views, render pass, framebuffers, and presentation synchronization. It
+   borrows the context and destroys those resources before releasing it.
 6. Compute buffers, graphics resources, and swapchain recreation must use the
    shared device. Public consumer headers continue to use opaque engine types.
 
@@ -61,9 +64,9 @@ device/API problem Issue #10 calls out.
 1. [Complete] Extract context ownership without changing compute behavior;
    software-device CI exercises the existing compute path and CPU-only builds
    remain supported.
-2. [In progress] Add windowed instance-extension and surface/device/queue
-   capability negotiation, then build a minimal Vulkan smoke path that clears
-   and presents a frame.
+2. [In progress] Context capability negotiation is complete. Build and
+   exercise the clear/present smoke path, including resize-driven swapchain
+   recreation, before integrating it into the production renderer.
 3. Move ImGui to its Vulkan backend and port the existing 2D point/circle
    drawing API, including resize and swapchain recreation.
 4. Remove OpenGL2 linkage and the OpenGL2 ImGui backend once the Vulkan path

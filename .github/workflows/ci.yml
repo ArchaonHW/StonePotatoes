@@ -85,7 +85,7 @@ jobs:
           -DSTONEPOTATOES_BUILD_EDITOR=OFF
           -DSTONEPOTATOES_BUILD_EXAMPLES=OFF
       - name: Build Vulkan backend
-        run: cmake --build build-vulkan --target StonePotatoesVulkanTests -j"$(nproc)"
+        run: cmake --build build-vulkan --target StonePotatoesVulkanTests StonePotatoesVulkanPresentationSmoke -j"$(nproc)"
       - name: Test Vulkan backend
         run: ctest --test-dir build-vulkan -R vulkan_unit --output-on-failure --timeout 300
 
