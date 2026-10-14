@@ -15,6 +15,7 @@ target_include_directories(StonePotatoesVisDemo PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(StonePotatoesVisDemo
     PRIVATE
         StonePotatoesCore
+        StonePotatoesPlatform
         StonePotatoesECS
         StonePotatoesAI
         StonePotatoesRendering

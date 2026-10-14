@@ -74,71 +74,32 @@ This project is in early development. See [ROADMAP.md](ROADMAP.md) for the compl
 近期里程碑、issue 對照與各元件（引擎 / self_developing_agent / web3-agent / web3-ide）關係：[docs/ROADMAP-near-term.md](docs/ROADMAP-near-term.md)
 
 ### Implemented ✓ | 已實作 ✓
-- [x] Architecture documentation
-  架構文件
-- [x] Technical roadmap
-  技術路線圖
-- [x] Repository structure
-  儲存庫結構
-- [x] CMake build system (C++20)
-  CMake 建置系統 (C++20)
-- [x] Core platform abstraction (Window, IO, Time)
-  核心平台抽象（視窗、IO、時間）
-- [x] Memory management (Memory pool)
-  記憶體管理（記憶體池）
-- [x] Logging system
-  日誌系統
-- [x] Configuration system
-  配置系統
-- [x] Plugin system (basic)
-  外掛系統（基礎）
-- [x] ECS framework (Entity, Component, System, World)
-  ECS 框架（實體、組件、系統、世界）
-- [x] Main executable with window creation and basic loop
-  主執行檔，包含視窗建立與基本迴圈
-- [x] MIT License
-  MIT 授權
-- [x] PotatoEngine ports (Profiler, Pathfinding, QuasiRandom, CurlNoise, SystemDynamics, LockstepSync)
-  PotatoEngine 移植（Profiler、Pathfinding、QuasiRandom、CurlNoise、SystemDynamics、LockstepSync）
-  See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for licensing details.
-  詳見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 授權資訊。
+- [x] Core platform, logging, configuration, memory allocators, and plugin manager
+  核心平台、日誌、設定、記憶體配置器與外掛管理器
+- [x] ECS with archetypes, queries, events, resources, command buffer, and binary world persistence
+  ECS 原型、查詢、事件、資源、指令緩衝區與二進位世界持久化
+- [x] Parallel system scheduling and unit-tested CPU compute backend
+  平行系統排程與具單元測試的 CPU 計算後端
+- [x] NPC behavior slice and procedural world streaming
+  NPC 行為垂直切片與程序化世界串流
+- [x] Optional Vulkan compute backend and ported PotatoEngine utilities
+  可選 Vulkan 計算後端與 PotatoEngine 移植工具
+- [x] C++20 CMake build and standalone Java Web3 agent
+  C++20 CMake 建置與獨立 Java Web3 agent
 
 ### In Progress 🚧 | 進行中 🚧
-- [ ] Full ECS implementation (archetypes, queries, events, resources)
-  完整 ECS 實作（原型、查詢、事件、資源）
-- [ ] Component system with archetype-based storage
-  基於原型儲存的組件系統
-- [ ] System scheduler with parallel execution
-  支援平行執行的系統排程器
-- [ ] Rendering context initialization
-  渲染上下文初始化
+- [ ] v0.1 engine productization: Game/Scene entry, versioned data/save format, complete public package (headless ECS package is available)
+  v0.1 引擎產品化：Game/Scene 入口、版本化資料/存檔格式、完整公開套件（headless ECS 套件已可使用）
+- [ ] Rendering, deterministic physics, and full civilization/networking systems
+  渲染、決定性物理與完整文明/網路系統
+- [ ] Decide the boundaries between `src/ai`, `src/agent`, and development tooling
+  決定 `src/ai`、`src/agent` 與開發工具的邊界
 
 ### Not Started 📋 | 尚未開始 📋
-- [ ] Rendering Engine (Phase 3)
-  渲染引擎（第三階段）
-- [ ] Physics Engine (Phase 4)
-  物理引擎（第四階段）
-- [ ] AI Engine (Phase 5)
-  AI 引擎（第五階段）
-- [ ] World Simulation (Phase 6)
-  世界模擬（第六階段）
-- [ ] Civilization Simulation (Phase 7)
-  文明模擬（第七階段）
-- [ ] GPU Massive Simulation (Phase 8)
-  GPU 大規模模擬（第八階段）
-- [ ] IQGPU Runtime (Phase 8)
-  IQGPU 運行時（第八階段）
-- [ ] Networking (Phase 9)
-  網路（第九階段）
-- [ ] Editor (Phase 10)
-  編輯器（第十階段）
-- [ ] Mod System (Phase 11)
-  Mod 系統（第十一階段）
-- [ ] Cloud/Distributed Simulation (Phase 12)
-  雲端/分散式模擬（第十二階段）
-- [ ] AAA Production (Phase 13)
-  AAA 量產（第十三階段）
-
+- [ ] Editor and modding workflow
+  編輯器與 Mod 工作流程
+- [ ] Cloud/distributed simulation and production-scale content pipeline
+  雲端/分散式模擬與量產級內容管線
 ---
 
 ## Intelligent Quantum GPU Development System (IQGPU) | 智能量子 GPU 開發系統 (IQGPU)

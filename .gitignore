@@ -80,3 +80,6 @@ web3-ide/web-ui/src/main/frontend/dist/
 
 # coverage output
 coverage/
+
+# Local Web3 wallet material
+web3-ide/agent-service/data/keystore/

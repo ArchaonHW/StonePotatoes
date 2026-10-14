@@ -1,0 +1,48 @@
+if(NOT DEFINED SP_SOURCE_DIR OR NOT DEFINED SP_BUILD_DIR OR
+   NOT DEFINED SP_CONSUMER_SOURCE OR NOT DEFINED SP_GENERATOR)
+    message(FATAL_ERROR "Missing install-consumer test arguments")
+endif()
+
+set(_prefix "${SP_BUILD_DIR}/install-consumer/prefix")
+set(_consumer_build "${SP_BUILD_DIR}/install-consumer/build")
+file(REMOVE_RECURSE "${SP_BUILD_DIR}/install-consumer")
+
+set(_install_command "${CMAKE_COMMAND}" --install "${SP_BUILD_DIR}" --prefix "${_prefix}")
+if(DEFINED SP_CONFIG AND NOT SP_CONFIG STREQUAL "")
+    list(APPEND _install_command --config "${SP_CONFIG}")
+endif()
+execute_process(COMMAND ${_install_command} RESULT_VARIABLE _install_result)
+if(NOT _install_result EQUAL 0)
+    message(FATAL_ERROR "Installing StonePotatoes failed (${_install_result})")
+endif()
+
+set(_configure_command "${CMAKE_COMMAND}" -S "${SP_CONSUMER_SOURCE}" -B "${_consumer_build}" -G "${SP_GENERATOR}" "-DCMAKE_PREFIX_PATH=${_prefix}")
+if(DEFINED SP_CONFIG AND NOT SP_CONFIG STREQUAL "")
+    list(APPEND _configure_command "-DCMAKE_BUILD_TYPE=${SP_CONFIG}")
+endif()
+execute_process(COMMAND ${_configure_command} RESULT_VARIABLE _configure_result)
+if(NOT _configure_result EQUAL 0)
+    message(FATAL_ERROR "Configuring the installed-package consumer failed (${_configure_result})")
+endif()
+
+set(_build_command "${CMAKE_COMMAND}" --build "${_consumer_build}")
+if(DEFINED SP_CONFIG AND NOT SP_CONFIG STREQUAL "")
+    list(APPEND _build_command --config "${SP_CONFIG}")
+endif()
+execute_process(COMMAND ${_build_command} RESULT_VARIABLE _build_result)
+if(NOT _build_result EQUAL 0)
+    message(FATAL_ERROR "Building the installed-package consumer failed (${_build_result})")
+endif()
+
+if(DEFINED SP_CONFIG AND NOT SP_CONFIG STREQUAL "")
+    set(_consumer_exe "${_consumer_build}/${SP_CONFIG}/StonePotatoesConsumer${CMAKE_EXECUTABLE_SUFFIX}")
+else()
+    set(_consumer_exe "${_consumer_build}/StonePotatoesConsumer${CMAKE_EXECUTABLE_SUFFIX}")
+endif()
+execute_process(
+    COMMAND "${_consumer_exe}" "${SP_BUILD_DIR}/install-consumer/world_save.bin"
+    RESULT_VARIABLE _run_result
+)
+if(NOT _run_result EQUAL 0)
+    message(FATAL_ERROR "Running the installed-package consumer failed (${_run_result})")
+endif()

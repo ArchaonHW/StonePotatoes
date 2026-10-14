@@ -108,6 +108,18 @@ add_test(NAME ported_utils_unit COMMAND StonePotatoesPortedUtilsTests)
 # 無 GPU / loader 時回傳 77，ctest 顯示為 Skipped。
 set_tests_properties(vulkan_unit PROPERTIES SKIP_RETURN_CODE 77)
 
+# Install the headless public package, then build and run a separate consumer
+# that creates, updates, saves, and reloads an ECS world.
+add_test(NAME install_consumer
+    COMMAND ${CMAKE_COMMAND}
+        -DSP_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DSP_BUILD_DIR=${CMAKE_BINARY_DIR}
+        -DSP_CONSUMER_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/install_consumer
+        -DSP_GENERATOR=${CMAKE_GENERATOR}
+        -DSP_CONFIG=$<CONFIG>
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/install_consumer/run.cmake
+)
+
 # Plugin system tests (incl. a real shared-library plugin) | 外掛系統測試（含實際共享函式庫外掛）
 add_library(StonePotatoesTestPlugin MODULE unit/test_plugin_module.cpp)
 target_include_directories(StonePotatoesTestPlugin PRIVATE ${CMAKE_SOURCE_DIR}/src)

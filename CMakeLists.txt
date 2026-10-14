@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 project(StonePotatoes VERSION 0.1.0 LANGUAGES CXX)
 
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -123,6 +126,7 @@ add_executable(StonePotatoes src/main.cpp)
 target_link_libraries(StonePotatoes
     PRIVATE
         StonePotatoesCore
+        StonePotatoesPlatform
         StonePotatoesECS
         StonePotatoesSelfDevelopingAgent
         StonePotatoesIQGPU
@@ -131,15 +135,51 @@ target_link_libraries(StonePotatoes
         Threads::Threads
 )
 
-# Install configuration
-include(GNUInstallDirs)
-install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesRendering StonePotatoesPhysics StonePotatoesAI StonePotatoesWorld StonePotatoesCivilization StonePotatoesAgent StonePotatoesNetworking StonePotatoesData StonePotatoesGPU StonePotatoesMath StonePotatoesIQGPU StonePotatoesGame StonePotatoesSelfDevelopingAgent
+# Installable headless engine package. Windowing remains a build-tree target
+# until GLFW is distributed as part of the installed package.
+set_target_properties(StonePotatoesCore PROPERTIES EXPORT_NAME Core)
+set_target_properties(StonePotatoesECS PROPERTIES EXPORT_NAME ECS)
+set_target_properties(StonePotatoesMath PROPERTIES EXPORT_NAME Math)
+set_target_properties(StonePotatoesAI PROPERTIES EXPORT_NAME AI)
+set_target_properties(StonePotatoesWorld PROPERTIES EXPORT_NAME World)
+foreach(_target StonePotatoesCore StonePotatoesECS StonePotatoesMath StonePotatoesAI StonePotatoesWorld)
+    target_compile_options(${_target} PUBLIC "$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
+endforeach()
+
+install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesMath StonePotatoesAI StonePotatoesWorld
+    EXPORT StonePotatoesTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes
 )
 
-# Public headers live alongside sources under src/ (there is no include/ dir).
-# 公開標頭與原始碼同在 src/（沒有 include/ 目錄）。
-install(DIRECTORY src/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes
-    FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
+# Install headers only for modules represented by exported package targets.
+install(DIRECTORY src/core/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes/core
+    FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "platform" EXCLUDE)
+foreach(_module ecs math ai world)
+    install(DIRECTORY src/${_module}/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes/${_module}
+        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
+endforeach()
+
+install(EXPORT StonePotatoesTargets
+    FILE StonePotatoesTargets.cmake
+    NAMESPACE StonePotatoes::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/StonePotatoes
+)
+configure_package_config_file(
+    cmake/StonePotatoesConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/StonePotatoesConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/StonePotatoes
+)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/StonePotatoesConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/StonePotatoesConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/StonePotatoesConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/StonePotatoes
+)

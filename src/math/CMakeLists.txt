@@ -12,5 +12,8 @@ add_library(StonePotatoesMath STATIC
 
 target_include_directories(StonePotatoesMath
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes>
 )
+target_compile_features(StonePotatoesMath PUBLIC cxx_std_20)
