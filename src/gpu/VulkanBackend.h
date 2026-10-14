@@ -18,6 +18,8 @@
 namespace StonePotatoes {
 namespace GPU {
 
+class VulkanContext;
+
 class VulkanBackend {
 public:
     // Opaque handles (index into internal tables, never a Vk* pointer).
@@ -33,7 +35,7 @@ public:
     // 以 DeviceCaps 列舉 Vulkan 實體裝置（不保留 instance）。
     static std::vector<DeviceCaps> EnumerateGPUs();
 
-    VulkanBackend();
+    explicit VulkanBackend(std::shared_ptr<VulkanContext> context = {});
     ~VulkanBackend();
     VulkanBackend(const VulkanBackend&) = delete;
     VulkanBackend& operator=(const VulkanBackend&) = delete;
@@ -42,6 +44,9 @@ public:
     bool Initialize(uint32_t deviceIndex = 0);
     void Shutdown();
     bool IsInitialized() const;
+    // Shared owner used by internal graphics consumers. The context remains
+    // alive until the backend and all consumers release their shared handles.
+    std::shared_ptr<VulkanContext> GetContext() const;
     const DeviceCaps& GetCaps() const;
     const std::string& LastError() const;
 

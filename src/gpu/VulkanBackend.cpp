@@ -1,4 +1,5 @@
 #include "VulkanBackend.h"
+#include "VulkanContext.h"
 
 #ifdef SP_VULKAN
 
@@ -9,6 +10,7 @@
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <utility>
 
 namespace StonePotatoes {
 namespace GPU {
@@ -22,7 +24,9 @@ std::string VkErr(VkResult r) {
 } // namespace
 
 struct VulkanBackend::Impl {
-    VkInstance instance = VK_NULL_HANDLE;
+    std::shared_ptr<VulkanContext> context;
+    // Non-owning aliases from context, kept local to minimize changes to the
+    // compute resource implementation. VulkanContext owns these handles.
     VkPhysicalDevice phys = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;
     uint32_t queueFamily = 0;
@@ -31,7 +35,6 @@ struct VulkanBackend::Impl {
     VkDescriptorPool descPool = VK_NULL_HANDLE;
     VkQueryPool queryPool = VK_NULL_HANDLE;
     float timestampPeriodNs = 0.0f;   // 0 → timestamp queries unsupported
-    DeviceCaps caps;
     std::string lastError;
 
     struct Buffer {
@@ -58,7 +61,7 @@ struct VulkanBackend::Impl {
     }
 
     void Shutdown() {
-        if (!instance) return;
+        if (!context && device == VK_NULL_HANDLE) return;
         if (device) vkDeviceWaitIdle(device);
         for (auto& k : kernels) {
             if (k.pipeline) vkDestroyPipeline(device, k.pipeline, nullptr);
@@ -78,9 +81,20 @@ struct VulkanBackend::Impl {
         if (queryPool) vkDestroyQueryPool(device, queryPool, nullptr);
         if (descPool) vkDestroyDescriptorPool(device, descPool, nullptr);
         if (cmdPool) vkDestroyCommandPool(device, cmdPool, nullptr);
-        if (device) vkDestroyDevice(device, nullptr);
-        vkDestroyInstance(instance, nullptr);
-        *this = Impl{};
+        // The shared context owns the device and instance. Keep our reference
+        // so this backend can be initialized again against the same context;
+        // other graphics consumers may also retain their own references.
+        phys = VK_NULL_HANDLE;
+        device = VK_NULL_HANDLE;
+        queueFamily = 0;
+        queue = VK_NULL_HANDLE;
+        cmdPool = VK_NULL_HANDLE;
+        descPool = VK_NULL_HANDLE;
+        queryPool = VK_NULL_HANDLE;
+        timestampPeriodNs = 0.0f;
+        fence = VK_NULL_HANDLE;
+        cb = VK_NULL_HANDLE;
+        lastError.clear();
     }
 };
 
@@ -159,93 +173,35 @@ std::vector<DeviceCaps> VulkanBackend::EnumerateGPUs() {
     return caps;
 }
 
-VulkanBackend::VulkanBackend() : m_Impl(std::make_unique<Impl>()) {}
+VulkanBackend::VulkanBackend(std::shared_ptr<VulkanContext> context)
+    : m_Impl(std::make_unique<Impl>()) {
+    m_Impl->context = std::move(context);
+}
 VulkanBackend::~VulkanBackend() { Shutdown(); }
-bool VulkanBackend::IsInitialized() const { return m_Impl->device != VK_NULL_HANDLE; }
-const DeviceCaps& VulkanBackend::GetCaps() const { return m_Impl->caps; }
+bool VulkanBackend::IsInitialized() const {
+    return m_Impl->device != VK_NULL_HANDLE && m_Impl->context &&
+           m_Impl->context->IsInitialized();
+}
+std::shared_ptr<VulkanContext> VulkanBackend::GetContext() const {
+    return m_Impl->context;
+}
+const DeviceCaps& VulkanBackend::GetCaps() const {
+    static const DeviceCaps empty;
+    return m_Impl->context ? m_Impl->context->GetCaps() : empty;
+}
 const std::string& VulkanBackend::LastError() const { return m_Impl->lastError; }
 void VulkanBackend::Shutdown() { m_Impl->Shutdown(); }
 
 bool VulkanBackend::Initialize(uint32_t deviceIndex) {
     Impl& im = *m_Impl;
     if (im.device) return true;
-
-    VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};
-    app.pApplicationName = "StonePotatoes";
-    app.apiVersion = VK_API_VERSION_1_1;
-    VkInstanceCreateInfo ici{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
-    ici.pApplicationInfo = &app;
-    if (vkCreateInstance(&ici, nullptr, &im.instance) != VK_SUCCESS)
-        return im.Fail("vkCreateInstance failed");
-
-    uint32_t n = 0;
-    vkEnumeratePhysicalDevices(im.instance, &n, nullptr);
-    std::vector<VkPhysicalDevice> devs(n);
-    vkEnumeratePhysicalDevices(im.instance, &n, devs.data());
-    if (devs.empty()) return im.Fail("no Vulkan physical devices");
-
-    // Prefer discrete GPU, then any compute-capable device; deviceIndex
-    // picks within the compute-capable ordered list.
-    // 偏好獨立 GPU，其次任何計算裝置；deviceIndex 於排序後清單中選取。
-    std::vector<VkPhysicalDevice> ordered;
-    for (auto pd : devs) {
-        uint32_t qn = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(pd, &qn, nullptr);
-        std::vector<VkQueueFamilyProperties> qprops(qn);
-        vkGetPhysicalDeviceQueueFamilyProperties(pd, &qn, qprops.data());
-        for (const auto& q : qprops)
-            if (q.queueFlags & VK_QUEUE_COMPUTE_BIT) { ordered.push_back(pd); break; }
-    }
-    std::stable_sort(ordered.begin(), ordered.end(), [](auto a, auto b) {
-        VkPhysicalDeviceProperties pa, pb;
-        vkGetPhysicalDeviceProperties(a, &pa);
-        vkGetPhysicalDeviceProperties(b, &pb);
-        auto rank = [](VkPhysicalDeviceType t) {
-            return t == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? 0 :
-                   t == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU ? 1 : 2;
-        };
-        return rank(pa.deviceType) < rank(pb.deviceType);
-    });
-    if (ordered.empty()) return im.Fail("no compute-capable device");
-    if (deviceIndex >= ordered.size()) deviceIndex = 0;
-    im.phys = ordered[deviceIndex];
-
-    // Compute queue family | 計算佇列族
-    uint32_t qn = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(im.phys, &qn, nullptr);
-    std::vector<VkQueueFamilyProperties> qprops(qn);
-    vkGetPhysicalDeviceQueueFamilyProperties(im.phys, &qn, qprops.data());
-    im.queueFamily = qn;
-    uint32_t bestScore = 0;
-    for (uint32_t i = 0; i < qn; ++i) {
-        if (!(qprops[i].queueFlags & VK_QUEUE_COMPUTE_BIT)) continue;
-        // Prefer a dedicated compute queue (no graphics bit).
-        // 偏好專用計算佇列（不含 graphics bit）。
-        const uint32_t score =
-            (qprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) ? 1 : 2;
-        if (score > bestScore) {
-            bestScore = score;
-            im.queueFamily = i;
-        }
-    }
-    if (im.queueFamily == qn) return im.Fail("no compute queue family");
-
-    float prio = 1.0f;
-    VkDeviceQueueCreateInfo qci{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
-    qci.queueFamilyIndex = im.queueFamily;
-    qci.queueCount = 1;
-    qci.pQueuePriorities = &prio;
-    VkDeviceCreateInfo dci{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
-    dci.queueCreateInfoCount = 1;
-    dci.pQueueCreateInfos = &qci;
-    VkPhysicalDeviceFeatures feats{};
-    vkGetPhysicalDeviceFeatures(im.phys, &feats);
-    VkPhysicalDeviceFeatures want{};
-    want.shaderFloat64 = feats.shaderFloat64;
-    dci.pEnabledFeatures = &want;
-    if (vkCreateDevice(im.phys, &dci, nullptr, &im.device) != VK_SUCCESS)
-        return im.Fail("vkCreateDevice failed");
-    vkGetDeviceQueue(im.device, im.queueFamily, 0, &im.queue);
+    if (!im.context) im.context = std::make_shared<VulkanContext>();
+    if (!im.context->Initialize(deviceIndex))
+        return im.Fail(im.context->LastError());
+    im.phys = im.context->GetPhysicalDevice();
+    im.device = im.context->GetDevice();
+    im.queueFamily = im.context->GetComputeQueueFamily();
+    im.queue = im.context->GetComputeQueue();
 
     VkCommandPoolCreateInfo cpci{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
     cpci.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -279,7 +235,7 @@ bool VulkanBackend::Initialize(uint32_t deviceIndex) {
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(im.phys, &props);
     if (props.limits.timestampComputeAndGraphics &&
-        qprops[im.queueFamily].timestampValidBits > 0) {
+        im.context->GetTimestampValidBits() > 0) {
         im.timestampPeriodNs = props.limits.timestampPeriod;
         VkQueryPoolCreateInfo qpi{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
         qpi.queryType = VK_QUERY_TYPE_TIMESTAMP;
@@ -289,27 +245,6 @@ bool VulkanBackend::Initialize(uint32_t deviceIndex) {
             im.timestampPeriodNs = 0.0f;
     }
 
-    // Caps | 能力
-    VkPhysicalDeviceFeatures feats2;
-    vkGetPhysicalDeviceFeatures(im.phys, &feats2);
-    VkPhysicalDeviceMemoryProperties mem;
-    vkGetPhysicalDeviceMemoryProperties(im.phys, &mem);
-    im.caps.type = props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
-                       ? DeviceType::DiscreteGPU
-                       : DeviceType::IntegratedGPU;
-    im.caps.name = props.deviceName;
-    // SM/EU count is vendor-specific — report the queue count honestly.
-    // SM/EU 數量因供應商而異 — 誠實回報佇列數。
-    im.caps.computeUnits = qprops[im.queueFamily].queueCount;
-    im.caps.memoryBytes = 0;
-    for (uint32_t i = 0; i < mem.memoryHeapCount; ++i)
-        if (mem.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
-            im.caps.memoryBytes += mem.memoryHeaps[i].size;
-    if (!im.caps.memoryBytes)
-        for (uint32_t i = 0; i < mem.memoryHeapCount; ++i)
-            im.caps.memoryBytes += mem.memoryHeaps[i].size;
-    im.caps.supportsFloat64 = feats2.shaderFloat64 == VK_TRUE;
-    im.caps.supportsAtomics = true;
     return true;
 }
 
@@ -627,11 +562,13 @@ struct VulkanBackend::Impl {};  // empty when built without Vulkan | 無 Vulkan 
 
 bool VulkanBackend::IsAvailable() { return false; }
 std::vector<DeviceCaps> VulkanBackend::EnumerateGPUs() { return {}; }
-VulkanBackend::VulkanBackend() : m_Impl(std::make_unique<Impl>()) {}
+VulkanBackend::VulkanBackend(std::shared_ptr<VulkanContext>)
+    : m_Impl(std::make_unique<Impl>()) {}
 VulkanBackend::~VulkanBackend() = default;
 bool VulkanBackend::Initialize(uint32_t) { return false; }
 void VulkanBackend::Shutdown() {}
 bool VulkanBackend::IsInitialized() const { return false; }
+std::shared_ptr<VulkanContext> VulkanBackend::GetContext() const { return {}; }
 const DeviceCaps& VulkanBackend::GetCaps() const {
     static DeviceCaps c;
     return c;

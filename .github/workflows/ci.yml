@@ -70,6 +70,25 @@ jobs:
           cmake --build build-jni --config Release
           if (-not (Test-Path build-jni/bin/Release/stonepotatoes_engine.dll)) { throw "stonepotatoes_engine.dll not produced" }
 
+  cpp-vulkan:
+    name: C++ Vulkan backend (software device)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ build-essential libvulkan-dev mesa-vulkan-drivers glslc xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
+      - name: Configure
+        run: >
+          cmake -S . -B build-vulkan -DCMAKE_BUILD_TYPE=Release
+          -DSTONEPOTATOES_BUILD_EDITOR=OFF
+          -DSTONEPOTATOES_BUILD_EXAMPLES=OFF
+      - name: Build Vulkan backend
+        run: cmake --build build-vulkan --target StonePotatoesVulkanTests -j"$(nproc)"
+      - name: Test Vulkan backend
+        run: ctest --test-dir build-vulkan -R vulkan_unit --output-on-failure --timeout 300
+
   coverage:
     name: C++ coverage (gcov/lcov)
     runs-on: ubuntu-24.04

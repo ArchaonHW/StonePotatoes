@@ -8,6 +8,7 @@ add_library(StonePotatoesGPU STATIC
     ComputeBuffer.cpp
     CPUBackend.cpp
     ComputeGraph.cpp
+    VulkanContext.cpp
     VulkanBackend.cpp
 )
 
