@@ -2,6 +2,8 @@
 #include "../platform/Platform.h"
 #include "../logging/Logger.h"
 
+#include <cmath>
+
 #ifdef _WIN32
 #include <windows.h>
 #elif defined(__linux__)
@@ -72,6 +74,7 @@ TimeManager::TimeManager()
     , m_FixedDeltaTime(1.0 / 60.0)
     , m_TotalTime(0.0)
     , m_TimeScale(1.0)
+    , m_LastWallTime(0.0)
     , m_GameMinute(0.0)
     , m_GameHour(0.0)
     , m_GameDay(0.0)
@@ -89,6 +92,14 @@ TimeManager& TimeManager::GetInstance() {
 
 void TimeManager::Initialize() {
     m_Timer.Reset();
+    m_DeltaTime = 0.0;
+    m_TotalTime = 0.0;
+    m_LastWallTime = 0.0;
+    m_GameMinute = 0.0;
+    m_GameHour = 0.0;
+    m_GameDay = 0.0;
+    m_GameMonth = 0.0;
+    m_GameYear = 0.0;
     STONEPOTATOES_LOG_INFO("TimeManager: Initialized");
 }
 
@@ -97,21 +108,47 @@ void TimeManager::Shutdown() {
 }
 
 void TimeManager::Update() {
-    double previousTime = m_TotalTime;
-    m_TotalTime = m_Timer.GetElapsedSeconds();
-    m_DeltaTime = (m_TotalTime - previousTime) * m_TimeScale;
+    const double wallTime = m_Timer.GetElapsedSeconds();
+    const double realDelta = wallTime - m_LastWallTime;
+    m_LastWallTime = wallTime;
+    Advance(realDelta);
+}
 
-    // Update multi-scale time
-    // TODO: Implement proper multi-scale time system
-    m_GameMinute += m_DeltaTime * 60.0; // 1 real second = 1 game minute
-    m_GameHour = m_GameMinute / 60.0;
-    m_GameDay = m_GameHour / 24.0;
-    m_GameMonth = m_GameDay / 30.0;
-    m_GameYear = m_GameMonth / 12.0;
+bool TimeManager::Advance(double realDeltaSeconds) {
+    if (!std::isfinite(realDeltaSeconds) || realDeltaSeconds < 0.0) {
+        return false;
+    }
+
+    const double scaledDelta = realDeltaSeconds * m_TimeScale;
+    const double totalTime = m_TotalTime + realDeltaSeconds;
+    const double gameMinute = m_GameMinute + scaledDelta;
+    const double gameHour = gameMinute / 60.0;
+    const double gameDay = gameHour / 24.0;
+    const double gameMonth = gameDay / 30.0;
+    const double gameYear = gameMonth / 12.0;
+    if (!std::isfinite(scaledDelta) || !std::isfinite(totalTime) ||
+        !std::isfinite(gameMinute) || !std::isfinite(gameYear)) {
+        return false;
+    }
+
+    m_DeltaTime = scaledDelta;
+    m_TotalTime = totalTime;
+
+    // Calendar values are cumulative: 1 real second advances one game minute
+    // at time scale 1; a game day has 24 hours, a month 30 days, and a year
+    // 12 months. These fixed units avoid locale/calendar dependencies.
+    m_GameMinute = gameMinute;
+    m_GameHour = gameHour;
+    m_GameDay = gameDay;
+    m_GameMonth = gameMonth;
+    m_GameYear = gameYear;
+    return true;
 }
 
 void TimeManager::SetFixedDeltaTime(double deltaTime) {
-    m_FixedDeltaTime = deltaTime;
+    if (std::isfinite(deltaTime) && deltaTime > 0.0) {
+        m_FixedDeltaTime = deltaTime;
+    }
 }
 
 double TimeManager::GetDeltaTime() const {
@@ -147,7 +184,9 @@ double TimeManager::GetGameYear() const {
 }
 
 void TimeManager::SetTimeScale(double scale) {
-    m_TimeScale = scale;
+    if (std::isfinite(scale) && scale >= 0.0) {
+        m_TimeScale = scale;
+    }
 }
 
 double TimeManager::GetTimeScale() const {
