@@ -25,7 +25,8 @@ public:
     VulkanPresentationSmoke(const VulkanPresentationSmoke&) = delete;
     VulkanPresentationSmoke& operator=(const VulkanPresentationSmoke&) = delete;
 
-    bool Initialize(const Config& config = {});
+    bool Initialize();
+    bool Initialize(const Config& config);
     bool PresentClearFrame();
     bool ShouldClose() const;
     void PollEvents();

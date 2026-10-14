@@ -469,3 +469,11 @@ const std::string& VulkanPresentationSmoke::LastError() const {
 } // namespace StonePotatoes::Rendering
 
 #endif
+
+namespace StonePotatoes::Rendering {
+
+bool VulkanPresentationSmoke::Initialize() {
+    return Initialize(Config{});
+}
+
+} // namespace StonePotatoes::Rendering
