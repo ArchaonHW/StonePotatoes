@@ -1,6 +1,6 @@
 # Rendering backend decision: shared Vulkan context
 
-Status: Phase 1 implementation in progress for Issue #10
+Status: Phase 1 complete; Phase 2 context negotiation in progress for Issue #10
 
 ## Decision
 
@@ -14,8 +14,15 @@ from `GPU::VulkanBackend` into an internal `GPU::VulkanContext`. The compute
 backend and future graphics renderer can share this context; neither should
 create or destroy the shared instance or device. Vulkan-enabled software-device
 CI compiles and exercises the compute path, while a headless CPU-only build
-remains supported when the Vulkan SDK is unavailable. Window-system extensions,
-surface selection, and graphics queue negotiation remain future work.
+remains supported when the Vulkan SDK is unavailable. Connecting the renderer
+to this negotiation and implementing presentation remain future work.
+
+Phase 2 separates instance creation from device selection. Callers may provide
+required instance extensions before creating a window surface, then pass the
+non-owning surface to device initialization. A presentation-capable device must
+provide compute and graphics queues, surface presentation support, and
+`VK_KHR_swapchain`; unique queue families are requested once. The renderer still
+uses OpenGL until the later swapchain and presentation slice lands.
 
 ## Why an extraction is required
 
@@ -51,11 +58,12 @@ device/API problem Issue #10 calls out.
 
 ## Delivery sequence
 
-1. [In progress] Extract context ownership without changing compute behavior;
-   compile and exercise the existing compute path in software-device CI while
-   preserving CPU-only builds.
-2. Add windowed surface/device capability negotiation and a minimal Vulkan
-   graphics smoke path that clears and presents a frame.
+1. [Complete] Extract context ownership without changing compute behavior;
+   software-device CI exercises the existing compute path and CPU-only builds
+   remain supported.
+2. [In progress] Add windowed instance-extension and surface/device/queue
+   capability negotiation, then build a minimal Vulkan smoke path that clears
+   and presents a frame.
 3. Move ImGui to its Vulkan backend and port the existing 2D point/circle
    drawing API, including resize and swapchain recreation.
 4. Remove OpenGL2 linkage and the OpenGL2 ImGui backend once the Vulkan path

@@ -196,7 +196,7 @@ bool VulkanBackend::Initialize(uint32_t deviceIndex) {
     Impl& im = *m_Impl;
     if (im.device) return true;
     if (!im.context) im.context = std::make_shared<VulkanContext>();
-    if (!im.context->Initialize(deviceIndex))
+    if (!im.context->IsInitialized() && !im.context->Initialize(deviceIndex))
         return im.Fail(im.context->LastError());
     im.phys = im.context->GetPhysicalDevice();
     im.device = im.context->GetDevice();
