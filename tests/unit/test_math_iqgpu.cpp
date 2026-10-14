@@ -56,6 +56,21 @@ void TestRiemannZeta() {
 
     // Smooth count N0(T)=θ(T)/π+1 vs true count: 10 zeros below 50, S small.
     CHECK(Near(Math::Zeta::SmoothZeroCount(50.0), 10.0, 1.0));
+    // Trudgian S(T) bound: known N(100)=29, N(1000)=649 (Odlyzko tables).
+    // Trudgian S(T) 界：已知 N(100)=29、N(1000)=649。
+    CHECK(Math::Zeta::ZeroCountConsistent(100.0, 29));
+    CHECK(Math::Zeta::ZeroCountConsistent(1000.0, 649));
+    CHECK(!Math::Zeta::ZeroCountConsistent(1000.0, 640));
+    CHECK(!Math::Zeta::ZeroCountConsistent(1000.0, 660));
+    CHECK(!Math::Zeta::ZeroCountConsistent(1.0, 0));
+    CHECK(Math::Zeta::ZeroCountErrorBound(1e6) > Math::Zeta::ZeroCountErrorBound(1e3));
+    {
+        // Cross-check against the scanner's own count up to t = 60 (13 zeros).
+        // 與掃描器在 t ≤ 60 的實際零點數（13 個）交叉檢查。
+        auto z = IQGPU::ZetaCompute::FindZerosSequential(10.0, 60.0, 0.05);
+        CHECK(z.gammas.size() == 13);
+        CHECK(Math::Zeta::ZeroCountConsistent(60.0, static_cast<int64_t>(z.gammas.size())));
+    }
 
     // Gram points are real and increasing.
     const double g0 = Math::Zeta::GramPoint(0);
