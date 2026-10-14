@@ -29,7 +29,7 @@
 | #4 | `SystemScheduler::UnregisterSystem` | — |
 | #5 | 多尺度時間 + OS 版本偵測 | 時間系統須具決定性（為 #14 lockstep 鋪路） |
 | #6 | game 模組 | 已有 headless Game/Scene lifecycle、逐幀邊界切換與設定驅動視窗；demo 主迴圈由使用者關窗結束。固定步長與場景資源管理仍待補 |
-| #7 | data 模組（資產、設定、存檔） | 將 `world_save.bin` 格式版本化 |
+| #7 | data 模組（資產、設定、存檔） | `world_save.bin` v1 已文件化並拒絕損壞／不支援版本；資產載入與設定管理仍待實作 |
 | #8 | API 綁定（C++/Lua/Python/Rust） | **建議 v0.1 先做 C++ 公開 API；腳本綁定待具體需求出現後再選一種** |
 | #9 | 清理殘留 stub | — |
 

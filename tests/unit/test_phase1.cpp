@@ -17,8 +17,10 @@
 #include "gpu/CPUBackend.h"
 
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 using namespace StonePotatoes;
 
@@ -297,6 +299,88 @@ void TestWorldSaveLoad() {
     }
 
     IO::FileSystem::Delete(path);
+
+    const char* sparsePath = "test_world_sparse_tmp.bin";
+    ECS::Entity sparseEntity;
+    {
+        ECS::World world;
+        world.RegisterComponent<Pod>("Pod");
+        world.CreateEntity();
+        world.CreateEntity();
+        sparseEntity = world.CreateEntity();
+        world.AddComponent(sparseEntity, Pod{3.0f, 4.0f, 0.0f, 5});
+        world.DestroyEntity(ECS::Entity::FromIndexAndGeneration(0, 1));
+        world.DestroyEntity(ECS::Entity::FromIndexAndGeneration(1, 1));
+        CHECK(world.GetEntityManager().GetEntityCount() == 1);
+        CHECK(world.SaveToFile(sparsePath));
+    }
+    {
+        ECS::World world;
+        world.RegisterComponent<Pod>("Pod");
+        CHECK(world.LoadFromFile(sparsePath));
+        CHECK(world.GetEntityManager().GetEntityCount() == 1);
+        CHECK(world.IsEntityValid(sparseEntity));
+        const ECS::Entity reused = world.CreateEntity();
+        CHECK(reused.GetIndex() != sparseEntity.GetIndex());
+        CHECK(world.GetEntityManager().GetEntityCount() == 2);
+    }
+    IO::FileSystem::Delete(sparsePath);
+}
+
+void TestWorldSaveLoadRejectsMalformedFiles() {
+    const char* path = "test_world_invalid_tmp.bin";
+    auto appendU16 = [](std::vector<uint8_t>& bytes, uint16_t value) {
+        bytes.push_back(static_cast<uint8_t>(value));
+        bytes.push_back(static_cast<uint8_t>(value >> 8));
+    };
+    auto appendU32 = [](std::vector<uint8_t>& bytes, uint32_t value) {
+        for (unsigned shift = 0; shift < 32; shift += 8) {
+            bytes.push_back(static_cast<uint8_t>(value >> shift));
+        }
+    };
+
+    ECS::World world;
+    world.RegisterComponent<Pod>("Pod");
+    const ECS::Entity sentinel = world.CreateEntity();
+    world.AddComponent(sentinel, Pod{7.0f, 8.0f, 9.0f, 42});
+
+    std::vector<uint8_t> unsupportedVersion;
+    appendU32(unsupportedVersion, 0x53505744);
+    appendU32(unsupportedVersion, 99);
+    appendU32(unsupportedVersion, 0);
+    CHECK(IO::FileSystem::WriteBinaryFile(
+        path, unsupportedVersion.data(), unsupportedVersion.size()));
+    CHECK(!world.LoadFromFile(path));
+
+    std::vector<uint8_t> truncated;
+    appendU32(truncated, 0x53505744);
+    appendU32(truncated, 1);
+    appendU32(truncated, 1);
+    appendU32(truncated, 0);
+    appendU32(truncated, 1);
+    appendU32(truncated, 1);
+    appendU16(truncated, 3);
+    truncated.insert(truncated.end(), {'P', 'o', 'd'});
+    appendU32(truncated, sizeof(Pod));
+    truncated.push_back(0); // truncated component payload
+    CHECK(IO::FileSystem::WriteBinaryFile(
+        path, truncated.data(), truncated.size()));
+    CHECK(!world.LoadFromFile(path));
+
+    std::vector<uint8_t> trailing;
+    appendU32(trailing, 0x53505744);
+    appendU32(trailing, 1);
+    appendU32(trailing, 0);
+    trailing.push_back(0xFF);
+    CHECK(IO::FileSystem::WriteBinaryFile(
+        path, trailing.data(), trailing.size()));
+    CHECK(!world.LoadFromFile(path));
+
+    CHECK(world.GetEntityManager().GetEntityCount() == 1);
+    CHECK(world.IsEntityValid(sentinel));
+    const Pod* pod = world.GetComponent<Pod>(sentinel);
+    CHECK(pod && pod->tag == 42 && pod->x == 7.0f);
+    IO::FileSystem::Delete(path);
 }
 
 // --- Zeta math core + IQGPU parallel zero scan ---
@@ -409,6 +493,7 @@ int main() {
     TestUnregisterSystem();
     TestEventBus();
     TestWorldSaveLoad();
+    TestWorldSaveLoadRejectsMalformedFiles();
     TestZeta();
 
     std::printf("=== %d passed, %d failed ===\n", g_Passed, g_Failed);
