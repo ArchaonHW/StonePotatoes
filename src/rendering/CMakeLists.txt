@@ -23,6 +23,13 @@ if(Vulkan_FOUND)
         ${PROJECT_SOURCE_DIR}/examples/vulkan_presentation_smoke.cpp)
     target_link_libraries(StonePotatoesVulkanPresentationSmoke
         PRIVATE StonePotatoesRendering)
+
+    add_executable(StonePotatoesVulkanComputeRendererDemo
+        ${PROJECT_SOURCE_DIR}/examples/vulkan_compute_renderer_demo.cpp)
+    target_include_directories(StonePotatoesVulkanComputeRendererDemo
+        PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(StonePotatoesVulkanComputeRendererDemo
+        PRIVATE StonePotatoesRendering StonePotatoesPlatform)
 endif()
 if(NOT Vulkan_FOUND)
     if(WIN32)

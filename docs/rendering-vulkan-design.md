@@ -1,6 +1,6 @@
 # Rendering backend decision: shared Vulkan context
 
-Status: Phase 1 complete; Phase 3 production Renderer integrated and locally runtime-validated for Issue #10
+Status: Phase 1 complete; Phase 3 production Renderer locally runtime-validated; shared compute/graphics demo added for Issue #10
 
 ## Decision
 
@@ -75,8 +75,11 @@ and avoid OpenGL linkage for `StonePotatoesRendering`.
    Same-device compute/presentation remains to be checked in the integrated path.
 3. [Integrated; local runtime validated] The production Renderer uses ImGui's
    Vulkan backend and maps the existing point/circle API to 2D draw primitives.
-   The renderer exposes the shared context for compute consumers. Automated
-   windowless runtime coverage is still pending.
+   The renderer exposes the shared context for compute consumers. The
+   `StonePotatoesVulkanComputeRendererDemo` now dispatches SAXPY through a
+   `VulkanBackend` bound to that context, verifies the result and device handle,
+   and visualizes the output. The target builds locally; running this integrated
+   demo and adding automated windowless runtime coverage are still pending.
 4. Remove the OpenGL2 fallback after Vulkan is no longer optional for supported
    build configurations.
 
@@ -89,7 +92,8 @@ and avoid OpenGL linkage for `StonePotatoesRendering`.
 - A windowed smoke test creates one context, runs compute and presents graphics
   through the same `VkDevice`, resizes the surface, and shuts down cleanly. Local
   renderer visualization and shutdown have been verified; same-device compute
-  plus presentation still requires an explicit integration check.
+  plus presentation is now represented by the integration demo but still needs
+  an explicit runtime check.
 - The installed headless C++ package does not gain a GLFW or Vulkan dependency.
 - No second Vulkan instance/device is created by `Renderer` when a shared
   context is supplied.
