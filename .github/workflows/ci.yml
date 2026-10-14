@@ -78,7 +78,7 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ build-essential libvulkan-dev mesa-vulkan-drivers glslc xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
+          sudo apt-get install -y cmake g++ build-essential libvulkan-dev mesa-vulkan-drivers glslc xvfb xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
       - name: Configure
         run: >
           cmake -S . -B build-vulkan -DCMAKE_BUILD_TYPE=Release
@@ -87,7 +87,7 @@ jobs:
       - name: Build Vulkan backend
         run: cmake --build build-vulkan --target StonePotatoesVulkanTests StonePotatoesVulkanPresentationSmoke StonePotatoesVulkanComputeRendererDemo -j"$(nproc)"
       - name: Test Vulkan backend
-        run: ctest --test-dir build-vulkan -R vulkan_unit --output-on-failure --timeout 300
+        run: ctest --test-dir build-vulkan -R 'vulkan_(unit|compute_renderer_runtime)' --output-on-failure --timeout 300
 
   coverage:
     name: C++ coverage (gcov/lcov)

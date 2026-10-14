@@ -36,7 +36,8 @@ public:
     // Main loop control | 主迴圈控制
     bool ShouldClose() const;
     void BeginFrame();
-    void EndFrame();
+    // Returns false when the frame could not be submitted/presented.
+    bool EndFrame();
 
     // 2D primitives (world space) | 2D 圖元（世界座標）
     void SetView(float centerX, float centerY, float zoom);

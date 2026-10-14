@@ -159,9 +159,9 @@ void Renderer::BeginFrame() {
     ImGui::NewFrame();
 }
 
-void Renderer::EndFrame() {
+bool Renderer::EndFrame() {
     Impl& im = *m_Impl;
-    if (!im.initialized) return;
+    if (!im.initialized) return false;
     ImGui::Render();
     VkClearColorValue clear{};
     clear.float32[0] = 0.1f;
@@ -186,6 +186,7 @@ void Renderer::EndFrame() {
         STONEPOTATOES_LOG_ERROR("Vulkan renderer frame failed: %s",
                                 im.presentation->LastError().c_str());
     }
+    return presented;
 }
 
 void Renderer::SetView(float centerX, float centerY, float zoom) {
@@ -339,11 +340,12 @@ void Renderer::BeginFrame() {
     glLoadIdentity();
 }
 
-void Renderer::EndFrame() {
-    if (!m_Impl->window) return;
+bool Renderer::EndFrame() {
+    if (!m_Impl->window) return false;
     ImGui::Render();
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(m_Impl->window);
+    return true;
 }
 
 void Renderer::SetView(float centerX, float centerY, float zoom) {

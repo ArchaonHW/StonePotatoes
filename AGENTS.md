@@ -26,6 +26,7 @@ Ported from PotatoEngine by ArchaonHW (MIT):
 - `vulkan_unit` exits 77 without a Vulkan device; ctest reports it as Skipped (`SKIP_RETURN_CODE 77`).
 - With the Vulkan SDK installed, build the windowed clear/present demo with `cmake --build build --config Release --target StonePotatoesVulkanPresentationSmoke`; CI compiles this target in the software-device job. The demo needs a display to run.
 - With the Vulkan SDK installed, build `StonePotatoesVulkanComputeRendererDemo` to see the production renderer and SAXPY compute backend share one `VulkanContext`/`VkDevice`; it needs a display to run.
+- The Linux Vulkan CI uses `xvfb-run` and `StonePotatoesVulkanComputeRendererDemo --frames 3` to verify the shared-device compute/presentation runtime and clean shutdown without a physical display.
 - `install_consumer` validates the installed headless package by building a separate CMake consumer against `StonePotatoes::ECS`, `StonePotatoes::Game`, and `StonePotatoes::Data`, exercising scene lifecycle, world update, save/load, and asset caching.
 - Game runtime responsibilities and the scene transition lifecycle are documented in `docs/game-runtime.md`.
 - The game executable is built to `build/bin/<Config>/StonePotatoes[.exe]` with multi-config generators or `build/bin/StonePotatoes` with single-config generators; `cmake --install` stages the runtime and headless SDK, and `cpack` writes a platform ZIP/TGZ package under `build/packages/`. The self-developing agent remains a developer tool and is not included in the game package.

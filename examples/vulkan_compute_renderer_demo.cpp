@@ -6,9 +6,11 @@
 #include <imgui.h>
 
 #include <array>
+#include <charconv>
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include <string_view>
 
 namespace {
 
@@ -20,7 +22,7 @@ struct PushConstants {
 };
 static_assert(sizeof(PushConstants) == 8);
 
-int RunDemo() {
+int RunDemo(uint32_t maxFrames) {
     using namespace StonePotatoes;
 
     auto context = std::make_shared<GPU::VulkanContext>();
@@ -94,7 +96,9 @@ int RunDemo() {
 
     std::printf("Shared VkDevice verified; SAXPY validated %u values (%.3f ms GPU, %.3f ms wall).\n",
                 kElementCount, dispatch.gpuMs, dispatch.wallMs);
-    while (!renderer.ShouldClose()) {
+    uint32_t renderedFrames = 0;
+    while (!renderer.ShouldClose() &&
+           (maxFrames == 0 || renderedFrames < maxFrames)) {
         renderer.BeginFrame();
         for (uint32_t i = 0; i < kElementCount; ++i) {
             const float x = static_cast<float>(i % 8) * 0.20f - 0.10f;
@@ -111,22 +115,53 @@ int RunDemo() {
                     dispatch.wallMs);
         ImGui::Text("Close the window to exit.");
         renderer.EndImGui();
-        renderer.EndFrame();
+        if (!renderer.EndFrame()) {
+            std::fprintf(stderr, "Renderer failed to present a frame\n");
+            compute.Shutdown();
+            renderer.Shutdown();
+            return 1;
+        }
+        ++renderedFrames;
     }
 
     compute.Shutdown();
     renderer.Shutdown();
+    if (maxFrames != 0) {
+        if (renderedFrames != maxFrames) {
+            std::fprintf(stderr,
+                         "Renderer stopped after %u of %u requested frames\n",
+                         renderedFrames, maxFrames);
+            return 1;
+        }
+        std::printf("Presented %u renderer frames; shutdown completed.\n",
+                    renderedFrames);
+    }
     return 0;
 }
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    uint32_t maxFrames = 0;
+    if (argc == 3 && std::string_view(argv[1]) == "--frames") {
+        const std::string_view value(argv[2]);
+        const auto parsed = std::from_chars(
+            value.data(), value.data() + value.size(), maxFrames);
+        if (parsed.ec != std::errc{} ||
+            parsed.ptr != value.data() + value.size() || maxFrames == 0) {
+            std::fprintf(stderr, "Usage: %s [--frames positive-count]\n", argv[0]);
+            return 2;
+        }
+    } else if (argc != 1) {
+        std::fprintf(stderr, "Usage: %s [--frames positive-count]\n", argv[0]);
+        return 2;
+    }
+
     if (!StonePotatoes::Platform::Initialize()) {
         std::fprintf(stderr, "Platform initialization failed\n");
         return 1;
     }
-    const int result = RunDemo();
+    const int result = RunDemo(maxFrames);
     StonePotatoes::Platform::Shutdown();
     return result;
 }
