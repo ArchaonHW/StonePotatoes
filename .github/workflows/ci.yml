@@ -29,6 +29,13 @@ jobs:
         run: ctest --test-dir build --output-on-failure --timeout 300
       - name: Install (smoke)
         run: cmake --install build --prefix "$RUNNER_TEMP/sp-install"
+      - name: Package
+        run: cpack --config build/CPackConfig.cmake
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StonePotatoes-linux-x64
+          path: build/packages/StonePotatoes-*.tar.gz
+          if-no-files-found: error
 
   cpp-windows:
     name: C++ engine (Windows MSVC, Vulkan disabled)
@@ -44,6 +51,15 @@ jobs:
         run: cmake --build build --config Release --parallel
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure --timeout 600
+      - name: Install and package
+        run: |
+          cmake --install build --config Release --prefix "$env:RUNNER_TEMP\sp-install"
+          cpack --config build/CPackConfig.cmake -C Release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StonePotatoes-windows-x64
+          path: build/packages/StonePotatoes-*.zip
+          if-no-files-found: error
 
   coverage:
     name: C++ coverage (gcov/lcov)

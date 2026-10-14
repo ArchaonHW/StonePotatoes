@@ -123,6 +123,9 @@ endif()
 
 # Main executable
 add_executable(StonePotatoes src/main.cpp)
+set_target_properties(StonePotatoes PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
 target_link_libraries(StonePotatoes
     PRIVATE
         StonePotatoesCore
@@ -132,6 +135,13 @@ target_link_libraries(StonePotatoes
         StonePotatoesAI
         StonePotatoesWorld
         Threads::Threads
+)
+
+install(TARGETS StonePotatoes
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+install(FILES LICENSE README.md
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/StonePotatoes
 )
 
 # Installable headless engine package. Windowing remains a build-tree target
@@ -182,3 +192,17 @@ install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/StonePotatoesConfigVersion.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/StonePotatoes
 )
+
+# Create portable ZIP (Windows) and TGZ (Linux/macOS) packages from install rules.
+set(CPACK_PACKAGE_NAME "StonePotatoes")
+set(CPACK_PACKAGE_VENDOR "StonePotatoes contributors")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "StonePotatoes engine runtime and C++ package")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_FILE_NAME "StonePotatoes-${PROJECT_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}/packages")
+if(WIN32)
+    set(CPACK_GENERATOR ZIP)
+else()
+    set(CPACK_GENERATOR TGZ)
+endif()
+include(CPack)

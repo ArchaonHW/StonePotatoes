@@ -86,6 +86,8 @@ This project is in early development. See [ROADMAP.md](ROADMAP.md) for the compl
   可選 Vulkan 計算後端與 PotatoEngine 移植工具
 - [x] C++20 CMake build and standalone Java Web3 agent
   C++20 CMake 建置與獨立 Java Web3 agent
+- [x] Game executable output at `build/bin/` and CPack ZIP/TGZ distribution
+  遊戲執行檔固定輸出至 `build/bin/`，並支援 CPack ZIP/TGZ 發行套件
 
 ### In Progress 🚧 | 進行中 🚧
 - [ ] v0.1 engine productization: Game/Scene entry, versioned data/save format, complete public package (headless ECS package is available)
@@ -1063,26 +1065,25 @@ StonePotatoes/
 git clone https://github.com/yourusername/StonePotatoes.git
 cd StonePotatoes
 
-# Create build directory
-# 建立建置目錄
-mkdir build
-cd build
-
 # Configure with CMake
 # 使用 CMake 配置
-cmake ..
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
 # Build
 # 建置
-cmake --build . --config Release
+cmake --build build --config Release
 
-# Run
-# 執行
-./StonePotatoes
+# Run (Visual Studio multi-config)
+# 執行（Visual Studio 多組態）
+./build/bin/Release/StonePotatoes.exe
+
+# Create a platform package in build/packages/
+# 在 build/packages/ 建立平台發行套件
+cpack --config build/CPackConfig.cmake -C Release
 ```
 
-**Note:** The build system is currently under construction. Not all modules are fully implemented yet.
-**註：** 建置系統目前在建置中。並非所有模組都已完全實作。
+Single-config generators place the executable at `build/bin/StonePotatoes`; Visual Studio places it at `build/bin/Release/StonePotatoes.exe`.
+單組態產生器會將執行檔放在 `build/bin/StonePotatoes`；Visual Studio 則放在 `build/bin/Release/StonePotatoes.exe`。
 
 ---
 

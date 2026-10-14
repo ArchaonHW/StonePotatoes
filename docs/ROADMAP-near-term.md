@@ -16,6 +16,8 @@
 
 已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。`install_consumer` 會安裝套件、在獨立 CMake 專案中連結 ECS，並驗證世界更新與存檔往返；GLFW 視窗層仍只供 repo 內建置使用。
 
+遊戲主程式建置輸出固定在 `build/bin/<Config>/StonePotatoes[.exe]`（Visual Studio 多組態）或 `build/bin/StonePotatoes`（單組態）；`cmake --install` 會將遊戲、headless C++ 開發套件與文件整理到安裝前綴，`cpack` 會在 `build/packages/` 產生 ZIP（Windows）或 TGZ（Linux/macOS）。`self_developing_agent` 是開發工具，不會打進遊戲套件。
+
 ## 1. 里程碑
 
 ### v0.1 基礎模組（Phase 1–2 收尾）
