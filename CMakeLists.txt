@@ -96,8 +96,6 @@ add_subdirectory(src/game)
 
 # API libraries
 add_subdirectory(src/api/cpp)
-add_subdirectory(src/api/python)
-add_subdirectory(src/api/lua)
 
 # Standalone self-developing development tool
 add_subdirectory(tools/self_developing_agent)

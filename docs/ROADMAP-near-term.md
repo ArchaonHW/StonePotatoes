@@ -9,7 +9,7 @@
 | 區塊 | 位置 | 狀態 | 測試／CI |
 |---|---|---|---|
 | C++ 引擎核心（core / ecs / game / math / iqgpu / gpu / ai / world） | `src/` | 可運作；含 ECS、Game/Scene lifecycle、wave 平行排程、IQGPU CPU 後端、Vulkan 計算後端、NPC 切片、程序化世界串流 | `ctest` 註冊 11 項（Vulkan 無 GPU 時 Skipped；執行結果以 CI 為準） |
-| C++ 未完成模組 | `src/{rendering,physics,civilization,networking,editor,api/{python,lua}}` | 多數仍為明確標示的 stub；civilization/networking 含已移植工具，但完整子系統尚未完成 | — |
+| C++ 未完成模組 | `src/{rendering,physics,civilization,networking,editor}` | 多數仍為明確標示的 stub；civilization/networking 含已移植工具，但完整子系統尚未完成 | — |
 | self_developing_agent | `tools/self_developing_agent/` | 實驗性獨立開發工具；不連結至遊戲執行檔 | CMake target `StonePotatoesSelfDevelopingAgent` |
 | web3-agent（Java 25） | `web3-agent/` | 可運作；EIP-1559、合約、P2P、LLM | `mvn test`（離線）+ 可選 Anvil/LLM 整合測試 |
 | web3-ide（Spring Boot 3.5 / Cloud 2025.0 + Vue） | `web3-ide/` | 可建置；agent-service 可啟動，其他服務為骨架 | agent-service 冒煙測試 + 密碼 fail-fast 檢查 |
@@ -30,8 +30,8 @@
 | #5 | 多尺度時間 + OS 版本偵測 | 已完成：明確 delta 決定性推進、多尺度累積時間與原生 OS 版本識別 |
 | #6 | game 模組 | 核心範圍已完成：headless Game/Scene lifecycle、逐幀邊界切換、可選固定步長及補步上限、設定驅動視窗與正常主迴圈。場景資源生命週期屬後續增量，不阻擋本 issue 完成 |
 | #7 | data 模組（資產、設定、存檔） | 核心範圍已完成：存檔 v1 格式及錯誤輸入拒絕、`AssetCache` 根目錄限制與 binary/text 載入和快取失效。既有 `ConfigManager` 保留在 `core`，不因本 issue 搬移模組 |
-| #8 | API 綁定（C++/Lua/Python/Rust） | C++ headless facade 與安裝後 consumer 驗收已實作；Lua/Python/Rust 綁定待具體需求出現後再選一種 |
-| #9 | 清理殘留 stub | 移除沒有實作與消費者的 `src/agent` target；NPC 行為由 `src/ai` 負責，未來需要獨立 agent API 時再新增明確子模組 |
+| #8 | API 綁定（C++/Lua/Python/Rust） | C++ headless facade 與安裝後 consumer 驗收已實作；Lua/Python/Rust bindings 延後，未建立假 target |
+| #9 | 清理殘留 stub | 移除沒有實作與消費者的 `src/agent`、Python/Lua API targets；NPC 行為由 `src/ai` 負責，未來需要獨立 agent API 時再新增明確子模組 |
 
 **完成條件**：上述 issue 關閉；CI 全綠；覆蓋率不低於 75%。
 
@@ -76,7 +76,7 @@ Phase 11–13（Modding、雲端、AAA）維持在長期 `ROADMAP.md`，暫不�
 2. **`tools/self_developing_agent`**：已移出 `StonePotatoes` 遊戲執行檔，提供獨立命令列入口；以 `StonePotatoesSelfDevelopingAgent <development goal>` 執行。它目前會在工作目錄建立 `agent_workspace/`，仍屬實驗工具，不會自動修改引擎原始碼。
 3. **web3-agent / web3-ide**：目前留在同一 repo 作為分離產品線，各自維持 Maven/前端建置與 CI。現在沒有 C++ 相依，拆 repo 會增加版本與維護成本；只有在獨立發布、權限或維護者明確分流時再拆。遊戲整合維持 HTTP/gRPC 邊界。
 4. **web3-ide 微服務規模**：凍結現有服務骨架，等第二個業務服務出現再擴充。
-5. **#8 腳本 API**：v0.1 先提供穩定 C++ API，不承諾 Lua/Python/Rust 綁定；待遊戲切片確認腳本需求後，再選一種語言。
+5. **#8 腳本 API**：v0.1 提供穩定 C++ API；Lua/Python/Rust 綁定尚無具體需求，對應的空 CMake placeholders 已移除，待遊戲切片確認腳本需求後再選一種語言。
 
 ## 3. 工程慣例（已在 CI 中落實）
 - 每個 PR 需通過：C++ build + ctest、C++ coverage、web3-agent `mvn test`、web3-ide `mvn verify` + 密碼 fail-fast、gitleaks
