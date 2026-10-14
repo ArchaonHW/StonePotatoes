@@ -1,5 +1,6 @@
 #include <ecs/World.h>
 #include <data/AssetCache.h>
+#include <core/plugin/Plugin.h>
 #include <game/Game.h>
 #include <game/GameConfig.h>
 
@@ -59,10 +60,66 @@ private:
     std::vector<std::string>& lifecycleEvents;
 };
 
+class ConsumerPlugin final : public StonePotatoes::Plugin::Plugin {
+public:
+    ConsumerPlugin(std::string name, std::vector<std::string> dependencies,
+                   std::vector<std::string>& events)
+        : Plugin(std::move(name), "1.0.0", std::move(dependencies)),
+          lifecycleEvents(events) {}
+
+protected:
+    bool OnLoad() override {
+        lifecycleEvents.push_back(std::string("load:") + GetName());
+        return true;
+    }
+    void OnUnload() override {
+        lifecycleEvents.push_back(std::string("unload:") + GetName());
+    }
+
+private:
+    std::vector<std::string>& lifecycleEvents;
+};
+
 int main(int argc, char** argv) {
     if (argc != 2) return 1;
     const StonePotatoes::Game::GameConfig defaults;
     if (defaults.windowWidth != 1280 || defaults.windowHeight != 720) return 9;
+
+    // Exercise the installed Core target's public PluginManager API.
+    {
+        std::vector<std::string> events;
+        StonePotatoes::Plugin::PluginManager plugins;
+        if (!plugins.RegisterPlugin(std::unique_ptr<StonePotatoes::Plugin::Plugin>(
+                new ConsumerPlugin("renderer", {"foundation"}, events))) ||
+            !plugins.RegisterPlugin(std::unique_ptr<StonePotatoes::Plugin::Plugin>(
+                new ConsumerPlugin("foundation", {}, events)))) {
+            return 36;
+        }
+        if (!plugins.RegisterPlugin(std::unique_ptr<StonePotatoes::Plugin::Plugin>(
+                new ConsumerPlugin("audio", {}, events)))) {
+            return 37;
+        }
+        const std::vector<std::string> expectedOrder{
+            "foundation", "renderer", "audio"};
+        if (plugins.ResolveLoadOrder() != expectedOrder ||
+            !plugins.LoadAllPlugins()) {
+            return 38;
+        }
+        const std::vector<std::string> expectedLoads{
+            "load:foundation", "load:renderer", "load:audio"};
+        if (events != expectedLoads || !plugins.GetPlugin("renderer") ||
+            !plugins.GetPlugin("renderer")->IsLoaded()) {
+            return 39;
+        }
+        plugins.UnloadAllPlugins();
+        const std::vector<std::string> expectedLifecycle{
+            "load:foundation", "load:renderer", "load:audio",
+            "unload:audio", "unload:renderer", "unload:foundation"};
+        if (events != expectedLifecycle ||
+            plugins.GetPlugin("foundation")->IsLoaded()) {
+            return 40;
+        }
+    }
 
     StonePotatoes::ECS::Entity savedEntity;
     {
