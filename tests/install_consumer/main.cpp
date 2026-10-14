@@ -6,6 +6,8 @@
 #include <cmath>
 #include <filesystem>
 #include <memory>
+#include <string>
+#include <vector>
 
 struct Position {
     float x = 0.0f;
@@ -34,6 +36,26 @@ public:
     }
     float observedDelta = 0.0f;
     int updateCount = 0;
+};
+
+class TransitionScene final : public StonePotatoes::Game::Scene {
+public:
+    TransitionScene(int sceneId, std::vector<std::string>& events)
+        : id(sceneId), lifecycleEvents(events) {}
+
+    void OnEnter(StonePotatoes::ECS::World&) override {
+        lifecycleEvents.push_back("enter" + std::to_string(id));
+    }
+    void Update(StonePotatoes::ECS::World&, float) override {
+        lifecycleEvents.push_back("update" + std::to_string(id));
+    }
+    void OnExit(StonePotatoes::ECS::World&) override {
+        lifecycleEvents.push_back("exit" + std::to_string(id));
+    }
+
+private:
+    int id;
+    std::vector<std::string>& lifecycleEvents;
 };
 
 int main(int argc, char** argv) {
@@ -99,6 +121,46 @@ int main(int argc, char** argv) {
         }
         game.Stop();
         if (!game.DisableFixedStep()) return 15;
+        world.Shutdown();
+    }
+
+    // Verify that an installed consumer sees scene transitions at the update
+    // boundary with the old scene exited before the new scene enters/updates.
+    {
+        StonePotatoes::ECS::World world;
+        world.RegisterComponent<Position>("Position");
+        world.RegisterComponent<Velocity>("Velocity");
+        world.GetSystemScheduler().RegisterSystem(
+            std::make_unique<MovementSystem>());
+        world.Initialize();
+        const auto entity = world.CreateEntity();
+        world.AddComponent(entity, Position{});
+        world.AddComponent(entity, Velocity{2.0f});
+
+        std::vector<std::string> events;
+        StonePotatoes::Game::Game game;
+        if (!game.SetScene(std::make_unique<TransitionScene>(1, events)) ||
+            !game.Start(world)) {
+            return 16;
+        }
+        if (events.size() != 1 || events[0] != "enter1") return 17;
+        if (!game.ChangeScene(std::make_unique<TransitionScene>(2, events))) {
+            return 18;
+        }
+        if (events.size() != 1) return 19;
+
+        game.Update(0.25f);
+        const std::vector<std::string> expected{
+            "enter1", "exit1", "enter2", "update2"};
+        if (events != expected) return 20;
+        const auto* transitionedPosition = world.GetComponent<Position>(entity);
+        if (!transitionedPosition ||
+            std::fabs(transitionedPosition->x - 0.5f) > 0.0001f) {
+            return 21;
+        }
+
+        game.Stop();
+        if (events.size() != 5 || events.back() != "exit2") return 22;
         world.Shutdown();
     }
 

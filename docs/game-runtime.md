@@ -37,5 +37,7 @@ overloaded frame from causing unbounded update work. `DisableFixedStep()`
 restores variable-delta mode when the game is stopped. The installed-package
 consumer exercises both variable- and fixed-step updates through the public
 CMake targets, including that scene and ECS updates share the same fixed tick.
-Scene resource ownership and richer transition failure handling remain future
-work.
+It also verifies that a queued variable-delta scene transition is deferred
+until `Update`, then calls the old scene's `OnExit` before the new scene's
+`OnEnter` and `Update`. Scene resource ownership and richer transition failure
+handling remain future work.
