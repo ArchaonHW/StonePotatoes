@@ -26,6 +26,10 @@ public:
     void Shutdown();
 
     void Update();
+    // Advance with an explicit real-time delta. This makes simulation updates
+    // reproducible in tests, replays, and lockstep callers.
+    // 使用明確的真實時間差推進；測試、重播與 lockstep 呼叫端可重現更新。
+    bool Advance(double realDeltaSeconds);
     void SetFixedDeltaTime(double deltaTime);
     double GetDeltaTime() const;
     double GetFixedDeltaTime() const;
@@ -49,6 +53,7 @@ private:
     double m_FixedDeltaTime;
     double m_TotalTime;
     double m_TimeScale;
+    double m_LastWallTime;
 
     // Multi-scale time
     double m_GameMinute;

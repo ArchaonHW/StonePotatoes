@@ -7,6 +7,7 @@
 #include "core/memory/ArenaAllocator.h"
 #include "core/io/FileSystem.h"
 #include "core/config/Config.h"
+#include "core/time/Time.h"
 #include "data/AssetCache.h"
 #include "ecs/World.h"
 #include "ecs/system/SystemScheduler.h"
@@ -22,6 +23,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <limits>
 #include <vector>
 
 using namespace StonePotatoes;
@@ -191,6 +193,33 @@ void TestConfig() {
 
     IO::FileSystem::Delete(path);
     IO::FileSystem::Delete(out);
+}
+
+void TestDeterministicTime() {
+    auto& time = Time::TimeManager::GetInstance();
+    time.Initialize();
+    time.SetTimeScale(2.0);
+    CHECK(time.Advance(30.0));
+    CHECK(std::fabs(time.GetDeltaTime() - 60.0) < 1e-9);
+    CHECK(std::fabs(time.GetTotalTime() - 30.0) < 1e-9);
+    CHECK(std::fabs(time.GetGameMinute() - 60.0) < 1e-9);
+    CHECK(std::fabs(time.GetGameHour() - 1.0) < 1e-9);
+    CHECK(std::fabs(time.GetGameDay() - (1.0 / 24.0)) < 1e-9);
+    CHECK(std::fabs(time.GetGameMonth() - (1.0 / 720.0)) < 1e-9);
+    CHECK(std::fabs(time.GetGameYear() - (1.0 / 8640.0)) < 1e-9);
+
+    CHECK(!time.Advance(-1.0));
+    CHECK(!time.Advance(std::numeric_limits<double>::infinity()));
+    CHECK(std::fabs(time.GetTotalTime() - 30.0) < 1e-9);
+    time.SetTimeScale(-1.0); // invalid scale leaves the previous value intact
+    CHECK(std::fabs(time.GetTimeScale() - 2.0) < 1e-9);
+    time.SetTimeScale(0.0);
+    CHECK(time.Advance(10.0));
+    CHECK(std::fabs(time.GetDeltaTime()) < 1e-9);
+    CHECK(std::fabs(time.GetTotalTime() - 40.0) < 1e-9);
+    CHECK(std::fabs(time.GetGameMinute() - 60.0) < 1e-9);
+    time.SetTimeScale(1.0);
+    time.Shutdown();
 }
 
 void TestAssetCache() {
@@ -542,6 +571,7 @@ int main() {
     TestArenaAllocator();
     TestFileSystem();
     TestConfig();
+    TestDeterministicTime();
     TestAssetCache();
     TestECS();
     TestUnregisterSystem();
