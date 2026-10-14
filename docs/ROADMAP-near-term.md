@@ -2,7 +2,7 @@
 
 > 本文件是**可執行的近期計畫**，以 GitHub issues #3–#15 與里程碑為單位追蹤。
 > 長期 14 階段願景（Phase 0–13）仍保留於根目錄 [`ROADMAP.md`](../ROADMAP.md)。
-> 最後更新：2026-10-14（台北時間）
+> 最後更新：2026-10-15（台北時間）
 
 ## 0. 現況快照
 
@@ -38,7 +38,7 @@
 ### v0.2 可視化與模擬（Phase 3–6）
 | Issue | 主題 | 備註 |
 |---|---|---|
-| #10 | rendering | [進行中] 共用 Vulkan context 與 surface/device/queue 能力協商已完成；目前加入 swapchain clear/present smoke path，之後再接入正式 Renderer、ImGui Vulkan 與 2D API；設計見 [`rendering-vulkan-design.md`](rendering-vulkan-design.md) |
+| #10 | rendering | [進行中] 共用 Vulkan context、swapchain 呈現、ImGui Vulkan 與既有點／圓 2D API 已接入正式 Renderer；RTX 5050 上已本機驗證視覺化 demo 初始化、逐幀執行與正常關閉，CPU-only 建置保留 OpenGL fallback。尚待同裝置 compute + graphics 整合驗收與無視窗 CI 的 runtime 覆蓋；設計見 [`rendering-vulkan-design.md`](rendering-vulkan-design.md) |
 | #11 | physics | 固定步長、決定性 |
 | #12 | agent 模組與各 agent 的定位 | 見下方第 2 節 |
 

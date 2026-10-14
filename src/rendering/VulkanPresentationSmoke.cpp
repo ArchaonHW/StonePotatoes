@@ -22,6 +22,7 @@ struct VulkanPresentationSmoke::Impl {
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkExtent2D extent{};
+    uint32_t minImageCount = 0;
     std::vector<VkImage> images;
     std::vector<VkImageView> views;
     VkRenderPass renderPass = VK_NULL_HANDLE;
@@ -33,6 +34,7 @@ struct VulkanPresentationSmoke::Impl {
     VkFence frameFence = VK_NULL_HANDLE;
     std::string lastError;
     bool glfwInitialized = false;
+    bool terminateGlfwOnShutdown = true;
     bool swapchainDirty = false;
 
     bool Fail(const char* message) {
@@ -90,6 +92,7 @@ struct VulkanPresentationSmoke::Impl {
         uint32_t imageCount = caps.minImageCount + 1;
         if (caps.maxImageCount != 0 && imageCount > caps.maxImageCount)
             imageCount = caps.maxImageCount;
+        minImageCount = imageCount;
         const uint32_t graphicsFamily = context->GetGraphicsQueueFamily();
         const uint32_t presentFamily = context->GetPresentQueueFamily();
         const std::array<uint32_t, 2> families{graphicsFamily, presentFamily};
@@ -224,26 +227,6 @@ struct VulkanPresentationSmoke::Impl {
         if (vkAllocateCommandBuffers(device, &allocateInfo,
                                      commandBuffers.data()) != VK_SUCCESS)
             return Fail("vkAllocateCommandBuffers failed");
-        for (size_t i = 0; i < commandBuffers.size(); ++i) {
-            VkCommandBufferBeginInfo beginInfo{
-                VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-            if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS)
-                return Fail("vkBeginCommandBuffer failed");
-            VkClearValue clear{};
-            clear.color = {{0.08f, 0.12f, 0.18f, 1.0f}};
-            VkRenderPassBeginInfo passInfo{
-                VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-            passInfo.renderPass = renderPass;
-            passInfo.framebuffer = framebuffers[i];
-            passInfo.renderArea.extent = extent;
-            passInfo.clearValueCount = 1;
-            passInfo.pClearValues = &clear;
-            vkCmdBeginRenderPass(commandBuffers[i], &passInfo,
-                                 VK_SUBPASS_CONTENTS_INLINE);
-            vkCmdEndRenderPass(commandBuffers[i]);
-            if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS)
-                return Fail("vkEndCommandBuffer failed");
-        }
         swapchainDirty = false;
         return true;
     }
@@ -268,6 +251,7 @@ struct VulkanPresentationSmoke::Impl {
         swapchain = VK_NULL_HANDLE;
         format = VK_FORMAT_UNDEFINED;
         extent = {};
+        minImageCount = 0;
     }
 };
 
@@ -283,6 +267,7 @@ bool VulkanPresentationSmoke::Initialize(const Config& config) {
     Impl& im = *m_Impl;
     im.lastError.clear();
     if (im.window) return true;
+    im.terminateGlfwOnShutdown = config.terminateGlfwOnShutdown;
     if (!glfwInit()) return im.Fail("glfwInit failed");
     im.glfwInitialized = true;
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -341,6 +326,17 @@ bool VulkanPresentationSmoke::Initialize(const Config& config) {
 }
 
 bool VulkanPresentationSmoke::PresentClearFrame() {
+    VkClearColorValue clear{};
+    clear.float32[0] = 0.08f;
+    clear.float32[1] = 0.12f;
+    clear.float32[2] = 0.18f;
+    clear.float32[3] = 1.0f;
+    return PresentFrame(clear, {});
+}
+
+bool VulkanPresentationSmoke::PresentFrame(
+    const VkClearColorValue& clearColor,
+    const std::function<void(VkCommandBuffer)>& recordDrawCommands) {
     Impl& im = *m_Impl;
     if (!im.window || !im.context || !im.context->IsInitialized())
         return im.Fail("Vulkan presentation is not initialized");
@@ -368,6 +364,27 @@ bool VulkanPresentationSmoke::PresentClearFrame() {
     }
     if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR)
         return im.Fail("vkAcquireNextImageKHR failed");
+    VkCommandBuffer commandBuffer = im.commandBuffers[imageIndex];
+    if (vkResetCommandBuffer(commandBuffer, 0) != VK_SUCCESS)
+        return im.Fail("vkResetCommandBuffer failed");
+    VkCommandBufferBeginInfo beginInfo{
+        VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+        return im.Fail("vkBeginCommandBuffer failed");
+    VkClearValue clear{};
+    clear.color = clearColor;
+    VkRenderPassBeginInfo passInfo{
+        VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+    passInfo.renderPass = im.renderPass;
+    passInfo.framebuffer = im.framebuffers[imageIndex];
+    passInfo.renderArea.extent = im.extent;
+    passInfo.clearValueCount = 1;
+    passInfo.pClearValues = &clear;
+    vkCmdBeginRenderPass(commandBuffer, &passInfo, VK_SUBPASS_CONTENTS_INLINE);
+    if (recordDrawCommands) recordDrawCommands(commandBuffer);
+    vkCmdEndRenderPass(commandBuffer);
+    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+        return im.Fail("vkEndCommandBuffer failed");
     if (vkResetFences(device, 1, &im.frameFence) != VK_SUCCESS)
         return im.Fail("vkResetFences failed");
     VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -376,7 +393,7 @@ bool VulkanPresentationSmoke::PresentClearFrame() {
     submit.pWaitSemaphores = &im.imageAvailable;
     submit.pWaitDstStageMask = &waitStage;
     submit.commandBufferCount = 1;
-    submit.pCommandBuffers = &im.commandBuffers[imageIndex];
+    submit.pCommandBuffers = &commandBuffer;
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &im.renderFinished;
     if (vkQueueSubmit(im.context->GetGraphicsQueue(), 1, &submit,
@@ -399,6 +416,19 @@ bool VulkanPresentationSmoke::PresentClearFrame() {
         acquire == VK_SUBOPTIMAL_KHR)
         im.swapchainDirty = true;
     return true;
+}
+
+GLFWwindow* VulkanPresentationSmoke::GetWindow() const {
+    return m_Impl->window;
+}
+VkRenderPass VulkanPresentationSmoke::GetRenderPass() const {
+    return m_Impl->renderPass;
+}
+uint32_t VulkanPresentationSmoke::GetMinImageCount() const {
+    return m_Impl->minImageCount;
+}
+uint32_t VulkanPresentationSmoke::GetImageCount() const {
+    return static_cast<uint32_t>(m_Impl->images.size());
 }
 
 bool VulkanPresentationSmoke::ShouldClose() const {
@@ -435,7 +465,7 @@ void VulkanPresentationSmoke::Shutdown() {
     im.surface = VK_NULL_HANDLE;
     if (im.window) glfwDestroyWindow(im.window);
     im.window = nullptr;
-    if (im.glfwInitialized) glfwTerminate();
+    if (im.glfwInitialized && im.terminateGlfwOnShutdown) glfwTerminate();
     im.glfwInitialized = false;
 }
 

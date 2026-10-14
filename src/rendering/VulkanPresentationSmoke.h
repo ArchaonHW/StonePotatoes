@@ -2,6 +2,12 @@
 
 #include <memory>
 #include <string>
+#include <functional>
+
+#ifdef SP_VULKAN
+#include <vulkan/vulkan.h>
+struct GLFWwindow;
+#endif
 
 namespace StonePotatoes::GPU {
 class VulkanContext;
@@ -17,6 +23,7 @@ public:
         int width = 640;
         int height = 480;
         const char* title = "StonePotatoes Vulkan presentation smoke";
+        bool terminateGlfwOnShutdown = true;
     };
 
     explicit VulkanPresentationSmoke(
@@ -28,6 +35,15 @@ public:
     bool Initialize();
     bool Initialize(const Config& config);
     bool PresentClearFrame();
+#ifdef SP_VULKAN
+    bool PresentFrame(
+        const VkClearColorValue& clearColor,
+        const std::function<void(VkCommandBuffer)>& recordDrawCommands);
+    GLFWwindow* GetWindow() const;
+    VkRenderPass GetRenderPass() const;
+    uint32_t GetMinImageCount() const;
+    uint32_t GetImageCount() const;
+#endif
     bool ShouldClose() const;
     void PollEvents();
     void Shutdown();
