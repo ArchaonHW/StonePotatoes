@@ -1,6 +1,6 @@
 # Rendering backend decision: shared Vulkan context
 
-Status: Phase 1 complete; Phase 3 production Renderer and shared compute/graphics demo locally runtime-validated; windowless runtime coverage remains for Issue #10
+Status: Phase 1 complete; Phase 3 production Renderer and shared compute/graphics demo runtime-validated locally; Linux CI is configured to run Xvfb runtime acceptance for Issue #10
 
 ## Decision
 
@@ -80,7 +80,8 @@ and avoid OpenGL linkage for `StonePotatoesRendering`.
    `VulkanBackend` bound to that context, verifies the result and device handle,
    and visualizes the output. The target builds locally; an interactive run
    verified the shared device, all 64 SAXPY values, and normal window-close
-   shutdown (exit code 0). Automated windowless runtime coverage remains pending.
+   shutdown (exit code 0). Linux Vulkan CI is configured to run the demo for
+   three frames under Xvfb and fail if compute or frame presentation fails.
 4. Remove the OpenGL2 fallback after Vulkan is no longer optional for supported
    build configurations.
 
@@ -93,8 +94,8 @@ and avoid OpenGL linkage for `StonePotatoesRendering`.
 - A windowed smoke test creates one context, runs compute and presents graphics
   through the same `VkDevice`, resizes the surface, and shuts down cleanly. The
   presentation smoke verified resize handling; the integrated demo verified the
-  shared `VkDevice`, 64 compute results, and normal shutdown. Automated
-  windowless runtime coverage remains pending.
+  shared `VkDevice`, 64 compute results, and normal shutdown. Linux software-
+  device CI is configured to run the integrated demo under Xvfb for three frames.
 - The installed headless C++ package does not gain a GLFW or Vulkan dependency.
 - No second Vulkan instance/device is created by `Renderer` when a shared
   context is supplied.

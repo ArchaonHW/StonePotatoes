@@ -115,6 +115,23 @@ add_test(NAME ported_utils_unit COMMAND StonePotatoesPortedUtilsTests)
 # 無 GPU / loader 時回傳 77，ctest 顯示為 Skipped。
 set_tests_properties(vulkan_unit PROPERTIES SKIP_RETURN_CODE 77)
 
+# Exercise the integrated Vulkan renderer and compute path without a physical
+# display. CI provides Xvfb and Mesa's software Vulkan driver.
+if(Vulkan_FOUND AND TARGET StonePotatoesVulkanComputeRendererDemo AND
+   CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_program(STONEPOTATOES_XVFB_RUN xvfb-run)
+    if(STONEPOTATOES_XVFB_RUN)
+        add_test(NAME vulkan_compute_renderer_runtime
+            COMMAND ${STONEPOTATOES_XVFB_RUN} -a
+                $<TARGET_FILE:StonePotatoesVulkanComputeRendererDemo>
+                --frames 3
+        )
+        set_tests_properties(vulkan_compute_renderer_runtime PROPERTIES
+            TIMEOUT 90
+        )
+    endif()
+endif()
+
 # Install the headless public package, then build and run a separate consumer
 # that creates, updates, saves, and reloads an ECS world.
 if(CMAKE_CONFIGURATION_TYPES)
