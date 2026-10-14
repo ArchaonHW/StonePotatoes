@@ -1,9 +1,10 @@
 #pragma once
 
 // Simple 2D renderer for the StonePotatoes world visualization.
-// Uses OpenGL 3.3 core profile + ImGui for UI overlay.
+// Uses Vulkan presentation when available and OpenGL for CPU-only builds;
+// ImGui provides the UI overlay in both configurations.
 // 簡單 2D 渲染器用於 StonePotatoes 世界可視化。
-// 使用 OpenGL 3.3 core profile + ImGui UI 覆蓋層。
+// 有 Vulkan 時使用 Vulkan 呈現；CPU-only 建置使用 OpenGL，兩者都以 ImGui 繪製 UI。
 
 #include <glm/glm.hpp>
 

@@ -1,6 +1,6 @@
 # Rendering backend decision: shared Vulkan context
 
-Status: Phase 1 complete; Phase 3 production Renderer integration in progress for Issue #10
+Status: Phase 1 complete; Phase 3 production Renderer integrated and locally runtime-validated for Issue #10
 
 ## Decision
 
@@ -69,11 +69,14 @@ and avoid OpenGL linkage for `StonePotatoesRendering`.
    remain supported.
 2. [Validated locally] Context capability negotiation and clear/present smoke
    path are complete. A local Vulkan-device run survived maximizing the window,
-   exercising resize-driven swapchain recreation; clean shutdown and same-device
-   compute/presentation remain to be checked in the integrated path.
-3. [In progress] The production Renderer uses ImGui's Vulkan backend and maps
-   the existing point/circle API to 2D draw primitives. The renderer exposes
-   the shared context for compute consumers; runtime validation is pending.
+   exercising resize-driven swapchain recreation. The production visualization
+   demo also initialized the Vulkan Renderer, ran its simulation/render loop,
+   and exited cleanly after a normal window-close request on an RTX 5050.
+   Same-device compute/presentation remains to be checked in the integrated path.
+3. [Integrated; local runtime validated] The production Renderer uses ImGui's
+   Vulkan backend and maps the existing point/circle API to 2D draw primitives.
+   The renderer exposes the shared context for compute consumers. Automated
+   windowless runtime coverage is still pending.
 4. Remove the OpenGL2 fallback after Vulkan is no longer optional for supported
    build configurations.
 
@@ -84,7 +87,9 @@ and avoid OpenGL linkage for `StonePotatoesRendering`.
 - Vulkan-enabled tests prove compute still works through the extracted shared
   context.
 - A windowed smoke test creates one context, runs compute and presents graphics
-  through the same `VkDevice`, resizes the surface, and shuts down cleanly.
+  through the same `VkDevice`, resizes the surface, and shuts down cleanly. Local
+  renderer visualization and shutdown have been verified; same-device compute
+  plus presentation still requires an explicit integration check.
 - The installed headless C++ package does not gain a GLFW or Vulkan dependency.
 - No second Vulkan instance/device is created by `Renderer` when a shared
   context is supplied.
