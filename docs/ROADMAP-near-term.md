@@ -14,7 +14,7 @@
 | web3-agent（Java 25） | `web3-agent/` | 可運作；EIP-1559、合約、P2P、LLM | `mvn test`（離線）+ 可選 Anvil/LLM 整合測試 |
 | web3-ide（Spring Boot 3.5 / Cloud 2025.0 + Vue） | `web3-ide/` | 可建置；agent-service 可啟動，其他服務為骨架 | agent-service 冒煙測試 + 密碼 fail-fast 檢查 |
 
-已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Game`、`StonePotatoes::Data`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。`install_consumer` 會在獨立 CMake 專案連結 Core、ECS、Game 與 Data，驗證 PluginManager 依賴載入與反向卸載、場景進出與延遲切換、變動／固定步長更新、存檔往返與錯誤存檔拒絕且不改變既有世界，以及資產文字／binary 載入、快取失效、舊 handle 存活和根目錄限制；GLFW 視窗層仍只供 repo 內建置使用。
+已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Game`、`StonePotatoes::CppAPI`、`StonePotatoes::Data`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。C++ 應用可包含 `<api/cpp/StonePotatoes.h>`，使用 `StonePotatoes::API::Runtime` 設定 ECS、掛載場景並控制啟停／更新。`install_consumer` 會在獨立 CMake 專案連結公開 facade，另驗證 PluginManager 依賴載入與反向卸載、場景進出與延遲切換、變動／固定步長更新、存檔往返與錯誤存檔拒絕且不改變既有世界，以及資產文字／binary 載入、快取失效、舊 handle 存活和根目錄限制；GLFW 視窗層仍只供 repo 內建置使用。Lua/Python/Rust 綁定仍延後至有具體需求。
 
 遊戲主程式建置輸出固定在 `build/bin/<Config>/StonePotatoes[.exe]`（Visual Studio 多組態）或 `build/bin/StonePotatoes`（單組態）；`cmake --install` 會將遊戲、headless C++ 開發套件與文件整理到安裝前綴，`cpack` 會在 `build/packages/` 產生 ZIP（Windows）或 TGZ（Linux/macOS）。`self_developing_agent` 是開發工具，不會打進遊戲套件。
 
@@ -30,7 +30,7 @@
 | #5 | 多尺度時間 + OS 版本偵測 | 已完成：明確 delta 決定性推進、多尺度累積時間與原生 OS 版本識別 |
 | #6 | game 模組 | 核心範圍已完成：headless Game/Scene lifecycle、逐幀邊界切換、可選固定步長及補步上限、設定驅動視窗與正常主迴圈。場景資源生命週期屬後續增量，不阻擋本 issue 完成 |
 | #7 | data 模組（資產、設定、存檔） | 核心範圍已完成：存檔 v1 格式及錯誤輸入拒絕、`AssetCache` 根目錄限制與 binary/text 載入和快取失效。既有 `ConfigManager` 保留在 `core`，不因本 issue 搬移模組 |
-| #8 | API 綁定（C++/Lua/Python/Rust） | **建議 v0.1 先做 C++ 公開 API；腳本綁定待具體需求出現後再選一種** |
+| #8 | API 綁定（C++/Lua/Python/Rust） | C++ headless facade 與安裝後 consumer 驗收已實作；Lua/Python/Rust 綁定待具體需求出現後再選一種 |
 | #9 | 清理殘留 stub | — |
 
 **完成條件**：上述 issue 關閉；CI 全綠；覆蓋率不低於 75%。
