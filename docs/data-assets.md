@@ -17,6 +17,10 @@ loads return shared immutable handles. Reads are synchronous. A changed file
 remains cached until `Invalidate(path)` or `Clear()`; already returned handles
 remain valid after invalidation.
 
+The installed-package consumer verifies text loading, cache hits and
+invalidation, the lifetime of existing handles, and rejection of paths outside
+the configured root through the public `StonePotatoes::Data` target.
+
 Text loads expose file bytes as a `std::string`; callers decide the text
 encoding and parsing rules. Failed reads are not cached. The cache does not
 watch files, decode image/audio formats, or provide asynchronous streaming.

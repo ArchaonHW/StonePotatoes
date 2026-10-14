@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -184,5 +185,44 @@ int main(int argc, char** argv) {
     if (!saveBytes || saveBytes->size() < 12 || saveBytes != sameSaveBytes) {
         return 10;
     }
+    if (assets.CachedAssetCount() != 1) return 23;
+
+    const auto textPath = savePath.parent_path() / "consumer_text.txt";
+    {
+        std::ofstream textFile(textPath, std::ios::binary);
+        textFile << "first text";
+        if (!textFile) return 24;
+    }
+    const auto text = assets.LoadText("consumer_text.txt");
+    const auto sameText = assets.LoadText("consumer_text.txt");
+    if (!text || *text != "first text" || sameText != text ||
+        assets.CachedAssetCount() != 2) {
+        return 25;
+    }
+    {
+        std::ofstream textFile(textPath, std::ios::binary | std::ios::trunc);
+        textFile << "updated text";
+        if (!textFile) return 26;
+    }
+    const auto cachedText = assets.LoadText("consumer_text.txt");
+    if (cachedText != text || !cachedText || *cachedText != "first text") {
+        return 27;
+    }
+    if (!assets.Invalidate("consumer_text.txt") ||
+        assets.CachedAssetCount() != 1) {
+        return 28;
+    }
+    const auto updatedText = assets.LoadText("consumer_text.txt");
+    if (!updatedText || *updatedText != "updated text" ||
+        *text != "first text" || updatedText == text) {
+        return 29;
+    }
+
+    if (assets.LoadText("../CMakeCache.txt") ||
+        assets.LoadBinary(textPath.string())) {
+        return 30;
+    }
+    assets.Clear();
+    if (assets.CachedAssetCount() != 0) return 31;
     return 0;
 }
