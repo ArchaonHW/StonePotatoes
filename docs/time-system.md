@@ -17,3 +17,11 @@ size; the caller still owns fixed-step accumulation and scheduling.
 The explicit delta API is suitable for deterministic tests and replay inputs
 when callers supply the same deltas and time scale. It does not by itself
 provide cross-platform lockstep guarantees.
+
+## Platform version
+
+`StonePotatoes::Platform::GetOSVersion()` returns a stable, process-lifetime
+string. Windows reports `major.minor.build` using the native NT version API;
+Linux reports the kernel release; macOS reports the Darwin kernel release.
+If the host API cannot provide a version, the result identifies the platform
+and says the version is unavailable. Unknown platforms return `Unknown`.
