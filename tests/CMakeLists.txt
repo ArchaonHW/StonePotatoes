@@ -115,12 +115,25 @@ set_tests_properties(vulkan_unit PROPERTIES SKIP_RETURN_CODE 77)
 
 # Install the headless public package, then build and run a separate consumer
 # that creates, updates, saves, and reloads an ECS world.
+if(CMAKE_CONFIGURATION_TYPES)
+    set(_sp_multi_config TRUE)
+else()
+    set(_sp_multi_config FALSE)
+endif()
+set(_sp_consumer_linker_flags "")
+if(STONEPOTATOES_ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    # The separately configured consumer must link the gcov runtime required
+    # by the instrumented static libraries installed from this build.
+    set(_sp_consumer_linker_flags "--coverage")
+endif()
 add_test(NAME install_consumer
     COMMAND ${CMAKE_COMMAND}
         -DSP_SOURCE_DIR=${CMAKE_SOURCE_DIR}
         -DSP_BUILD_DIR=${CMAKE_BINARY_DIR}
         -DSP_CONSUMER_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/install_consumer
         -DSP_GENERATOR=${CMAKE_GENERATOR}
+        -DSP_MULTI_CONFIG=${_sp_multi_config}
+        -DSP_CONSUMER_LINKER_FLAGS=${_sp_consumer_linker_flags}
         -DSP_CONFIG=$<CONFIG>
         -P ${CMAKE_CURRENT_SOURCE_DIR}/install_consumer/run.cmake
 )
