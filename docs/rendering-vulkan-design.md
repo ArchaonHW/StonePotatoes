@@ -1,6 +1,6 @@
 # Rendering backend decision: shared Vulkan context
 
-Status: Phase 1 complete; Phase 3 production Renderer locally runtime-validated; shared compute/graphics demo added for Issue #10
+Status: Phase 1 complete; Phase 3 production Renderer and shared compute/graphics demo locally runtime-validated; windowless runtime coverage remains for Issue #10
 
 ## Decision
 
@@ -72,14 +72,15 @@ and avoid OpenGL linkage for `StonePotatoesRendering`.
    exercising resize-driven swapchain recreation. The production visualization
    demo also initialized the Vulkan Renderer, ran its simulation/render loop,
    and exited cleanly after a normal window-close request on an RTX 5050.
-   Same-device compute/presentation remains to be checked in the integrated path.
+   The integrated demo now verifies same-device compute/presentation locally.
 3. [Integrated; local runtime validated] The production Renderer uses ImGui's
    Vulkan backend and maps the existing point/circle API to 2D draw primitives.
    The renderer exposes the shared context for compute consumers. The
    `StonePotatoesVulkanComputeRendererDemo` now dispatches SAXPY through a
    `VulkanBackend` bound to that context, verifies the result and device handle,
-   and visualizes the output. The target builds locally; running this integrated
-   demo and adding automated windowless runtime coverage are still pending.
+   and visualizes the output. The target builds locally; an interactive run
+   verified the shared device, all 64 SAXPY values, and normal window-close
+   shutdown (exit code 0). Automated windowless runtime coverage remains pending.
 4. Remove the OpenGL2 fallback after Vulkan is no longer optional for supported
    build configurations.
 
@@ -90,10 +91,10 @@ and avoid OpenGL linkage for `StonePotatoesRendering`.
 - Vulkan-enabled tests prove compute still works through the extracted shared
   context.
 - A windowed smoke test creates one context, runs compute and presents graphics
-  through the same `VkDevice`, resizes the surface, and shuts down cleanly. Local
-  renderer visualization and shutdown have been verified; same-device compute
-  plus presentation is now represented by the integration demo but still needs
-  an explicit runtime check.
+  through the same `VkDevice`, resizes the surface, and shuts down cleanly. The
+  presentation smoke verified resize handling; the integrated demo verified the
+  shared `VkDevice`, 64 compute results, and normal shutdown. Automated
+  windowless runtime coverage remains pending.
 - The installed headless C++ package does not gain a GLFW or Vulkan dependency.
 - No second Vulkan instance/device is created by `Renderer` when a shared
   context is supplied.

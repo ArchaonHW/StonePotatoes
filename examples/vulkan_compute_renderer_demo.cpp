@@ -97,10 +97,10 @@ int RunDemo() {
     while (!renderer.ShouldClose()) {
         renderer.BeginFrame();
         for (uint32_t i = 0; i < kElementCount; ++i) {
-            const float x = static_cast<float>(i % 8) * 4.0f - 14.0f;
-            const float y = static_cast<float>(i / 8) * 3.0f - 10.0f;
+            const float x = static_cast<float>(i % 8) * 0.20f - 0.10f;
+            const float y = 0.70f - static_cast<float>(i / 8) * 0.19f;
             const float intensity = output[i] / 22.0f;
-            renderer.DrawPoint(x, y, 0.45f,
+            renderer.DrawPoint(x, y, 0.8f,
                                {0.15f, intensity, 1.0f - intensity * 0.6f});
         }
         renderer.BeginImGui();
