@@ -222,6 +222,26 @@ inline double HardyZ(double t) {
 // 平滑零點計數 N₀(T)=θ(T)/π+1（真 N(T)=N₀(T)+S(T)）。
 inline double SmoothZeroCount(double T) { return RSTheta(T) / kPi + 1.0; }
 
+// Unconditional explicit bound on S(T) = N(T) − N₀(T). Trudgian (2014,
+// Thm 1): |N(T) − (T/2π)ln(T/2πe) − 7/8| ≤ 0.112 ln T + 0.278 ln ln T + 2.510
+// for T ≥ e. N₀ = θ/π + 1 differs from that main term by 1/(48πT) + O(T⁻³);
+// we add 0.01 slack to cover it (T ≥ e). A consistency check only — it does
+// NOT prove anything about RH.
+// S(T) 的無條件明確界（Trudgian 2014，定理 1），T ≥ e；另加 0.01 餘裕涵蓋
+// N₀ 與主項之 O(1/T) 差。僅為一致性檢查，不證明黎曼猜想。
+inline double ZeroCountErrorBound(double T) {
+    const double l = std::log(T);
+    return 0.112 * l + 0.278 * std::log(l) + 2.510 + 0.01;
+}
+
+// True if `count` zeros up to height T is compatible with the bound above.
+// 若高度 T 以下零點數 `count` 與上界相容則回傳 true。
+inline bool ZeroCountConsistent(double T, int64_t count) {
+    if (!(T >= 2.718281828459045)) return false;
+    return std::fabs(static_cast<double>(count) - SmoothZeroCount(T)) <=
+           ZeroCountErrorBound(T);
+}
+
 // Gram point g_n: θ(g_n) = nπ (n ≥ -1). θ is convex increasing for t > 2π,
 // so Newton started right of the root converges monotonically.
 // Gram 點 g_n：θ(g_n)=nπ（n≥-1）。θ 在 t>2π 凸遞增，

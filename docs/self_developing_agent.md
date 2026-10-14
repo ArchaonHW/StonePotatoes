@@ -208,6 +208,11 @@ This system will be integrated into Phase 8 (GPU Massive Simulation) and beyond.
 
 ## Current Implementation Status | 目前實作狀態
 
+Build the standalone tool with `cmake --build build --config Release --target StonePotatoesSelfDevelopingAgent`.
+Run it from a writable working directory with a goal, for example:
+`build/tools/self_developing_agent/Release/StonePotatoesSelfDevelopingAgent.exe "Analyze ECS performance"`.
+It writes generated artifacts to `agent_workspace/` under the current working directory.
+
 > Per the "No Fake Features" principle, this section states precisely what is
 > implemented today versus what remains planned.
 > 依據「No Fake Features」原則，本章節精確說明目前已實作與仍屬計畫的功能。

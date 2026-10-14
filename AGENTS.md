@@ -2,20 +2,17 @@
 
 > Near-term roadmap & component boundaries (engine vs self_developing_agent vs web3-agent vs web3-ide): [docs/ROADMAP-near-term.md](docs/ROADMAP-near-term.md)
 
-## PotatoEngine Ports (MIT License) — planned, not yet in this repo
+## PotatoEngine Ports (MIT License) — ported
 
-> **Status:** none of the files below exist in the repository yet. This is a porting
-> plan, not an inventory. When a component is actually ported, add the file with an
-> SPDX identifier + provenance header, create `THIRD_PARTY_NOTICES.md`, and move the
-> entry to a "Ported" list.
-> **狀態：** 下列檔案目前皆尚未存在於本 repo，這是移植計畫而非現況清單。
+> **Status:** these components are present in this repository. Keep provenance and license notices in sync with `THIRD_PARTY_NOTICES.md` when changing them.
+> **狀態：** 以下移植元件已存在於本 repo；修改時須同步維護來源與 `THIRD_PARTY_NOTICES.md`。
 
-Planned targets (source: PotatoEngine, also MIT-licensed by ArchaonHW):
+Ported from PotatoEngine by ArchaonHW (MIT):
 
-- Core/Profiler → `src/core/profiling/Profiler.{h,cpp}` — zone timing + Chrome trace export
+- Core/Profiler → `src/core/profiling/Profiler.{h,cpp}`
 - MathUtils/Vec2, Vec3 → `src/math/Vec2.h`, `Vec3.h`
-- MathUtils/Pathfinding → `src/math/Pathfinding.h` — grid A* + FlowField (lockstep-safe)
-- MathUtils/QuasiRandom → `src/math/QuasiRandom.h` — R2, Halton, Poisson-disk
+- MathUtils/Pathfinding → `src/math/Pathfinding.h`
+- MathUtils/QuasiRandom → `src/math/QuasiRandom.h`
 - MathUtils/CurlNoise → `src/math/CurlNoise.h`
 - Simulation/SystemDynamics → `src/civilization/economic/SystemDynamics.{h,cpp}`
 - Networking/LockstepSync → `src/networking/core/LockstepSync.{h,cpp}`
@@ -27,6 +24,9 @@ Planned targets (source: PotatoEngine, also MIT-licensed by ArchaonHW):
 - Vulkan is optional: without the SDK only the CPU backend is built and `vulkan_unit` skips. Force CPU-only with `-DCMAKE_DISABLE_FIND_PACKAGE_Vulkan=ON` (as CI does).
 - Coverage (optional, GCC/Clang): `-DSTONEPOTATOES_ENABLE_COVERAGE=ON`, or run `./tools/ci/coverage.sh` (needs `lcov`) → `coverage/lcov.info`, `coverage/html/`. CI uploads it as the `cpp-coverage-lcov` artifact.
 - `vulkan_unit` exits 77 without a Vulkan device; ctest reports it as Skipped (`SKIP_RETURN_CODE 77`).
+- `install_consumer` validates the installed headless package by building a separate CMake consumer against `StonePotatoes::ECS` and `StonePotatoes::Game`, exercising scene lifecycle, world update, and save/load.
+- Game runtime responsibilities and the scene transition lifecycle are documented in `docs/game-runtime.md`.
+- The game executable is built to `build/bin/<Config>/StonePotatoes[.exe]` with multi-config generators or `build/bin/StonePotatoes` with single-config generators; `cmake --install` stages the runtime and headless SDK, and `cpack` writes a platform ZIP/TGZ package under `build/packages/`. The self-developing agent remains a developer tool and is not included in the game package.
 - CI: `.github/workflows/ci.yml`.
 
 ## web3-agent (Java, standalone Maven module)

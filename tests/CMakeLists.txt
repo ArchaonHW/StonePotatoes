@@ -14,6 +14,11 @@ target_link_libraries(StonePotatoesTests
 
 add_test(NAME phase1_unit COMMAND StonePotatoesTests)
 
+add_executable(StonePotatoesGameTests unit/test_game.cpp)
+target_include_directories(StonePotatoesGameTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesGameTests PRIVATE StonePotatoesGame)
+add_test(NAME game_lifecycle_unit COMMAND StonePotatoesGameTests)
+
 # Math + IQGPU module tests | 數學 + IQGPU 模組測試
 add_executable(StonePotatoesMathTests unit/test_math_iqgpu.cpp)
 target_include_directories(StonePotatoesMathTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
@@ -107,6 +112,31 @@ add_test(NAME ported_utils_unit COMMAND StonePotatoesPortedUtilsTests)
 # No GPU / no loader → exit 77 → ctest reports Skipped (not Failed/Passed).
 # 無 GPU / loader 時回傳 77，ctest 顯示為 Skipped。
 set_tests_properties(vulkan_unit PROPERTIES SKIP_RETURN_CODE 77)
+
+# Install the headless public package, then build and run a separate consumer
+# that creates, updates, saves, and reloads an ECS world.
+if(CMAKE_CONFIGURATION_TYPES)
+    set(_sp_multi_config TRUE)
+else()
+    set(_sp_multi_config FALSE)
+endif()
+set(_sp_consumer_linker_flags "")
+if(STONEPOTATOES_ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    # The separately configured consumer must link the gcov runtime required
+    # by the instrumented static libraries installed from this build.
+    set(_sp_consumer_linker_flags "--coverage")
+endif()
+add_test(NAME install_consumer
+    COMMAND ${CMAKE_COMMAND}
+        -DSP_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DSP_BUILD_DIR=${CMAKE_BINARY_DIR}
+        -DSP_CONSUMER_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/install_consumer
+        -DSP_GENERATOR=${CMAKE_GENERATOR}
+        -DSP_MULTI_CONFIG=${_sp_multi_config}
+        -DSP_CONSUMER_LINKER_FLAGS=${_sp_consumer_linker_flags}
+        -DSP_CONFIG=$<CONFIG>
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/install_consumer/run.cmake
+)
 
 # Plugin system tests (incl. a real shared-library plugin) | 外掛系統測試（含實際共享函式庫外掛）
 add_library(StonePotatoesTestPlugin MODULE unit/test_plugin_module.cpp)

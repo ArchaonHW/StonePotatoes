@@ -4,5 +4,10 @@ add_library(StonePotatoesWorld STATIC
     procedural/ResourceScatter.cpp
     procedural/WorldStreamer.cpp
 )
-target_include_directories(StonePotatoesWorld PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(StonePotatoesWorld PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes>
+)
 target_link_libraries(StonePotatoesWorld PUBLIC StonePotatoesCore StonePotatoesECS StonePotatoesMath StonePotatoesAI)
+target_compile_features(StonePotatoesWorld PUBLIC cxx_std_20)
