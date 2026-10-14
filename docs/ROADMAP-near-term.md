@@ -28,7 +28,7 @@
 | #3 | PluginManager 外掛系統 | 解鎖 Phase 11 Modding 的基礎 |
 | #4 | `SystemScheduler::UnregisterSystem` | 已支援更新期間延遲移除，並呼叫可選的 `Shutdown(world)` |
 | #5 | 多尺度時間 + OS 版本偵測 | 時間管理器可用明確 delta 決定性推進，並換算累積遊戲分鐘／小時／日／月／年；`Platform::GetOSVersion()` 回報原生版本識別 |
-| #6 | game 模組 | 已有 headless Game/Scene lifecycle、逐幀邊界切換與設定驅動視窗；demo 主迴圈由使用者關窗結束。固定步長與場景資源管理仍待補 |
+| #6 | game 模組 | 已有 headless Game/Scene lifecycle、逐幀邊界切換、可選固定步長及補步上限；設定驅動視窗，demo 主迴圈由使用者關窗結束。場景資源管理仍待補 |
 | #7 | data 模組（資產、設定、存檔） | 存檔 v1 已文件化並拒絕損壞／不支援版本；`AssetCache` 提供根目錄限制、binary/text 載入、快取失效；設定仍由 core 管理 |
 | #8 | API 綁定（C++/Lua/Python/Rust） | **建議 v0.1 先做 C++ 公開 API；腳本綁定待具體需求出現後再選一種** |
 | #9 | 清理殘留 stub | — |
