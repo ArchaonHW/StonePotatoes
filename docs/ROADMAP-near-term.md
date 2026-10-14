@@ -38,7 +38,7 @@
 ### v0.2 可視化與模擬（Phase 3–6）
 | Issue | 主題 | 備註 |
 |---|---|---|
-| #10 | rendering | 優先共用既有 Vulkan device（`src/gpu/VulkanBackend.cpp`） |
+| #10 | rendering | 先抽取共用 Vulkan context；決策與所有權順序見 [`rendering-vulkan-design.md`](rendering-vulkan-design.md)，再導入 surface/swapchain、ImGui Vulkan 與 2D API |
 | #11 | physics | 固定步長、決定性 |
 | #12 | agent 模組與各 agent 的定位 | 見下方第 2 節 |
 
