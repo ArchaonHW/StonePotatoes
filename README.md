@@ -768,11 +768,14 @@ This forms **Machine Generated History** — a persistent, queryable timeline of
 
 ---
 
-## Rendering (Planned) | 渲染（計畫中）
+## Rendering | 渲染
 
-StonePotatoes plans to support next-generation rendering features:
+The engine now includes a foundational 2D renderer with Vulkan presentation and
+ImGui, plus an OpenGL fallback for CPU-only builds. The following advanced
+rendering features remain planned:
 
-StonePotatoes 計畫支援下一代渲染功能：
+引擎目前已有 2D 渲染基礎，支援 Vulkan 呈現與 ImGui，CPU-only 建置則保留
+OpenGL 後備。以下進階渲染功能仍在規劃中：
 
 - PBR (Physically Based Rendering)
   PBR（基於物理的渲染）
@@ -805,19 +808,20 @@ StonePotatoes 計畫支援下一代渲染功能：
 - Massive Crowd (thousands of characters)
   大規模群眾（數千個角色）
 
-**Status: Planned (Phase 3)**
-**狀態：計畫中（第三階段）**
+**Status: Phase 3 in progress; advanced features planned**
+**狀態：第三階段進行中；進階功能仍在規劃**
 
 ---
 
-## Physics (Planned) | 物理（計畫中）
+## Physics | 物理
 
-StonePotatoes plans to include:
+The engine has a fixed-tick 2D rigid-body and box-contact foundation in progress.
+Additional physics systems remain planned:
 
-StonePotatoes 計畫包含：
+引擎正在完善固定 tick 的 2D 剛體與方盒接觸基礎；其他物理系統仍在規劃中：
 
-- Rigid Body (dynamics, collision)
-  剛體（動力學、碰撞）
+- Advanced Rigid Body (rotated shapes, joints, and richer dynamics)
+  進階剛體（旋轉形狀、關節與更完整的動力學）
 - Soft Body (deformation, cloth)
   軟體（變形、布料）
 - Fluid (water, gases)
@@ -835,6 +839,9 @@ StonePotatoes 計畫包含：
 
 **Future Goal:** GPU Accelerated Physics (Phase 8)
 **未來目標：** GPU 加速物理（第八階段）
+
+**Status: Phase 4 in progress; advanced systems planned**
+**狀態：第四階段進行中；進階系統仍在規劃**
 
 ---
 
@@ -1123,10 +1130,10 @@ See [ROADMAP.md](ROADMAP.md) for the complete technical roadmap.
   **第 1 階段 — 核心引擎** 🚧（進行中）
 - **Phase 2 — ECS** 📋 (Planned)
   **第 2 階段 — ECS** 📋（計畫中）
-- **Phase 3 — Rendering** 📋 (Planned)
-  **第 3 階段 — 渲染** 📋（計畫中）
-- **Phase 4 — Physics** 📋 (Planned)
-  **第 4 階段 — 物理** 📋（計畫中）
+- **Phase 3 — Rendering** 🚧 (In Progress)
+  **第 3 階段 — 渲染** 🚧（進行中）
+- **Phase 4 — Physics** 🚧 (In Progress)
+  **第 4 階段 — 物理** 🚧（進行中）
 - **Phase 5 — AI Agent** 📋 (Planned)
   **第 5 階段 — AI 代理** 📋（計畫中）
 - **Phase 6 — World Simulation** 📋 (Planned)
