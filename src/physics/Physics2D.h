@@ -40,12 +40,12 @@ static_assert(std::is_trivially_copyable_v<BoxCollider2D>);
 
 void RegisterPhysicsComponents(ECS::World& world);
 
-// Integrates bodies with semi-implicit Euler, then resolves one pass of
-// discrete, zero-restitution AABB contacts in entity-ID order. Use
-// Game::SetFixedStep to feed this system a stable tick; inverseMass == 0 marks
-// an immovable body. Rotation, friction, and continuous collision detection
-// are intentionally outside this slice.
-// 以半隱式 Euler 積分剛體，再依 entity ID 順序解析一次離散、零恢復係數
+// Integrates bodies with semi-implicit Euler, then performs bounded,
+// entity-ID ordered iterations over discrete zero-restitution AABB contacts.
+// Use Game::SetFixedStep to feed this system a stable tick; inverseMass == 0
+// marks an immovable body. Rotation, friction, and continuous collision
+// detection are intentionally outside this slice.
+// 以半隱式 Euler 積分剛體，再依 entity ID 順序有限輪解析離散、零恢復係數
 // AABB 接觸。透過 Game::SetFixedStep 提供固定 tick；inverseMass == 0
 // 代表不可移動的剛體。旋轉、摩擦與連續碰撞偵測不在此切片範圍。
 class Physics2DSystem final : public ECS::System {
@@ -62,10 +62,18 @@ public:
     std::size_t GetLastBroadPhasePairCount() const {
         return m_LastBroadPhasePairCount;
     }
+    std::size_t GetLastContactIterationCount() const {
+        return m_LastContactIterationCount;
+    }
+    bool DidLastContactSolveConverge() const {
+        return m_LastContactSolveConverged;
+    }
 
 private:
     Math::Vec2 m_Gravity;
     std::size_t m_LastBroadPhasePairCount = 0;
+    std::size_t m_LastContactIterationCount = 0;
+    bool m_LastContactSolveConverged = true;
 };
 
 } // namespace StonePotatoes::Physics
