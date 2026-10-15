@@ -319,6 +319,62 @@ int TestContinuousCollisionAgainstStaticWalls() {
     return 0;
 }
 
+int TestContinuousDynamicHeadOnContacts() {
+    ECS::World world;
+    auto physics = std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
+    world.GetSystemScheduler().RegisterSystem(std::move(physics));
+    world.Initialize();
+
+    const auto addPair = [&world](float y, float inverseMassA,
+                                  float inverseMassB) {
+        const ECS::Entity a = world.CreateEntity();
+        world.AddComponent(a, Transform2D{{-5.0f, y}});
+        RigidBody2D bodyA;
+        bodyA.velocity = {100.0f, 0.0f};
+        bodyA.inverseMass = inverseMassA;
+        world.AddComponent(a, bodyA);
+        world.AddComponent(a, BoxCollider2D{{0.5f, 0.5f}});
+
+        const ECS::Entity b = world.CreateEntity();
+        world.AddComponent(b, Transform2D{{5.0f, y}});
+        RigidBody2D bodyB;
+        bodyB.velocity = {-100.0f, 0.0f};
+        bodyB.inverseMass = inverseMassB;
+        world.AddComponent(b, bodyB);
+        world.AddComponent(b, BoxCollider2D{{0.5f, 0.5f}});
+        return std::pair{a, b};
+    };
+
+    const auto equalMassPair = addPair(0.0f, 1.0f, 1.0f);
+    const auto unequalMassPair = addPair(10.0f, 1.0f, 0.5f);
+    world.Update(0.1f);
+
+    const auto* equalA = world.GetComponent<Transform2D>(equalMassPair.first);
+    const auto* equalB = world.GetComponent<Transform2D>(equalMassPair.second);
+    CHECK(std::fabs(equalA->position.x + 0.5f) < 0.0001f);
+    CHECK(std::fabs(equalB->position.x - 0.5f) < 0.0001f);
+    CHECK(world.GetComponent<RigidBody2D>(equalMassPair.first)->velocity.x ==
+          0.0f);
+    CHECK(world.GetComponent<RigidBody2D>(equalMassPair.second)->velocity.x ==
+          0.0f);
+
+    const auto* unequalA =
+        world.GetComponent<Transform2D>(unequalMassPair.first);
+    const auto* unequalB =
+        world.GetComponent<Transform2D>(unequalMassPair.second);
+    const auto* unequalBodyA =
+        world.GetComponent<RigidBody2D>(unequalMassPair.first);
+    const auto* unequalBodyB =
+        world.GetComponent<RigidBody2D>(unequalMassPair.second);
+    CHECK(std::fabs(unequalA->position.x + 7.0f / 3.0f) < 0.0002f);
+    CHECK(std::fabs(unequalB->position.x + 4.0f / 3.0f) < 0.0002f);
+    CHECK(std::fabs(unequalBodyA->velocity.x + 100.0f / 3.0f) < 0.0001f);
+    CHECK(std::fabs(unequalBodyB->velocity.x + 100.0f / 3.0f) < 0.0001f);
+
+    world.Shutdown();
+    return 0;
+}
+
 int TestSpatialHashPrunesSeparatedPairsAndKeepsLargeColliders() {
     ECS::World world;
     auto physics = std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
@@ -506,6 +562,8 @@ int main() {
     if (const int result = TestDynamicHeadOnContact()) return result;
     if (const int result = TestCoulombContactFriction()) return result;
     if (const int result = TestContinuousCollisionAgainstStaticWalls())
+        return result;
+    if (const int result = TestContinuousDynamicHeadOnContacts())
         return result;
     if (const int result =
             TestSpatialHashPrunesSeparatedPairsAndKeepsLargeColliders())

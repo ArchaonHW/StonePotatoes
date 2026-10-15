@@ -46,14 +46,16 @@ void RegisterPhysicsComponents(ECS::World& world);
 
 // Integrates bodies with semi-implicit Euler, then performs bounded,
 // entity-ID ordered iterations over discrete zero-restitution AABB contacts
-// with Coulomb friction, plus swept-AABB contacts against static boxes.
+// with Coulomb friction, plus event-driven swept-AABB contacts between static
+// and dynamic boxes.
 // Use Game::SetFixedStep to feed this system a stable tick; inverseMass == 0
-// marks an immovable body. Rotated shapes and dynamic-to-dynamic continuous
-// collision detection are intentionally outside this slice.
+// marks an immovable body. Rotated shapes and recovery of initial overlaps are
+// intentionally outside this slice.
 // 以半隱式 Euler 積分剛體，再依 entity ID 順序有限輪解析離散、零恢復係數
-// AABB 接觸與庫侖摩擦，另對靜態方盒進行 swept-AABB 碰撞。透過
+// AABB 接觸與庫侖摩擦，並以事件推進方式處理靜態與動態方盒的 swept-AABB
+// 碰撞。透過
 // Game::SetFixedStep 提供固定 tick；inverseMass == 0 代表不可移動的剛體。
-// 旋轉及動態剛體間的連續碰撞偵測不在此切片範圍。
+// 旋轉形狀與初始重疊修復不在此切片範圍。
 class Physics2DSystem final : public ECS::System {
 public:
     explicit Physics2DSystem(Math::Vec2 gravity = {0.0f, -9.81f});

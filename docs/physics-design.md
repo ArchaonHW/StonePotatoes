@@ -1,7 +1,8 @@
 # Physics vertical slice: deterministic 2D fixed-tick bodies and box contacts
 
 Status: fixed-tick 2D body integration, discrete axis-aligned box contacts,
-Coulomb friction, and swept-AABB contacts against static boxes are implemented.
+Coulomb friction, and event-driven swept-AABB contacts between static and
+dynamic boxes are implemented.
 This is a deliberately small collision slice, not a general-purpose rigid-body
 solver.
 
@@ -42,13 +43,17 @@ coefficients default to zero, preserving frictionless contacts; dynamic
 friction must be no greater than static friction. Invalid or non-finite body,
 collider, or material state is skipped by collision handling.
 
-Before the discrete solver, a swept-AABB pass uses each collider's previous
-and integrated positions to find static-box impacts during the tick. It resolves
-up to four static impacts per moving body in entity-ID order, applies the same
-normal and friction impulses, and advances tangential motion for the remaining
-time. If that bound is reached, the body stops at the last resolved impact to
-avoid tunneling. Initial overlaps remain the discrete solver's responsibility;
-fast dynamic-to-dynamic contacts are still discrete and may tunnel.
+Before the discrete solver, an event-driven swept-AABB pass uses each
+collider's previous and integrated positions to find the earliest impact among
+static-dynamic and dynamic-dynamic pairs during the remaining tick. Bodies
+advance to that time of impact in entity-ID pair order, then receive the same
+zero-restitution normal and Coulomb friction impulses as discrete contacts;
+dynamic motion is distributed by inverse mass. The remaining tick is simulated
+again with the updated velocities. A bounded event budget prevents unbounded
+work; if it is exhausted, bodies stay at the last resolved impact and the
+unprocessed time is discarded to avoid tunneling. Initial overlaps remain the
+discrete solver's responsibility. Rotated shapes still require a different
+narrow phase.
 
 `Game::SetFixedStep` owns the simulation clock and catch-up limit. Register the
 physics system in the ECS world and let `Game::Update` call the world once per
@@ -80,6 +85,9 @@ canonicalization are not promised.
   and cancels a low tangential speed within the static-friction limit.
 - Fast boxes moving in either direction stop at static walls without crossing
   them, while tangential motion continues for the remainder of the tick.
+- Fast equal-mass dynamic boxes exchange normal velocity at first contact
+  without crossing; unequal inverse masses produce the expected shared normal
+  velocity after impact.
 - The same collision setup produces equal results across different render-frame
   partitions.
 - A 256-body separated scene sends substantially fewer pairs to narrow phase
@@ -90,6 +98,5 @@ canonicalization are not promised.
   iteration and settles within the iteration limit.
 - Non-finite forces and invalid physics deltas do not contaminate body state.
 
-Rotated shapes, joints, continuous collision detection between dynamic bodies,
-initial-overlap recovery beyond the discrete solver, and cross-platform replay
-serialization remain future work.
+Rotated shapes, joints, recovery of initial overlaps beyond the discrete
+solver, and cross-platform replay serialization remain future work.
