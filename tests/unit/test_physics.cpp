@@ -213,6 +213,48 @@ int TestDynamicHeadOnContact() {
     return 0;
 }
 
+int TestSpatialHashPrunesSeparatedPairsAndKeepsLargeColliders() {
+    ECS::World world;
+    auto physics = std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
+    Physics2DSystem* physicsView = physics.get();
+    world.GetSystemScheduler().RegisterSystem(std::move(physics));
+    world.Initialize();
+
+    constexpr int kSeparatedBodyCount = 256;
+    for (int i = 0; i < kSeparatedBodyCount; ++i) {
+        const ECS::Entity entity = world.CreateEntity();
+        world.AddComponent(entity,
+                           Transform2D{{static_cast<float>(i * 4), 0.0f}});
+        RigidBody2D body;
+        body.inverseMass = 0.0f;
+        world.AddComponent(entity, body);
+        world.AddComponent(entity, BoxCollider2D{{0.5f, 0.5f}});
+    }
+
+    const ECS::Entity large = world.CreateEntity();
+    world.AddComponent(large, Transform2D{{2000.0f, 0.0f}});
+    RigidBody2D largeBody;
+    largeBody.inverseMass = 0.0f;
+    world.AddComponent(large, largeBody);
+    world.AddComponent(large, BoxCollider2D{{100.0f, 100.0f}});
+
+    const ECS::Entity insideLarge = world.CreateEntity();
+    world.AddComponent(insideLarge, Transform2D{{2099.75f, 0.0f}});
+    world.AddComponent(insideLarge, RigidBody2D{});
+    world.AddComponent(insideLarge, BoxCollider2D{{0.5f, 0.5f}});
+
+    world.Update(0.125f);
+
+    const std::size_t allPairs =
+        static_cast<std::size_t>(kSeparatedBodyCount + 2) *
+        static_cast<std::size_t>(kSeparatedBodyCount + 1) / 2;
+    CHECK(physicsView->GetLastBroadPhasePairCount() < allPairs / 8);
+    CHECK(world.GetComponent<Transform2D>(insideLarge)->position.x == 2100.5f);
+
+    world.Shutdown();
+    return 0;
+}
+
 int TestInvalidInputsAreIgnored() {
     RigidBody2D body;
     CHECK(!body.ApplyForce(
@@ -234,6 +276,9 @@ int main() {
     if (const int result = TestStaticAabbContactAndFramePartitionDeterminism())
         return result;
     if (const int result = TestDynamicHeadOnContact()) return result;
+    if (const int result =
+            TestSpatialHashPrunesSeparatedPairsAndKeepsLargeColliders())
+        return result;
     if (const int result = TestInvalidInputsAreIgnored()) return result;
     return 0;
 }

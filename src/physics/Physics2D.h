@@ -3,6 +3,7 @@
 #include "ecs/system/System.h"
 #include "math/Vec2.h"
 
+#include <cstddef>
 #include <type_traits>
 
 namespace StonePotatoes::ECS {
@@ -56,9 +57,15 @@ public:
     void DescribeAccess(ECS::AccessSpec& access) const override;
 
     Math::Vec2 GetGravity() const { return m_Gravity; }
+    // Unique broad-phase pairs sent to the AABB narrow phase in the last tick.
+    // 上一個 tick 送入 AABB 窄階段的唯一 broad-phase 配對數。
+    std::size_t GetLastBroadPhasePairCount() const {
+        return m_LastBroadPhasePairCount;
+    }
 
 private:
     Math::Vec2 m_Gravity;
+    std::size_t m_LastBroadPhasePairCount = 0;
 };
 
 } // namespace StonePotatoes::Physics
