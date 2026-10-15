@@ -14,7 +14,7 @@
 | web3-agent（Java 25） | `web3-agent/` | 可運作；EIP-1559、合約、P2P、LLM | `mvn test`（離線）+ 可選 Anvil/LLM 整合測試 |
 | web3-ide（Spring Boot 3.5 / Cloud 2025.0 + Vue） | `web3-ide/` | 可建置；agent-service 可啟動，其他服務為骨架 | agent-service 冒煙測試 + 密碼 fail-fast 檢查 |
 
-已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Physics`、`StonePotatoes::Civilization`、`StonePotatoes::Networking`、`StonePotatoes::Game`、`StonePotatoes::CppAPI`、`StonePotatoes::Data`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。C++ 應用可包含 `<api/cpp/StonePotatoes.h>`，使用 `StonePotatoes::API::Runtime` 設定 ECS、掛載場景並控制啟停／更新。`install_consumer` 會在獨立 CMake 專案連結公開 facade，另驗證 PluginManager 依賴載入與反向卸載、場景進出與延遲切換、變動／固定步長更新、Physics2D 固定 tick 力與重力積分、文明經濟存量同步轉移／事件／KPI 探針、lockstep 初始延遲與 peer 指令同步／checksum mismatch、存檔往返與錯誤存檔拒絕且不改變既有世界，以及資產文字／binary 載入、快取失效、舊 handle 存活和根目錄限制；GLFW 視窗層仍只供 repo 內建置使用。Lua/Python/Rust 綁定仍延後至有具體需求。
+已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Physics`、`StonePotatoes::Civilization`、`StonePotatoes::Networking`、`StonePotatoes::Game`、`StonePotatoes::CppAPI`、`StonePotatoes::Data`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。C++ 應用可包含 `<api/cpp/StonePotatoes.h>`，使用 `StonePotatoes::API::Runtime` 設定 ECS、掛載場景並控制啟停／更新。`install_consumer` 會在獨立 CMake 專案連結公開 facade，另驗證 PluginManager 依賴載入與反向卸載、場景進出與延遲切換、變動／固定步長更新、Physics2D 固定 tick 力與重力積分／高速撞牆／摩擦、文明經濟存量同步轉移／事件／KPI 探針、lockstep 初始延遲與 peer 指令同步／checksum mismatch、存檔往返與錯誤存檔拒絕且不改變既有世界，以及資產文字／binary 載入、快取失效、舊 handle 存活和根目錄限制；GLFW 視窗層仍只供 repo 內建置使用。Lua/Python/Rust 綁定仍延後至有具體需求。
 
 遊戲主程式建置輸出固定在 `build/bin/<Config>/StonePotatoes[.exe]`（Visual Studio 多組態）或 `build/bin/StonePotatoes`（單組態）；`cmake --install` 會將遊戲、headless C++ 開發套件與文件整理到安裝前綴，`cpack` 會在 `build/packages/` 產生 ZIP（Windows）或 TGZ（Linux/macOS）。`self_developing_agent` 是開發工具，不會打進遊戲套件。
 
@@ -39,7 +39,7 @@
 | Issue | 主題 | 備註 |
 |---|---|---|
 | #10 | rendering | [進行中] 共用 Vulkan context、swapchain 呈現、ImGui Vulkan 與既有點／圓 2D API 已接入正式 Renderer；RTX 5050 上已本機驗證 renderer 初始化、逐幀執行、resize 重建與正常關閉，CPU-only 建置保留 OpenGL fallback。Linux Vulkan CI 透過 Xvfb 執行共享裝置 compute/renderer 三幀驗收及獨立 swapchain resize/recreate 後續呈現 smoke test；設計見 [`rendering-vulkan-design.md`](rendering-vulkan-design.md) |
-| #11 | physics | [進行中] `Physics2DSystem` 提供固定 tick 半隱式 Euler 積分、依 entity ID 排序的空間格候選篩選、最多 16 輪 AABB 接觸解析、靜／動庫侖摩擦，以及靜態與動態方盒間事件推進式 swept-AABB 首次接觸；含大型碰撞體 fallback、有限事件預算、候選數與收斂診斷。`StonePotatoes::Physics` 已匯出至安裝套件，獨立 consumer 驗證公開 headers、相依連結、固定 tick 與重力／力積分。旋轉、初始重疊修復與跨平台 bitwise lockstep 延後；設計見 [`physics-design.md`](physics-design.md) |
+| #11 | physics | [進行中] `Physics2DSystem` 提供固定 tick 半隱式 Euler 積分、依 entity ID 排序的空間格候選篩選、最多 16 輪 AABB 接觸解析、靜／動庫侖摩擦，以及靜態與動態方盒間事件推進式 swept-AABB 首次接觸；含大型碰撞體 fallback、有限事件預算、候選數與收斂診斷。`StonePotatoes::Physics` 已匯出至安裝套件；獨立 consumer 驗證公開 headers、相依連結、固定 tick 與重力／力積分、高速撞牆及摩擦。旋轉、初始重疊修復與跨平台 bitwise lockstep 延後；設計見 [`physics-design.md`](physics-design.md) |
 | #12 | agent 模組與各 agent 的定位 | 決策見 [`ARCHITECTURE.md`](../ARCHITECTURE.md)「Repository Component Boundaries」及下方第 2 節；目前不建立獨立 `src/agent` 執行期模組 |
 
 ### v0.3 文明、網路、工具（Phase 7–10）

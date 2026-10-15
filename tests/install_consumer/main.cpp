@@ -255,6 +255,68 @@ int main(int argc, char** argv) {
         world.Shutdown();
     }
 
+    // Verify installed Physics collision behavior through its public headers:
+    // swept AABB prevents a fast body from tunneling through a wall, and
+    // Coulomb friction removes a low-speed tangential component at rest.
+    {
+        using namespace StonePotatoes::Physics;
+        StonePotatoes::ECS::World world;
+        world.GetSystemScheduler().RegisterSystem(
+            std::make_unique<Physics2DSystem>(StonePotatoes::Math::Vec2{}));
+        world.Initialize();
+
+        const auto wall = world.CreateEntity();
+        world.AddComponent(wall, Transform2D{{10.0f, 0.0f}});
+        RigidBody2D wallBody;
+        wallBody.inverseMass = 0.0f;
+        world.AddComponent(wall, wallBody);
+        world.AddComponent(wall, BoxCollider2D{{0.5f, 2.0f}});
+
+        const auto fastBody = world.CreateEntity();
+        world.AddComponent(fastBody, Transform2D{{0.0f, 0.0f}});
+        RigidBody2D fastRigidBody;
+        fastRigidBody.velocity = {120.0f, 0.0f};
+        world.AddComponent(fastBody, fastRigidBody);
+        world.AddComponent(fastBody, BoxCollider2D{{0.5f, 0.5f}});
+
+        const auto floor = world.CreateEntity();
+        world.AddComponent(floor, Transform2D{{30.0f, 0.0f}});
+        RigidBody2D floorBody;
+        floorBody.inverseMass = 0.0f;
+        world.AddComponent(floor, floorBody);
+        world.AddComponent(
+            floor, BoxCollider2D{{2.0f, 0.5f}, 1.0f, 0.5f});
+
+        const auto slider = world.CreateEntity();
+        world.AddComponent(slider, Transform2D{{30.0f, 0.9f}});
+        RigidBody2D sliderBody;
+        sliderBody.velocity = {0.5f, -2.0f};
+        world.AddComponent(slider, sliderBody);
+        world.AddComponent(
+            slider, BoxCollider2D{{0.5f, 0.5f}, 1.0f, 0.5f});
+
+        world.Update(0.1f);
+
+        const auto* stoppedTransform = world.GetComponent<Transform2D>(fastBody);
+        const auto* stoppedBody = world.GetComponent<RigidBody2D>(fastBody);
+        if (!stoppedTransform || !stoppedBody ||
+            std::fabs(stoppedTransform->position.x - 9.0f) > 0.001f ||
+            std::fabs(stoppedBody->velocity.x) > 0.0001f) {
+            return 54;
+        }
+
+        const auto* restingTransform = world.GetComponent<Transform2D>(slider);
+        const auto* restingBody = world.GetComponent<RigidBody2D>(slider);
+        if (!restingTransform || !restingBody ||
+            std::fabs(restingTransform->position.y - 1.0f) > 0.001f ||
+            std::fabs(restingBody->velocity.x) > 0.0001f ||
+            std::fabs(restingBody->velocity.y) > 0.0001f) {
+            return 55;
+        }
+
+        world.Shutdown();
+    }
+
     // Exercise the installed civilization stock-flow model using only its
     // public target. Transfers observe the same pre-step state, while an event
     // and KPI probe record the completed monthly step.
