@@ -23,12 +23,18 @@ with every body, avoiding unbounded grid allocation. The public
 `GetLastBroadPhasePairCount()` diagnostic reports unique pairs sent to the
 narrow phase during the last tick.
 
-The candidate set is captured once after integration; contacts introduced only
-by solver displacement are handled on the next tick. Overlapping boxes are
-separated along the axis with the smaller penetration (ties choose X), with
-displacement weighted by inverse mass. A zero-restitution normal impulse stops
-closing normal velocity; tangential velocity is unchanged. Invalid or
-non-finite body and collider state is skipped by collision handling.
+For up to 16 solver iterations, the grid and sorted candidate list are rebuilt
+from the latest positions. This lets positional correction expose additional
+contacts during the same tick. Iteration stops when a full pass makes no state
+change; penetrations at or below `0.001` world units are tolerated to avoid
+chasing floating-point residue. `GetLastContactIterationCount()` and
+`DidLastContactSolveConverge()` report the last solve's progress; a solve that
+still changes state on the final allowed pass is conservatively reported as
+not converged. Overlapping boxes are separated along the axis with the smaller
+penetration (ties choose X), with displacement weighted by inverse mass. A
+zero-restitution normal impulse stops closing normal velocity; tangential
+velocity is unchanged. Invalid or non-finite body and collider state is skipped
+by collision handling.
 
 `Game::SetFixedStep` owns the simulation clock and catch-up limit. Register the
 physics system in the ECS world and let `Game::Update` call the world once per
@@ -62,6 +68,8 @@ canonicalization are not promised.
   than an all-pairs scan, while oversized colliders still find their contacts.
 - A fixed-seed scene spanning negative coordinates and exact cell boundaries
   reports exactly the isolated overlapping pairs and resolves each contact.
+- A stacked contact created by positional correction is found on a later
+  iteration and settles within the iteration limit.
 - Non-finite forces and invalid physics deltas do not contaminate body state.
 
 Rotated shapes, friction, joints, continuous collision detection (including

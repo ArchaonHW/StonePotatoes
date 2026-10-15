@@ -334,6 +334,50 @@ int TestGridBoundaryAndNegativeCoordinateContacts() {
     return 0;
 }
 
+int TestMultiContactIterationsDiscoverNewContacts() {
+    ECS::World world;
+    auto physics = std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
+    Physics2DSystem* physicsView = physics.get();
+    world.GetSystemScheduler().RegisterSystem(std::move(physics));
+    world.Initialize();
+
+    const ECS::Entity floor = world.CreateEntity();
+    world.AddComponent(floor, Transform2D{{0.0f, 0.9f}});
+    RigidBody2D floorBody;
+    floorBody.inverseMass = 0.0f;
+    world.AddComponent(floor, floorBody);
+    world.AddComponent(floor, BoxCollider2D{{0.5f, 0.5f}});
+
+    const ECS::Entity lower = world.CreateEntity();
+    world.AddComponent(lower, Transform2D{{0.0f, 1.4f}});
+    world.AddComponent(lower, RigidBody2D{});
+    world.AddComponent(lower, BoxCollider2D{{0.5f, 0.5f}});
+
+    const ECS::Entity upper = world.CreateEntity();
+    world.AddComponent(upper, Transform2D{{0.0f, 2.55f}});
+    world.AddComponent(upper, RigidBody2D{});
+    world.AddComponent(upper, BoxCollider2D{{0.5f, 0.5f}});
+
+    // The lower body initially overlaps the floor. The upper body's AABB is
+    // in another grid cell with a small gap, so only positional correction
+    // creates the lower/upper contact for a later solver iteration to find.
+    world.Update(0.125f);
+
+    const float lowerY = world.GetComponent<Transform2D>(lower)->position.y;
+    const float upperY = world.GetComponent<Transform2D>(upper)->position.y;
+    CHECK(physicsView->GetLastBroadPhasePairCount() == 2);
+    CHECK(physicsView->GetLastContactIterationCount() > 1);
+    CHECK(physicsView->GetLastContactIterationCount() <= 16);
+    CHECK(physicsView->DidLastContactSolveConverge());
+    CHECK(lowerY >= 1.89f && lowerY <= 1.9f);
+    CHECK(upperY >= 2.89f && upperY <= 2.9f);
+    CHECK(world.GetComponent<RigidBody2D>(lower)->velocity.y == 0.0f);
+    CHECK(world.GetComponent<RigidBody2D>(upper)->velocity.y == 0.0f);
+
+    world.Shutdown();
+    return 0;
+}
+
 int TestInvalidInputsAreIgnored() {
     RigidBody2D body;
     CHECK(!body.ApplyForce(
@@ -359,6 +403,8 @@ int main() {
             TestSpatialHashPrunesSeparatedPairsAndKeepsLargeColliders())
         return result;
     if (const int result = TestGridBoundaryAndNegativeCoordinateContacts())
+        return result;
+    if (const int result = TestMultiContactIterationsDiscoverNewContacts())
         return result;
     if (const int result = TestInvalidInputsAreIgnored()) return result;
     return 0;
