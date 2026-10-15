@@ -3,6 +3,7 @@
 #include <core/plugin/Plugin.h>
 #include <game/Game.h>
 #include <game/GameConfig.h>
+#include <physics/Physics2D.h>
 #include <api/cpp/StonePotatoes.h>
 
 #include <cmath>
@@ -200,6 +201,55 @@ int main(int argc, char** argv) {
         }
         game.Stop();
         if (!game.DisableFixedStep()) return 15;
+        world.Shutdown();
+    }
+
+    // Verify that the installed Physics target supplies its public headers,
+    // transitive Math/ECS dependencies, and fixed-tick runtime integration.
+    {
+        StonePotatoes::ECS::World world;
+        world.GetSystemScheduler().RegisterSystem(
+            std::make_unique<StonePotatoes::Physics::Physics2DSystem>(
+                StonePotatoes::Math::Vec2{0.0f, -8.0f}));
+        world.Initialize();
+
+        const auto entity = world.CreateEntity();
+        world.AddComponent(entity,
+                           StonePotatoes::Physics::Transform2D{{0.0f, 2.0f}});
+        StonePotatoes::Physics::RigidBody2D body;
+        body.inverseMass = 0.5f;
+        if (!body.ApplyForce({4.0f, 0.0f})) return 44;
+        world.AddComponent(entity, body);
+
+        StonePotatoes::Game::Game game;
+        if (!game.SetScene(std::make_unique<ConsumerScene>()) ||
+            !game.SetFixedStep(0.125f) || !game.Start(world)) {
+            return 45;
+        }
+        game.Update(0.0625f);
+        const auto* beforeTick =
+            world.GetComponent<StonePotatoes::Physics::Transform2D>(entity);
+        if (!beforeTick || beforeTick->position.x != 0.0f ||
+            beforeTick->position.y != 2.0f) {
+            return 46;
+        }
+
+        game.Update(0.0625f);
+        const auto* afterTick =
+            world.GetComponent<StonePotatoes::Physics::Transform2D>(entity);
+        const auto* afterTickBody =
+            world.GetComponent<StonePotatoes::Physics::RigidBody2D>(entity);
+        if (!afterTick || !afterTickBody ||
+            std::fabs(afterTick->position.x - 0.03125f) > 0.0001f ||
+            std::fabs(afterTick->position.y - 1.875f) > 0.0001f ||
+            std::fabs(afterTickBody->velocity.x - 0.25f) > 0.0001f ||
+            std::fabs(afterTickBody->velocity.y + 1.0f) > 0.0001f ||
+            afterTickBody->accumulatedForce.x != 0.0f ||
+            afterTickBody->accumulatedForce.y != 0.0f) {
+            return 47;
+        }
+
+        game.Stop();
         world.Shutdown();
     }
 

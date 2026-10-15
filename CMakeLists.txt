@@ -62,6 +62,9 @@ add_subdirectory(src/core)
 # ECS library
 add_subdirectory(src/ecs)
 
+# Math library (Riemann zeta core + spectral tools)
+add_subdirectory(src/math)
+
 # Physics library
 add_subdirectory(src/physics)
 
@@ -85,9 +88,6 @@ add_subdirectory(src/gpu)
 
 # Rendering library (uses the shared GPU/Vulkan context)
 add_subdirectory(src/rendering)
-
-# Math library (Riemann zeta core + spectral tools)
-add_subdirectory(src/math)
 
 # IQGPU library (unified compute + quantum-inspired)
 add_subdirectory(src/iqgpu)
@@ -145,17 +145,18 @@ install(FILES LICENSE README.md
 # until GLFW is distributed as part of the installed package.
 set_target_properties(StonePotatoesCore PROPERTIES EXPORT_NAME Core)
 set_target_properties(StonePotatoesECS PROPERTIES EXPORT_NAME ECS)
+set_target_properties(StonePotatoesPhysics PROPERTIES EXPORT_NAME Physics)
 set_target_properties(StonePotatoesMath PROPERTIES EXPORT_NAME Math)
 set_target_properties(StonePotatoesAI PROPERTIES EXPORT_NAME AI)
 set_target_properties(StonePotatoesWorld PROPERTIES EXPORT_NAME World)
 set_target_properties(StonePotatoesGame PROPERTIES EXPORT_NAME Game)
 set_target_properties(StonePotatoesData PROPERTIES EXPORT_NAME Data)
 set_target_properties(StonePotatoesAPI_CPP PROPERTIES EXPORT_NAME CppAPI)
-foreach(_target StonePotatoesCore StonePotatoesECS StonePotatoesMath StonePotatoesAI StonePotatoesWorld StonePotatoesGame StonePotatoesData)
+foreach(_target StonePotatoesCore StonePotatoesECS StonePotatoesPhysics StonePotatoesMath StonePotatoesAI StonePotatoesWorld StonePotatoesGame StonePotatoesData)
     target_compile_options(${_target} PUBLIC "$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 endforeach()
 
-install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesMath StonePotatoesAI StonePotatoesWorld StonePotatoesGame StonePotatoesData StonePotatoesAPI_CPP
+install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesPhysics StonePotatoesMath StonePotatoesAI StonePotatoesWorld StonePotatoesGame StonePotatoesData StonePotatoesAPI_CPP
     EXPORT StonePotatoesTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -166,7 +167,7 @@ install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesMath StonePotato
 # Install headers only for modules represented by exported package targets.
 install(DIRECTORY src/core/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes/core
     FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "platform" EXCLUDE)
-foreach(_module ecs math ai world data)
+foreach(_module ecs physics math ai world data)
     install(DIRECTORY src/${_module}/
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes/${_module}
         FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
