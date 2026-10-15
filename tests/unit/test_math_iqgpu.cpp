@@ -242,6 +242,29 @@ void TestQuantumInspired() {
     for (int i = 0; i < 100; ++i) {
         CHECK(pss.Measure() < 3);
     }
+
+    // A zero-amplitude state must never be selected, and measurement counts
+    // should track the Born-rule probabilities for a fixed seeded sequence.
+    IQGPU::ProbabilisticStateSpace sampled(3, 12345);
+    sampled.SetAmplitude(0, 0.0);
+    sampled.SetAmplitude(1, 1.0);
+    sampled.SetAmplitude(2, 2.0);
+    sampled.Normalize();
+    CHECK(sampled.GetAmplitude(3) == 0.0);
+    CHECK(sampled.GetProbability(3) == 0.0);
+
+    constexpr int kMeasurementCount = 20000;
+    int counts[3]{};
+    for (int i = 0; i < kMeasurementCount; ++i) {
+        const uint32_t state = sampled.Measure();
+        CHECK(state != 0);
+        CHECK(state < 3);
+        if (state < 3) ++counts[state];
+    }
+    CHECK(Near(static_cast<double>(counts[1]) / kMeasurementCount,
+               0.2, 0.015));
+    CHECK(Near(static_cast<double>(counts[2]) / kMeasurementCount,
+               0.8, 0.015));
 }
 
 // --- ZetaCompute (IQGPU parallel scan) | ζ 平行掃描 ---
