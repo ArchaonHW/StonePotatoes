@@ -1,7 +1,8 @@
-# Physics vertical slice: deterministic 2D fixed-tick integration
+# Physics vertical slice: deterministic 2D fixed-tick bodies and box contacts
 
-Status: initial 2D body integration is implemented; collisions and contacts are
-out of scope for this slice.
+Status: fixed-tick 2D body integration and discrete axis-aligned box contacts
+are implemented. This is a deliberately small collision slice, not a general
+purpose rigid-body solver.
 
 ## Scope
 
@@ -9,6 +10,16 @@ out of scope for this slice.
 `RigidBody2D` using semi-implicit Euler. Each tick applies gravity and the
 body's accumulated force to velocity, advances position using the new velocity,
 then clears the accumulated force. A body with `inverseMass == 0` is immovable.
+Entities that also have a `BoxCollider2D` participate in collision handling;
+the collider is an axis-aligned box centered on the transform with positive
+half-extents.
+
+After integration, the system sorts valid collider bodies by `Entity::id` and
+checks each pair once in ascending ID order. Overlapping boxes are separated
+along the axis with the smaller penetration (ties choose X), with displacement
+weighted by inverse mass. A zero-restitution normal impulse stops closing
+normal velocity; tangential velocity is unchanged. Invalid or non-finite body
+and collider state is skipped by collision handling.
 
 `Game::SetFixedStep` owns the simulation clock and catch-up limit. Register the
 physics system in the ECS world and let `Game::Update` call the world once per
@@ -18,10 +29,12 @@ body if its state or calculated next state is non-finite.
 ## Determinism boundary
 
 For a given executable, initial world state, force application sequence, and
-fixed-tick count, the system has no wall-clock reads, random inputs, cross-body
-reductions, or unordered iteration. Tests compare the same eight ticks supplied
-through different render-frame partitions. This is repeatability within the
-same platform/build; cross-platform bitwise lockstep and floating-point
+fixed-tick count, the system has no wall-clock reads, random inputs, or
+unordered collision-pair iteration. Collision resolution is a single ordered
+pass; with three or more simultaneously contacting bodies, changing entity IDs
+can change the result. Tests compare the same tick sequence supplied through
+different render-frame partitions. This is repeatability within the same
+platform/build; cross-platform bitwise lockstep and floating-point
 canonicalization are not promised.
 
 ## Acceptance
@@ -32,7 +45,12 @@ canonicalization are not promised.
 - Static bodies do not move and queued force is discarded.
 - Equal initial states and equal fixed-tick counts produce equal results when
   render-frame deltas are partitioned differently.
+- A dynamic box is separated from a static box and its closing normal velocity
+  is removed; two equal-mass boxes stop in a head-on contact.
+- The same collision setup produces equal results across different render-frame
+  partitions.
 - Non-finite forces and invalid physics deltas do not contaminate body state.
 
-Collision detection, contact resolution, joints, and cross-platform replay
-serialization remain future work.
+Rotated shapes, friction, joints, continuous collision detection (including
+tunneling at high speed), iterative multi-contact solving, and cross-platform
+replay serialization remain future work.
