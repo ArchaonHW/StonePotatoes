@@ -1,8 +1,9 @@
 # Physics vertical slice: deterministic 2D fixed-tick bodies and box contacts
 
 Status: fixed-tick 2D body integration, discrete axis-aligned box contacts,
-and Coulomb friction are implemented. This is a deliberately small collision
-slice, not a general-purpose rigid-body solver.
+Coulomb friction, and swept-AABB contacts against static boxes are implemented.
+This is a deliberately small collision slice, not a general-purpose rigid-body
+solver.
 
 ## Scope
 
@@ -41,6 +42,14 @@ coefficients default to zero, preserving frictionless contacts; dynamic
 friction must be no greater than static friction. Invalid or non-finite body,
 collider, or material state is skipped by collision handling.
 
+Before the discrete solver, a swept-AABB pass uses each collider's previous
+and integrated positions to find static-box impacts during the tick. It resolves
+up to four static impacts per moving body in entity-ID order, applies the same
+normal and friction impulses, and advances tangential motion for the remaining
+time. If that bound is reached, the body stops at the last resolved impact to
+avoid tunneling. Initial overlaps remain the discrete solver's responsibility;
+fast dynamic-to-dynamic contacts are still discrete and may tunnel.
+
 `Game::SetFixedStep` owns the simulation clock and catch-up limit. Register the
 physics system in the ECS world and let `Game::Update` call the world once per
 fixed tick. The physics system rejects invalid/non-positive deltas and skips a
@@ -69,6 +78,8 @@ canonicalization are not promised.
   is removed; two equal-mass boxes stop in a head-on contact.
 - Coulomb friction slows a sliding box according to the dynamic coefficient
   and cancels a low tangential speed within the static-friction limit.
+- Fast boxes moving in either direction stop at static walls without crossing
+  them, while tangential motion continues for the remainder of the tick.
 - The same collision setup produces equal results across different render-frame
   partitions.
 - A 256-body separated scene sends substantially fewer pairs to narrow phase
@@ -79,5 +90,6 @@ canonicalization are not promised.
   iteration and settles within the iteration limit.
 - Non-finite forces and invalid physics deltas do not contaminate body state.
 
-Rotated shapes, joints, continuous collision detection (including tunneling at
-high speed), and cross-platform replay serialization remain future work.
+Rotated shapes, joints, continuous collision detection between dynamic bodies,
+initial-overlap recovery beyond the discrete solver, and cross-platform replay
+serialization remain future work.
