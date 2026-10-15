@@ -1,5 +1,6 @@
 #include <ecs/World.h>
 #include <civilization/economic/SystemDynamics.h>
+#include <networking/core/LockstepSync.h>
 #include <data/AssetCache.h>
 #include <core/plugin/Plugin.h>
 #include <game/Game.h>
@@ -291,6 +292,56 @@ int main(int argc, char** argv) {
             std::fabs(economy.ProbeHistory("stored_food").front() - 100.0f) >
                 0.0001f) {
             return 48;
+        }
+    }
+
+    // Exercise installed deterministic lockstep command and checksum packets.
+    {
+        using StonePotatoes::Networking::LockstepSync;
+
+        LockstepSync::Config config;
+        config.numPeers = 2;
+        config.localPeerId = 0;
+        config.inputDelayTicks = 2;
+        LockstepSync sync(config);
+
+        sync.QueueLocalInput(std::string("move"));
+        const auto localPackets = sync.SealLocalPackets();
+        if (localPackets.size() != 1 || localPackets.front().size() < 8) {
+            return 49;
+        }
+
+        LockstepSync::TickCommands commands;
+        for (int expectedTick = 0; expectedTick < 2; ++expectedTick) {
+            if (!sync.ReadyToAdvance() || !sync.TryAdvance(commands) ||
+                commands.tick != expectedTick || !commands.inputs.empty()) {
+                return 50;
+            }
+        }
+        if (sync.ReadyToAdvance()) {
+            return 51;
+        }
+
+        const std::vector<uint8_t> remoteCommand{0x10, 0x20};
+        const auto remotePacket = LockstepSync::EncodeCommandPacket(
+            1, 2, {remoteCommand});
+        if (!sync.OnPeerPacket(remotePacket)) {
+            return 52;
+        }
+
+        constexpr uint32_t localChecksum = 0xAABBCCDD;
+        sync.RecordLocalChecksum(2, localChecksum);
+        const auto checksumPacket = LockstepSync::EncodeChecksumPacket(
+            1, 2, 0x11223344);
+        if (!sync.OnPeerPacket(checksumPacket) || !sync.ReadyToAdvance() ||
+            !sync.TryAdvance(commands) || commands.tick != 2 ||
+            commands.inputs.size() != 2 ||
+            commands.inputs[0].first != 0 ||
+            commands.inputs[0].second != std::vector<uint8_t>({'m', 'o', 'v', 'e'}) ||
+            commands.inputs[1].first != 1 ||
+            commands.inputs[1].second != remoteCommand ||
+            sync.ChecksumMismatches(2) != std::vector<int>{1}) {
+            return 53;
         }
     }
 

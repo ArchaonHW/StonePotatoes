@@ -9,12 +9,12 @@
 | 區塊 | 位置 | 狀態 | 測試／CI |
 |---|---|---|---|
 | C++ 引擎核心（core / ecs / game / math / iqgpu / gpu / ai / world） | `src/` | 可運作；含 ECS、Game/Scene lifecycle、wave 平行排程、IQGPU CPU 後端、Vulkan 計算後端、NPC 切片、程序化世界串流 | `ctest` 預設註冊 12 項（Linux Vulkan/Xvfb 環境另加 1 項；Vulkan 無 GPU 時 unit 測試 Skipped） |
-| C++ 未完成模組 | `src/{rendering,physics,civilization,networking,editor}` | rendering 已有 Vulkan/ImGui 2D 路徑；physics 有固定 tick、確定順序 AABB 接觸與空間格 broad phase 首切片；civilization 已提供可安裝的 stock-flow 經濟模型；networking 含移植工具，其餘完整子系統尚未完成 | `physics_fixed_tick_unit`、`install_consumer`；Vulkan runtime 見 #10 |
+| C++ 未完成模組 | `src/{rendering,physics,civilization,networking,editor}` | rendering 已有 Vulkan/ImGui 2D 路徑；physics 有固定 tick、確定順序 AABB 接觸與空間格 broad phase 首切片；civilization 已提供可安裝的 stock-flow 經濟模型；networking 已提供可安裝的 lockstep 指令同步；其餘完整子系統尚未完成 | `physics_fixed_tick_unit`、`ported_utils_unit`、`install_consumer`；Vulkan runtime 見 #10 |
 | self_developing_agent | `tools/self_developing_agent/` | 實驗性獨立開發工具；不連結至遊戲執行檔 | CMake target `StonePotatoesSelfDevelopingAgent` |
 | web3-agent（Java 25） | `web3-agent/` | 可運作；EIP-1559、合約、P2P、LLM | `mvn test`（離線）+ 可選 Anvil/LLM 整合測試 |
 | web3-ide（Spring Boot 3.5 / Cloud 2025.0 + Vue） | `web3-ide/` | 可建置；agent-service 可啟動，其他服務為骨架 | agent-service 冒煙測試 + 密碼 fail-fast 檢查 |
 
-已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Physics`、`StonePotatoes::Civilization`、`StonePotatoes::Game`、`StonePotatoes::CppAPI`、`StonePotatoes::Data`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。C++ 應用可包含 `<api/cpp/StonePotatoes.h>`，使用 `StonePotatoes::API::Runtime` 設定 ECS、掛載場景並控制啟停／更新。`install_consumer` 會在獨立 CMake 專案連結公開 facade，另驗證 PluginManager 依賴載入與反向卸載、場景進出與延遲切換、變動／固定步長更新、Physics2D 固定 tick 力與重力積分、文明經濟存量同步轉移／事件／KPI 探針、存檔往返與錯誤存檔拒絕且不改變既有世界，以及資產文字／binary 載入、快取失效、舊 handle 存活和根目錄限制；GLFW 視窗層仍只供 repo 內建置使用。Lua/Python/Rust 綁定仍延後至有具體需求。
+已提供可安裝的 headless CMake 套件 targets：`StonePotatoes::Core`、`StonePotatoes::ECS`、`StonePotatoes::Physics`、`StonePotatoes::Civilization`、`StonePotatoes::Networking`、`StonePotatoes::Game`、`StonePotatoes::CppAPI`、`StonePotatoes::Data`、`StonePotatoes::Math`、`StonePotatoes::AI`、`StonePotatoes::World`。C++ 應用可包含 `<api/cpp/StonePotatoes.h>`，使用 `StonePotatoes::API::Runtime` 設定 ECS、掛載場景並控制啟停／更新。`install_consumer` 會在獨立 CMake 專案連結公開 facade，另驗證 PluginManager 依賴載入與反向卸載、場景進出與延遲切換、變動／固定步長更新、Physics2D 固定 tick 力與重力積分、文明經濟存量同步轉移／事件／KPI 探針、lockstep 初始延遲與 peer 指令同步／checksum mismatch、存檔往返與錯誤存檔拒絕且不改變既有世界，以及資產文字／binary 載入、快取失效、舊 handle 存活和根目錄限制；GLFW 視窗層仍只供 repo 內建置使用。Lua/Python/Rust 綁定仍延後至有具體需求。
 
 遊戲主程式建置輸出固定在 `build/bin/<Config>/StonePotatoes[.exe]`（Visual Studio 多組態）或 `build/bin/StonePotatoes`（單組態）；`cmake --install` 會將遊戲、headless C++ 開發套件與文件整理到安裝前綴，`cpack` 會在 `build/packages/` 產生 ZIP（Windows）或 TGZ（Linux/macOS）。`self_developing_agent` 是開發工具，不會打進遊戲套件。
 
@@ -46,7 +46,7 @@
 | Issue | 主題 |
 |---|---|
 | #13 | civilization（含 SystemDynamics 移植） | `StonePotatoes::Civilization` 匯出 stock-flow `SDModel`；安裝後 consumer 驗證同步存量轉移、月事件與 KPI probe。人口、政治、文化等完整模擬仍是後續工作；移植來源已列於 `THIRD_PARTY_NOTICES.md` |
-| #14 | networking / lockstep |
+| #14 | networking / lockstep | `StonePotatoes::Networking` 匯出移植的 `LockstepSync`；安裝後 consumer 驗證 input-delay 封包、tick readiness、peer command 與 checksum mismatch。傳輸、重送與斷線復原仍待實作；來源已列於 `THIRD_PARTY_NOTICES.md` |
 | #15 | editor（依賴 #10） |
 
 Phase 11–13（Modding、雲端、AAA）維持在長期 `ROADMAP.md`，暫不開 issue。
