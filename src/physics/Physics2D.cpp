@@ -5,6 +5,9 @@
 #include <algorithm>
 #include <cstddef>
 #include <cmath>
+#include <cstdint>
+#include <map>
+#include <utility>
 #include <vector>
 
 namespace StonePotatoes::Physics {
@@ -21,6 +24,25 @@ struct CollisionBody {
     BoxCollider2D* collider;
 };
 
+struct CellCoordinate {
+    std::int64_t x;
+    std::int64_t y;
+
+    bool operator<(const CellCoordinate& other) const {
+        return x < other.x || (x == other.x && y < other.y);
+    }
+};
+
+struct CellRange {
+    std::int64_t minX;
+    std::int64_t maxX;
+    std::int64_t minY;
+    std::int64_t maxY;
+};
+
+constexpr double kBroadPhaseCellSize = 2.0;
+constexpr double kMaxCellsPerCollider = 256.0;
+
 bool IsValidCollisionBody(const Transform2D& transform,
                           const RigidBody2D& body,
                           const BoxCollider2D& collider) {
@@ -29,6 +51,45 @@ bool IsValidCollisionBody(const Transform2D& transform,
            std::isfinite(body.inverseMass) && body.inverseMass >= 0.0f &&
            IsFinite(collider.halfExtents) && collider.halfExtents.x > 0.0f &&
            collider.halfExtents.y > 0.0f;
+}
+
+bool ToCellCoordinate(double value, std::int64_t& result) {
+    const double minimum = -std::ldexp(1.0, 63);
+    const double maximumExclusive = std::ldexp(1.0, 63);
+    if (!std::isfinite(value) || value < minimum ||
+        value >= maximumExclusive) {
+        return false;
+    }
+    result = static_cast<std::int64_t>(value);
+    return true;
+}
+
+bool GetCellRange(const CollisionBody& body, CellRange& range) {
+    const double x = static_cast<double>(body.transform->position.x);
+    const double y = static_cast<double>(body.transform->position.y);
+    const double halfWidth =
+        static_cast<double>(body.collider->halfExtents.x);
+    const double halfHeight =
+        static_cast<double>(body.collider->halfExtents.y);
+    const double minCellX = std::floor((x - halfWidth) / kBroadPhaseCellSize);
+    const double maxCellX = std::floor((x + halfWidth) / kBroadPhaseCellSize);
+    const double minCellY = std::floor((y - halfHeight) / kBroadPhaseCellSize);
+    const double maxCellY = std::floor((y + halfHeight) / kBroadPhaseCellSize);
+    return ToCellCoordinate(minCellX, range.minX) &&
+           ToCellCoordinate(maxCellX, range.maxX) &&
+           ToCellCoordinate(minCellY, range.minY) &&
+           ToCellCoordinate(maxCellY, range.maxY);
+}
+
+bool IsSmallCellRange(const CellRange& range) {
+    const double width = static_cast<double>(range.maxX) -
+                         static_cast<double>(range.minX) + 1.0;
+    const double height = static_cast<double>(range.maxY) -
+                          static_cast<double>(range.minY) + 1.0;
+    return width > 0.0 && height > 0.0 &&
+           width <= kMaxCellsPerCollider &&
+           height <= kMaxCellsPerCollider &&
+           width * height <= kMaxCellsPerCollider;
 }
 
 void ResolvePair(CollisionBody& a, CollisionBody& b) {
@@ -98,7 +159,7 @@ void ResolvePair(CollisionBody& a, CollisionBody& b) {
     b.body->velocity = velocityB;
 }
 
-void ResolveContacts(ECS::World& world) {
+std::size_t ResolveContacts(ECS::World& world) {
     std::vector<CollisionBody> bodies;
     world.ForEach<Transform2D, RigidBody2D, BoxCollider2D>(
         [&bodies](ECS::Entity entity, Transform2D& transform,
@@ -112,11 +173,52 @@ void ResolveContacts(ECS::World& world) {
               [](const CollisionBody& a, const CollisionBody& b) {
                   return a.entity.id < b.entity.id;
               });
+
+    // The ordered map makes cell traversal stable. Very large colliders (or
+    // coordinates outside the integer grid range) use a conservative fallback
+    // that pairs them with every body rather than allocating huge cell ranges.
+    std::map<CellCoordinate, std::vector<std::size_t>> grid;
+    std::vector<std::size_t> oversized;
     for (std::size_t i = 0; i < bodies.size(); ++i) {
-        for (std::size_t j = i + 1; j < bodies.size(); ++j) {
-            ResolvePair(bodies[i], bodies[j]);
+        CellRange range{};
+        if (!GetCellRange(bodies[i], range) || !IsSmallCellRange(range)) {
+            oversized.push_back(i);
+            continue;
+        }
+
+        for (std::int64_t x = range.minX;; ++x) {
+            for (std::int64_t y = range.minY;; ++y) {
+                grid[{x, y}].push_back(i);
+                if (y == range.maxY) break;
+            }
+            if (x == range.maxX) break;
         }
     }
+
+    std::vector<std::pair<std::size_t, std::size_t>> candidates;
+    for (const auto& cell : grid) {
+        const auto& members = cell.second;
+        for (std::size_t i = 0; i < members.size(); ++i) {
+            for (std::size_t j = i + 1; j < members.size(); ++j) {
+                candidates.emplace_back(members[i], members[j]);
+            }
+        }
+    }
+    for (std::size_t large : oversized) {
+        for (std::size_t other = 0; other < bodies.size(); ++other) {
+            if (large == other) continue;
+            candidates.emplace_back(std::min(large, other),
+                                    std::max(large, other));
+        }
+    }
+
+    std::sort(candidates.begin(), candidates.end());
+    candidates.erase(std::unique(candidates.begin(), candidates.end()),
+                     candidates.end());
+    for (const auto& candidate : candidates) {
+        ResolvePair(bodies[candidate.first], bodies[candidate.second]);
+    }
+    return candidates.size();
 }
 
 } // namespace
@@ -142,6 +244,7 @@ void Physics2DSystem::Initialize(ECS::World* world) {
 }
 
 void Physics2DSystem::Update(ECS::World* world, float deltaTime) {
+    m_LastBroadPhasePairCount = 0;
     if (!world || !std::isfinite(deltaTime) || deltaTime <= 0.0f ||
         !IsFinite(m_Gravity)) {
         return;
@@ -177,7 +280,7 @@ void Physics2DSystem::Update(ECS::World* world, float deltaTime) {
             body.accumulatedForce = {};
         });
 
-    ResolveContacts(*world);
+    m_LastBroadPhasePairCount = ResolveContacts(*world);
 }
 
 void Physics2DSystem::DescribeAccess(ECS::AccessSpec& access) const {

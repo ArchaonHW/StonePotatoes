@@ -15,11 +15,20 @@ the collider is an axis-aligned box centered on the transform with positive
 half-extents.
 
 After integration, the system sorts valid collider bodies by `Entity::id` and
-checks each pair once in ascending ID order. Overlapping boxes are separated
-along the axis with the smaller penetration (ties choose X), with displacement
-weighted by inverse mass. A zero-restitution normal impulse stops closing
-normal velocity; tangential velocity is unchanged. Invalid or non-finite body
-and collider state is skipped by collision handling.
+places each AABB into a deterministic 2D grid with 2-unit cells. Each collider
+occupies every cell touched by its bounds. Candidate pairs are deduplicated and
+sorted by entity ID before narrow-phase checks. Colliders spanning more than
+256 cells (or outside the grid's integer coordinate range) conservatively pair
+with every body, avoiding unbounded grid allocation. The public
+`GetLastBroadPhasePairCount()` diagnostic reports unique pairs sent to the
+narrow phase during the last tick.
+
+The candidate set is captured once after integration; contacts introduced only
+by solver displacement are handled on the next tick. Overlapping boxes are
+separated along the axis with the smaller penetration (ties choose X), with
+displacement weighted by inverse mass. A zero-restitution normal impulse stops
+closing normal velocity; tangential velocity is unchanged. Invalid or
+non-finite body and collider state is skipped by collision handling.
 
 `Game::SetFixedStep` owns the simulation clock and catch-up limit. Register the
 physics system in the ECS world and let `Game::Update` call the world once per
@@ -49,6 +58,8 @@ canonicalization are not promised.
   is removed; two equal-mass boxes stop in a head-on contact.
 - The same collision setup produces equal results across different render-frame
   partitions.
+- A 256-body separated scene sends substantially fewer pairs to narrow phase
+  than an all-pairs scan, while oversized colliders still find their contacts.
 - Non-finite forces and invalid physics deltas do not contaminate body state.
 
 Rotated shapes, friction, joints, continuous collision detection (including
