@@ -87,7 +87,7 @@ jobs:
       - name: Build Vulkan backend
         run: cmake --build build-vulkan --target StonePotatoesVulkanTests StonePotatoesVulkanPresentationSmoke StonePotatoesVulkanComputeRendererDemo -j"$(nproc)"
       - name: Test Vulkan backend
-        run: ctest --test-dir build-vulkan -R 'vulkan_(unit|compute_renderer_runtime)' --output-on-failure --timeout 300
+        run: ctest --test-dir build-vulkan -R 'vulkan_(unit|compute_renderer_runtime|presentation_resize_runtime)' --output-on-failure --timeout 300
 
   coverage:
     name: C++ coverage (gcov/lcov)

@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <functional>
+#include <cstdint>
 
 #ifdef SP_VULKAN
 #include <vulkan/vulkan.h>
@@ -43,6 +44,7 @@ public:
     VkRenderPass GetRenderPass() const;
     uint32_t GetMinImageCount() const;
     uint32_t GetImageCount() const;
+    std::uint64_t GetSwapchainGeneration() const;
 #endif
     bool ShouldClose() const;
     void PollEvents();

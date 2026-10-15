@@ -36,6 +36,7 @@ struct VulkanPresentationSmoke::Impl {
     bool glfwInitialized = false;
     bool terminateGlfwOnShutdown = true;
     bool swapchainDirty = false;
+    std::uint64_t swapchainGeneration = 0;
 
     bool Fail(const char* message) {
         lastError = message;
@@ -228,6 +229,7 @@ struct VulkanPresentationSmoke::Impl {
                                      commandBuffers.data()) != VK_SUCCESS)
             return Fail("vkAllocateCommandBuffers failed");
         swapchainDirty = false;
+        ++swapchainGeneration;
         return true;
     }
 
@@ -429,6 +431,9 @@ uint32_t VulkanPresentationSmoke::GetMinImageCount() const {
 }
 uint32_t VulkanPresentationSmoke::GetImageCount() const {
     return static_cast<uint32_t>(m_Impl->images.size());
+}
+std::uint64_t VulkanPresentationSmoke::GetSwapchainGeneration() const {
+    return m_Impl->swapchainGeneration;
 }
 
 bool VulkanPresentationSmoke::ShouldClose() const {

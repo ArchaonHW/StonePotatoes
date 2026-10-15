@@ -132,7 +132,15 @@ if(Vulkan_FOUND AND TARGET StonePotatoesVulkanComputeRendererDemo AND
                 $<TARGET_FILE:StonePotatoesVulkanComputeRendererDemo>
                 --frames 3
         )
+        add_test(NAME vulkan_presentation_resize_runtime
+            COMMAND ${STONEPOTATOES_XVFB_RUN} -a
+                $<TARGET_FILE:StonePotatoesVulkanPresentationSmoke>
+                --frames 3 --resize-at-frame 1
+        )
         set_tests_properties(vulkan_compute_renderer_runtime PROPERTIES
+            TIMEOUT 90
+        )
+        set_tests_properties(vulkan_presentation_resize_runtime PROPERTIES
             TIMEOUT 90
         )
     endif()
