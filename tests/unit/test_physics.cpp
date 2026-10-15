@@ -264,6 +264,61 @@ int TestCoulombContactFriction() {
     return 0;
 }
 
+int TestContinuousCollisionAgainstStaticWalls() {
+    ECS::World world;
+    auto physics = std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
+    Physics2DSystem* physicsView = physics.get();
+    world.GetSystemScheduler().RegisterSystem(std::move(physics));
+    world.Initialize();
+
+    const ECS::Entity leftWall = world.CreateEntity();
+    world.AddComponent(leftWall, Transform2D{{0.0f, 0.0f}});
+    RigidBody2D leftWallBody;
+    leftWallBody.inverseMass = 0.0f;
+    world.AddComponent(leftWall, leftWallBody);
+    world.AddComponent(leftWall, BoxCollider2D{{0.5f, 0.5f}});
+
+    const ECS::Entity movingRight = world.CreateEntity();
+    world.AddComponent(movingRight, Transform2D{{-5.0f, 0.0f}});
+    RigidBody2D movingRightBody;
+    movingRightBody.velocity = {100.0f, 5.0f};
+    world.AddComponent(movingRight, movingRightBody);
+    world.AddComponent(movingRight, BoxCollider2D{{0.5f, 0.5f}});
+
+    const ECS::Entity rightWall = world.CreateEntity();
+    world.AddComponent(rightWall, Transform2D{{0.0f, 10.0f}});
+    RigidBody2D rightWallBody;
+    rightWallBody.inverseMass = 0.0f;
+    world.AddComponent(rightWall, rightWallBody);
+    world.AddComponent(rightWall, BoxCollider2D{{0.5f, 0.5f}});
+
+    const ECS::Entity movingLeft = world.CreateEntity();
+    world.AddComponent(movingLeft, Transform2D{{5.0f, 10.0f}});
+    RigidBody2D movingLeftBody;
+    movingLeftBody.velocity = {-100.0f, 0.0f};
+    world.AddComponent(movingLeft, movingLeftBody);
+    world.AddComponent(movingLeft, BoxCollider2D{{0.5f, 0.5f}});
+
+    world.Update(0.1f);
+
+    const auto* leftTransform = world.GetComponent<Transform2D>(movingRight);
+    const auto* leftBody = world.GetComponent<RigidBody2D>(movingRight);
+    CHECK(std::fabs(leftTransform->position.x + 1.0f) < 0.0001f);
+    CHECK(std::fabs(leftTransform->position.y - 0.5f) < 0.0001f);
+    CHECK(leftBody->velocity.x == 0.0f);
+    CHECK(leftBody->velocity.y == 5.0f);
+
+    const auto* rightTransform = world.GetComponent<Transform2D>(movingLeft);
+    const auto* rightBody = world.GetComponent<RigidBody2D>(movingLeft);
+    CHECK(std::fabs(rightTransform->position.x - 1.0f) < 0.0001f);
+    CHECK(rightBody->velocity.x == 0.0f);
+    CHECK(rightBody->velocity.y == 0.0f);
+    CHECK(physicsView->GetLastBroadPhasePairCount() >= 2);
+
+    world.Shutdown();
+    return 0;
+}
+
 int TestSpatialHashPrunesSeparatedPairsAndKeepsLargeColliders() {
     ECS::World world;
     auto physics = std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
@@ -450,6 +505,8 @@ int main() {
         return result;
     if (const int result = TestDynamicHeadOnContact()) return result;
     if (const int result = TestCoulombContactFriction()) return result;
+    if (const int result = TestContinuousCollisionAgainstStaticWalls())
+        return result;
     if (const int result =
             TestSpatialHashPrunesSeparatedPairsAndKeepsLargeColliders())
         return result;
