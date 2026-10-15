@@ -213,7 +213,7 @@ uint32_t ProbabilisticStateSpace::Measure() {
     double acc = 0.0;
     for (uint32_t i = 0; i < m_NumStates; ++i) {
         acc += m_Amplitudes[i] * m_Amplitudes[i];
-        if (pick <= acc) return i;
+        if (pick < acc) return i;
     }
     return m_NumStates - 1;
 }
