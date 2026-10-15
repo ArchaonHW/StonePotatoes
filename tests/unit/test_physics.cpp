@@ -50,6 +50,39 @@ Snapshot Simulate(const std::vector<float>& frameDeltas) {
     return result;
 }
 
+Snapshot SimulateBoxCollision(const std::vector<float>& frameDeltas) {
+    ECS::World world;
+    world.GetSystemScheduler().RegisterSystem(
+        std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f}));
+    world.Initialize();
+
+    const ECS::Entity fixed = world.CreateEntity();
+    world.AddComponent(fixed, Transform2D{{0.0f, 0.0f}});
+    RigidBody2D fixedBody;
+    fixedBody.inverseMass = 0.0f;
+    world.AddComponent(fixed, fixedBody);
+    world.AddComponent(fixed, BoxCollider2D{{0.5f, 0.5f}});
+
+    const ECS::Entity moving = world.CreateEntity();
+    world.AddComponent(moving, Transform2D{{-1.5f, 0.0f}});
+    RigidBody2D movingBody;
+    movingBody.velocity = {1.0f, 0.0f};
+    world.AddComponent(moving, movingBody);
+    world.AddComponent(moving, BoxCollider2D{{0.5f, 0.5f}});
+
+    Game::Game game;
+    game.SetScene(std::make_unique<EmptyScene>());
+    game.SetFixedStep(0.125f);
+    game.Start(world);
+    for (float delta : frameDeltas) game.Update(delta);
+
+    const Snapshot result{world.GetComponent<Transform2D>(moving)->position,
+                          world.GetComponent<RigidBody2D>(moving)->velocity};
+    game.Stop();
+    world.Shutdown();
+    return result;
+}
+
 int TestSemiImplicitIntegrationAndStaticBodies() {
     ECS::World world;
     RegisterPhysicsComponents(world);
@@ -127,6 +160,59 @@ int TestFramePartitionDeterminism() {
     return 0;
 }
 
+int TestStaticAabbContactAndFramePartitionDeterminism() {
+    const Snapshot byLargeFrames =
+        SimulateBoxCollision(std::vector<float>(8, 0.125f));
+    const Snapshot bySmallFrames =
+        SimulateBoxCollision(std::vector<float>(16, 0.0625f));
+    CHECK(byLargeFrames.position.x == -1.0f);
+    CHECK(byLargeFrames.position.y == 0.0f);
+    CHECK(byLargeFrames.velocity.x == 0.0f);
+    CHECK(byLargeFrames.velocity.y == 0.0f);
+    CHECK(byLargeFrames.position.x == bySmallFrames.position.x);
+    CHECK(byLargeFrames.position.y == bySmallFrames.position.y);
+    CHECK(byLargeFrames.velocity.x == bySmallFrames.velocity.x);
+    CHECK(byLargeFrames.velocity.y == bySmallFrames.velocity.y);
+    return 0;
+}
+
+int TestDynamicHeadOnContact() {
+    ECS::World world;
+    RegisterPhysicsComponents(world);
+    world.GetSystemScheduler().RegisterSystem(
+        std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f}));
+    world.Initialize();
+
+    const ECS::Entity left = world.CreateEntity();
+    world.AddComponent(left, Transform2D{{-0.5f, 0.0f}});
+    RigidBody2D leftBody;
+    leftBody.velocity = {1.0f, 0.0f};
+    world.AddComponent(left, leftBody);
+    world.AddComponent(left, BoxCollider2D{{0.5f, 0.5f}});
+
+    const ECS::Entity right = world.CreateEntity();
+    world.AddComponent(right, Transform2D{{0.5f, 0.0f}});
+    RigidBody2D rightBody;
+    rightBody.velocity = {-1.0f, 0.0f};
+    world.AddComponent(right, rightBody);
+    world.AddComponent(right, BoxCollider2D{{0.5f, 0.5f}});
+
+    Game::Game game;
+    game.SetScene(std::make_unique<EmptyScene>());
+    CHECK(game.SetFixedStep(0.25f));
+    CHECK(game.Start(world));
+    game.Update(0.25f);
+
+    CHECK(world.GetComponent<Transform2D>(left)->position.x == -0.5f);
+    CHECK(world.GetComponent<Transform2D>(right)->position.x == 0.5f);
+    CHECK(world.GetComponent<RigidBody2D>(left)->velocity.x == 0.0f);
+    CHECK(world.GetComponent<RigidBody2D>(right)->velocity.x == 0.0f);
+
+    game.Stop();
+    world.Shutdown();
+    return 0;
+}
+
 int TestInvalidInputsAreIgnored() {
     RigidBody2D body;
     CHECK(!body.ApplyForce(
@@ -145,6 +231,9 @@ int main() {
     if (const int result = TestSemiImplicitIntegrationAndStaticBodies())
         return result;
     if (const int result = TestFramePartitionDeterminism()) return result;
+    if (const int result = TestStaticAabbContactAndFramePartitionDeterminism())
+        return result;
+    if (const int result = TestDynamicHeadOnContact()) return result;
     if (const int result = TestInvalidInputsAreIgnored()) return result;
     return 0;
 }

@@ -9,7 +9,7 @@
 | 區塊 | 位置 | 狀態 | 測試／CI |
 |---|---|---|---|
 | C++ 引擎核心（core / ecs / game / math / iqgpu / gpu / ai / world） | `src/` | 可運作；含 ECS、Game/Scene lifecycle、wave 平行排程、IQGPU CPU 後端、Vulkan 計算後端、NPC 切片、程序化世界串流 | `ctest` 預設註冊 12 項（Linux Vulkan/Xvfb 環境另加 1 項；Vulkan 無 GPU 時 unit 測試 Skipped） |
-| C++ 未完成模組 | `src/{rendering,physics,civilization,networking,editor}` | rendering 已有 Vulkan/ImGui 2D 路徑；physics 有固定 tick 的 2D 力積分首切片，碰撞／接觸仍未實作；civilization/networking 含已移植工具，其餘完整子系統尚未完成 | `physics_fixed_tick_unit`；Vulkan runtime 見 #10 |
+| C++ 未完成模組 | `src/{rendering,physics,civilization,networking,editor}` | rendering 已有 Vulkan/ImGui 2D 路徑；physics 有固定 tick 的 2D 力積分與確定順序的 AABB 接觸首切片；civilization/networking 含已移植工具，其餘完整子系統尚未完成 | `physics_fixed_tick_unit`；Vulkan runtime 見 #10 |
 | self_developing_agent | `tools/self_developing_agent/` | 實驗性獨立開發工具；不連結至遊戲執行檔 | CMake target `StonePotatoesSelfDevelopingAgent` |
 | web3-agent（Java 25） | `web3-agent/` | 可運作；EIP-1559、合約、P2P、LLM | `mvn test`（離線）+ 可選 Anvil/LLM 整合測試 |
 | web3-ide（Spring Boot 3.5 / Cloud 2025.0 + Vue） | `web3-ide/` | 可建置；agent-service 可啟動，其他服務為骨架 | agent-service 冒煙測試 + 密碼 fail-fast 檢查 |
@@ -39,7 +39,7 @@
 | Issue | 主題 | 備註 |
 |---|---|---|
 | #10 | rendering | [進行中] 共用 Vulkan context、swapchain 呈現、ImGui Vulkan 與既有點／圓 2D API 已接入正式 Renderer；RTX 5050 上已本機驗證 renderer 初始化、逐幀執行與正常關閉，CPU-only 建置保留 OpenGL fallback。Linux Vulkan CI 已設定透過 Xvfb 執行 `StonePotatoesVulkanComputeRendererDemo --frames 3`，驗收同一 `VkDevice`、64 筆 SAXPY、三幀呈現與正常關閉；設計見 [`rendering-vulkan-design.md`](rendering-vulkan-design.md) |
-| #11 | physics | [進行中] 新增 `Physics2DSystem`：固定 tick 下以半隱式 Euler 積分重力與一次性累積力，靜態剛體與有限值輸入有明確規則；測試以不同畫面時間切分比對相同 tick 結果。碰撞／接觸與跨平台 bitwise lockstep 延後；設計見 [`physics-design.md`](physics-design.md) |
+| #11 | physics | [進行中] 新增 `Physics2DSystem`：固定 tick 下以半隱式 Euler 積分重力與一次性累積力；補上依 entity ID 排序、單次離散 AABB 接觸解析，靜態剛體、零恢復係數與有限值輸入有明確規則。旋轉、摩擦、連續碰撞、多接觸迭代與跨平台 bitwise lockstep 延後；設計見 [`physics-design.md`](physics-design.md) |
 | #12 | agent 模組與各 agent 的定位 | 見下方第 2 節 |
 
 ### v0.3 文明、網路、工具（Phase 7–10）
