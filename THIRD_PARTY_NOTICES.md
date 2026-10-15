@@ -67,6 +67,7 @@ This project incorporates code derived from PotatoEngine (D:\HWC\PotatoEngine), 
   - Renamed namespace from `Potato::Simulation` to `StonePotatoes::Civilization::Economic`
   - Adapted to StonePotatoes coding style (e.g., `m_` member prefix)
   - Fixed `uint32` → `uint32_t` for MSVC compatibility
+  - Kept discrete event stock deltas independent of the flow integration timestep
   - Added SPDX identifier and provenance header
 
 #### Networking/LockstepSync.{h,cpp} → src/networking/core/LockstepSync.{h,cpp}

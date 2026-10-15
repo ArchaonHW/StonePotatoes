@@ -441,9 +441,16 @@ The world is a **Living World** that includes:
 
 ## Civilization Simulation | 文明模擬
 
-StonePotatoes includes a **Civilization Engine** that simulates complete civilizations with:
+The current C++ slice provides `StonePotatoes::Civilization::Economic::SDModel`,
+a discrete stock-flow simulator with stocks, parameters, auxiliary values,
+flows, scheduled events, probes, and history. It is available to external CMake
+projects through the installed `StonePotatoes::Civilization` target. Population,
+trade, politics, culture, and other complete civilization systems remain
+long-term goals:
 
-StonePotatoes 包含一個 **文明引擎**，模擬完整的文明，具有：
+目前 C++ 切片提供 `StonePotatoes::Civilization::Economic::SDModel`，這是離散的
+存量／流量模擬器，支援存量、參數、輔助值、流量、排程事件、探針與歷史記錄。
+人口、貿易、政治、文化等完整文明系統仍屬長期目標：
 
 - Population (demographics, birth/death rates, migration)
   人口（人口統計、出生/死亡率、遷移）
@@ -984,8 +991,8 @@ StonePotatoes/
 │   # AI 引擎（存根）
 │   ├── world/                   # World simulation (stub)
 │   # 世界模擬（存根）
-│   ├── civilization/            # Civilization simulation (stub)
-│   # 文明模擬（存根）
+│   ├── civilization/            # Economic stock-flow simulation (SystemDynamics)
+│   # 文明經濟存量／流量模擬（SystemDynamics）
 │   ├── agent/                   # Agent systems (stub)
 │   # 代理系統（存根）
 │   ├── networking/              # Networking (stub)

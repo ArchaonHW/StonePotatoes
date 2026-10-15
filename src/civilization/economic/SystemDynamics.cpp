@@ -5,6 +5,7 @@
 #include "SystemDynamics.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace StonePotatoes {
 namespace Civilization {
@@ -113,16 +114,20 @@ void SDModel::Step() {
     for (const auto& [stock, fn] : m_FlowFns)
         deltas[stock] += fn ? fn(st) : 0.f;
 
-    // 3. discrete event injection (month-triggered; prob<1 uses RNG)
+    // 3. discrete event injection (month-triggered; prob<1 uses RNG).
+    // Events are one-time stock impulses, so keep them separate from rates
+    // that are integrated over dt.
     std::uniform_real_distribution<float> uni(0.f, 1.f);
+    std::map<std::string, float> eventDeltas;
     for (const auto& e : m_Events)
         if (e.month == m_Month && (e.prob >= 1.f || uni(m_Rng) < e.prob))
-            deltas[e.stock] += e.delta;
+            eventDeltas[e.stock] += e.delta;
 
     // 4. apply + CLAMP + record
     ++m_Month;
     for (auto& [name, s] : m_Stocks) {
-        s.value = std::clamp(s.value + m_Dt * deltas[name], s.lo, s.hi);
+        s.value = std::clamp(s.value + m_Dt * deltas[name] + eventDeltas[name],
+                             s.lo, s.hi);
         m_History[name].push_back(s.value);
     }
 

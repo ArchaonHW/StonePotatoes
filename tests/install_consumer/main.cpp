@@ -1,4 +1,5 @@
 #include <ecs/World.h>
+#include <civilization/economic/SystemDynamics.h>
 #include <data/AssetCache.h>
 #include <core/plugin/Plugin.h>
 #include <game/Game.h>
@@ -251,6 +252,46 @@ int main(int argc, char** argv) {
 
         game.Stop();
         world.Shutdown();
+    }
+
+    // Exercise the installed civilization stock-flow model using only its
+    // public target. Transfers observe the same pre-step state, while an event
+    // and KPI probe record the completed monthly step.
+    {
+        using StonePotatoes::Civilization::Economic::SDModel;
+        using StonePotatoes::Civilization::Economic::SDState;
+
+        SDModel economy;
+        economy.AddStock("grain", 100.0f, 0.0f);
+        economy.AddStock("food", 0.0f, 0.0f);
+        economy.AddStock("treasury", 10.0f, 0.0f);
+        economy.SetParam("grain_reserve", 20.0f);
+        economy.SetDt(0.5f);
+        economy.AddAux("available_grain", [](const SDState& state) {
+            return state.S("grain") - state.P("grain_reserve");
+        });
+        economy.AddFlow("grain", [](const SDState& state) {
+            return state.A("available_grain") >= 2.0f ? -2.0f : 0.0f;
+        });
+        economy.AddFlow("food", [](const SDState& state) {
+            return state.A("available_grain") >= 2.0f ? 2.0f : 0.0f;
+        });
+        economy.AddEvent(0, "treasury", -3.0f);
+        economy.AddProbe("stored_food", [](const SDState& state) {
+            return state.S("grain") + state.S("food");
+        });
+        economy.Step();
+
+        if (economy.Month() != 1 ||
+            std::fabs(economy.Stock("grain") - 99.0f) > 0.0001f ||
+            std::fabs(economy.Stock("food") - 1.0f) > 0.0001f ||
+            std::fabs(economy.Stock("treasury") - 7.0f) > 0.0001f ||
+            economy.History("grain").size() != 2 ||
+            economy.ProbeHistory("stored_food").size() != 1 ||
+            std::fabs(economy.ProbeHistory("stored_food").front() - 100.0f) >
+                0.0001f) {
+            return 48;
+        }
     }
 
     // Verify that an installed consumer sees scene transitions at the update
