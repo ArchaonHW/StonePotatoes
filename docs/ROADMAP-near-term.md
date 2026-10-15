@@ -40,7 +40,7 @@
 |---|---|---|
 | #10 | rendering | [進行中] 共用 Vulkan context、swapchain 呈現、ImGui Vulkan 與既有點／圓 2D API 已接入正式 Renderer；RTX 5050 上已本機驗證 renderer 初始化、逐幀執行、resize 重建與正常關閉，CPU-only 建置保留 OpenGL fallback。Linux Vulkan CI 透過 Xvfb 執行共享裝置 compute/renderer 三幀驗收及獨立 swapchain resize/recreate 後續呈現 smoke test；設計見 [`rendering-vulkan-design.md`](rendering-vulkan-design.md) |
 | #11 | physics | [進行中] `Physics2DSystem` 提供固定 tick 半隱式 Euler 積分、依 entity ID 排序的空間格候選篩選、最多 16 輪 AABB 接觸解析、靜／動庫侖摩擦，以及靜態與動態方盒間事件推進式 swept-AABB 首次接觸；含大型碰撞體 fallback、有限事件預算、候選數與收斂診斷。`StonePotatoes::Physics` 已匯出至安裝套件，獨立 consumer 驗證公開 headers、相依連結、固定 tick 與重力／力積分。旋轉、初始重疊修復與跨平台 bitwise lockstep 延後；設計見 [`physics-design.md`](physics-design.md) |
-| #12 | agent 模組與各 agent 的定位 | 見下方第 2 節 |
+| #12 | agent 模組與各 agent 的定位 | 決策見 [`ARCHITECTURE.md`](../ARCHITECTURE.md)「Repository Component Boundaries」及下方第 2 節；目前不建立獨立 `src/agent` 執行期模組 |
 
 ### v0.3 文明、網路、工具（Phase 7–10）
 | Issue | 主題 |

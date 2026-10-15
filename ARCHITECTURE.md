@@ -269,6 +269,41 @@ AI 必須對未知做出決策。
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### Repository Component Boundaries (Current Implementation)
+### 儲存庫元件邊界（目前實作）
+
+The high-level graph above describes the long-term product vision. The current
+repository has narrower, independently built components:
+上方高層架構圖描述長期產品願景；目前 repo 中各元件的範圍較小，並分別建置：
+
+| Component | Owning path | Current responsibility |
+|---|---|---|
+| In-game AI | `src/ai/` | C++ ECS systems and data for game/NPC behavior. It belongs to the engine runtime. |
+| Self-developing agent | `tools/self_developing_agent/` | Experimental developer CLI for code analysis/generation. It is a standalone CMake target, is not linked into the `StonePotatoes` game executable or package, and does not automatically edit engine source. |
+| Web3 agent | `web3-agent/` | Independent Java/Maven library and CLI for wallet, chain, P2P, and LLM capabilities. It has no C++ build or runtime dependency. |
+| Web3 IDE | `web3-ide/` | Spring Boot services and Vue UI; `agent-service` consumes `web3-agent` through Maven. It is not part of the game executable. |
+
+| 元件 | 負責路徑 | 目前職責 |
+|---|---|---|
+| 遊戲內 AI | `src/ai/` | 遊戲／NPC 行為使用的 C++ ECS 系統與資料，屬於引擎執行期。 |
+| 自我開發 agent | `tools/self_developing_agent/` | 實驗性程式碼分析／生成 CLI，為獨立 CMake target；不連結至 `StonePotatoes` 遊戲執行檔或套件，也不會自動修改引擎原始碼。 |
+| Web3 agent | `web3-agent/` | 獨立 Java/Maven 函式庫與 CLI，提供錢包、鏈、P2P、LLM 功能；不依賴 C++ 建置或執行環境。 |
+| Web3 IDE | `web3-ide/` | Spring Boot 服務與 Vue 介面；`agent-service` 透過 Maven 使用 `web3-agent`，不屬於遊戲執行檔。 |
+
+There is no compiled `src/agent` module or CMake target. Do not create a
+duplicate agent layer alongside `src/ai` without a concrete, independently
+testable runtime API. If long-term goal/memory/planning becomes a distinct
+engine requirement, place it under `src/ai/agent/` or introduce an explicitly
+scoped module with its own consumer and tests. Connections from the C++ engine
+to Web3 services must use an explicit service boundary such as HTTP/gRPC; the
+current C++ and Java products share the repository and CI only.
+
+目前沒有已編譯的 `src/agent` 模組或 CMake target。沒有具體且可獨立測試的
+執行期 API 前，不要在 `src/ai` 旁重複建立 agent 層。若長期目標／記憶／規劃
+日後成為獨立引擎需求，可放入 `src/ai/agent/`，或建立範圍明確且有自身 consumer
+與測試的模組。C++ 引擎若要連接 Web3 服務，須使用 HTTP/gRPC 等明確服務邊界；
+目前 C++ 與 Java 產品只共用 repo 與 CI。
+
 ### GPU First Architecture
 ### GPU 優先架構
 
