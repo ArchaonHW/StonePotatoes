@@ -322,37 +322,50 @@ struct SweepHit {
     Math::Vec2 normal{};
 };
 
-bool FindStaticSweepHit(const CollisionBody& moving,
-                        const CollisionBody& obstacle,
-                        const Math::Vec2& start,
-                        const Math::Vec2& end,
-                        SweepHit& hit) {
-    if (moving.body->inverseMass <= 0.0f ||
-        obstacle.body->inverseMass != 0.0f) {
-        return false;
-    }
-
-    const double relativeX = static_cast<double>(start.x) -
-                             obstacle.transform->position.x;
-    const double relativeY = static_cast<double>(start.y) -
-                             obstacle.transform->position.y;
-    const double displacementX = static_cast<double>(end.x) - start.x;
-    const double displacementY = static_cast<double>(end.y) - start.y;
+bool FindSweptAabbHit(const CollisionBody& a, const CollisionBody& b,
+                      const Math::Vec2& startA, const Math::Vec2& endA,
+                      const Math::Vec2& startB, const Math::Vec2& endB,
+                      SweepHit& hit) {
+    const double relativeX = static_cast<double>(startB.x) - startA.x;
+    const double relativeY = static_cast<double>(startB.y) - startA.y;
+    const double displacementX =
+        (static_cast<double>(endB.x) - startB.x) -
+        (static_cast<double>(endA.x) - startA.x);
+    const double displacementY =
+        (static_cast<double>(endB.y) - startB.y) -
+        (static_cast<double>(endA.y) - startA.y);
     const double halfWidth =
-        static_cast<double>(moving.collider->halfExtents.x) +
-        obstacle.collider->halfExtents.x;
+        static_cast<double>(a.collider->halfExtents.x) +
+        b.collider->halfExtents.x;
     const double halfHeight =
-        static_cast<double>(moving.collider->halfExtents.y) +
-        obstacle.collider->halfExtents.y;
+        static_cast<double>(a.collider->halfExtents.y) +
+        b.collider->halfExtents.y;
     if (!std::isfinite(relativeX) || !std::isfinite(relativeY) ||
         !std::isfinite(displacementX) || !std::isfinite(displacementY) ||
         !std::isfinite(halfWidth) || !std::isfinite(halfHeight)) {
         return false;
     }
 
-    // Initial overlaps are handled by the discrete contact solver.
-    if (std::fabs(relativeX) < halfWidth &&
-        std::fabs(relativeY) < halfHeight) {
+    // Resolve tiny event-time overlap caused by float rounding when another
+    // pair collides at the same time. Deeper initial overlaps stay discrete.
+    constexpr double kContactTolerance = 1.0e-5;
+    const double penetrationX = halfWidth - std::fabs(relativeX);
+    const double penetrationY = halfHeight - std::fabs(relativeY);
+    if (penetrationX >= -kContactTolerance &&
+        penetrationY >= -kContactTolerance &&
+        std::min(penetrationX, penetrationY) <= kContactTolerance) {
+        const bool useX = penetrationX <= penetrationY;
+        const double normalMotion = useX
+            ? displacementX * (relativeX < 0.0 ? -1.0 : 1.0)
+            : displacementY * (relativeY < 0.0 ? -1.0 : 1.0);
+        if (normalMotion >= 0.0) return false;
+        hit.fraction = 0.0f;
+        hit.normal = useX
+            ? Math::Vec2{relativeX < 0.0 ? -1.0f : 1.0f, 0.0f}
+            : Math::Vec2{0.0f, relativeY < 0.0 ? -1.0f : 1.0f};
+        return true;
+    }
+    if (penetrationX > 0.0 && penetrationY > 0.0) {
         return false;
     }
 
@@ -398,92 +411,104 @@ bool FindStaticSweepHit(const CollisionBody& moving,
     return true;
 }
 
-void ResolveContinuousStaticContacts(
+void ResolveContinuousContacts(
     std::vector<CollisionBody>& bodies,
-    const std::vector<std::pair<std::size_t, std::size_t>>& candidates,
-    float deltaTime) {
-    constexpr std::size_t kMaxContinuousContactsPerBody = 4;
+    float deltaTime,
+    std::vector<std::pair<std::size_t, std::size_t>>& allCandidates) {
+    const std::size_t maxEvents = bodies.size() >= 64
+        ? 256 : std::max<std::size_t>(4, bodies.size() * 4);
+    std::vector<Math::Vec2> segmentStarts(bodies.size());
+    std::vector<Math::Vec2> motionVelocities(bodies.size());
+    bool hasMotion = false;
 
-    for (std::size_t movingIndex = 0; movingIndex < bodies.size();
-         ++movingIndex) {
-        CollisionBody& moving = bodies[movingIndex];
-        if (moving.body->inverseMass <= 0.0f) continue;
-
-        Math::Vec2 segmentStart = moving.previousPosition;
-        Math::Vec2 segmentEnd = moving.transform->position;
-        float remainingTime = deltaTime;
-        bool resolvedAnyContact = false;
-
-        for (std::size_t contactIndex = 0;
-             contactIndex < kMaxContinuousContactsPerBody; ++contactIndex) {
-            bool foundHit = false;
-            float earliestFraction = std::numeric_limits<float>::infinity();
-            std::size_t obstacleIndex = 0;
-            SweepHit earliestHit{};
-
-            for (const auto& candidate : candidates) {
-                std::size_t otherIndex = bodies.size();
-                if (candidate.first == movingIndex) {
-                    otherIndex = candidate.second;
-                } else if (candidate.second == movingIndex) {
-                    otherIndex = candidate.first;
-                }
-                if (otherIndex == bodies.size() ||
-                    bodies[otherIndex].body->inverseMass != 0.0f) {
-                    continue;
-                }
-
-                SweepHit hit;
-                if (FindStaticSweepHit(moving, bodies[otherIndex], segmentStart,
-                                       segmentEnd, hit) &&
-                    (!foundHit || hit.fraction < earliestFraction)) {
-                    foundHit = true;
-                    earliestFraction = hit.fraction;
-                    obstacleIndex = otherIndex;
-                    earliestHit = hit;
-                }
-            }
-
-            if (!foundHit) break;
-
-            const Math::Vec2 displacement = segmentEnd - segmentStart;
-            const Math::Vec2 impactPosition =
-                segmentStart + displacement * earliestHit.fraction;
-            [[maybe_unused]] Math::Vec2 obstacleVelocity{};
-            Math::Vec2 movingVelocity{};
-            if (!CalculateContactVelocities(bodies[obstacleIndex], moving,
-                                            earliestHit.normal,
-                                            obstacleVelocity, movingVelocity)) {
-                break;
-            }
-
-            const float nextRemainingTime =
-                remainingTime * (1.0f - earliestHit.fraction);
-            const Math::Vec2 nextStart = impactPosition;
-            Math::Vec2 nextEnd = nextStart + movingVelocity * nextRemainingTime;
-            if (!IsFinite(impactPosition) || !std::isfinite(nextRemainingTime) ||
-                !IsFinite(nextStart) || !IsFinite(nextEnd)) {
-                break;
-            }
-
-            moving.body->velocity = movingVelocity;
-            segmentStart = nextStart;
-            remainingTime = nextRemainingTime;
-            resolvedAnyContact = true;
-
-            if (contactIndex + 1 == kMaxContinuousContactsPerBody) {
-                // Stop at the last resolved impact rather than risk tunneling
-                // through an additional obstacle beyond the safety bound.
-                nextEnd = nextStart;
-            }
-            segmentEnd = nextEnd;
+    for (std::size_t i = 0; i < bodies.size(); ++i) {
+        CollisionBody& body = bodies[i];
+        segmentStarts[i] = body.body->inverseMass > 0.0f
+            ? body.previousPosition : body.transform->position;
+        if (body.body->inverseMass > 0.0f &&
+            (segmentStarts[i].x != body.transform->position.x ||
+             segmentStarts[i].y != body.transform->position.y)) {
+            motionVelocities[i] = body.body->velocity;
+            hasMotion = true;
         }
-
-        if (resolvedAnyContact) {
-            moving.transform->position = segmentEnd;
-        }
+        body.previousPosition = segmentStarts[i];
+        body.transform->position = segmentStarts[i];
     }
 
+    if (!hasMotion || deltaTime <= 0.0f) return;
+
+    float remainingTime = deltaTime;
+    for (std::size_t event = 0; event < maxEvents && remainingTime > 0.0f;
+         ++event) {
+        for (std::size_t i = 0; i < bodies.size(); ++i) {
+            CollisionBody& body = bodies[i];
+            body.previousPosition = segmentStarts[i];
+            body.transform->position = body.body->inverseMass > 0.0f
+                ? segmentStarts[i] + motionVelocities[i] * remainingTime
+                : segmentStarts[i];
+        }
+
+        const auto candidates = BuildCandidates(bodies, true);
+        allCandidates.insert(allCandidates.end(), candidates.begin(),
+                             candidates.end());
+
+        bool foundHit = false;
+        float earliestFraction = std::numeric_limits<float>::infinity();
+        std::size_t firstIndex = 0;
+        std::size_t secondIndex = 0;
+        SweepHit earliestHit{};
+        for (const auto& candidate : candidates) {
+            const CollisionBody& a = bodies[candidate.first];
+            const CollisionBody& b = bodies[candidate.second];
+            if (a.body->inverseMass + b.body->inverseMass <= 0.0f) continue;
+
+            SweepHit hit;
+            if (FindSweptAabbHit(a, b, segmentStarts[candidate.first],
+                                 a.transform->position,
+                                 segmentStarts[candidate.second],
+                                 b.transform->position, hit) &&
+                (!foundHit || hit.fraction < earliestFraction)) {
+                foundHit = true;
+                earliestFraction = hit.fraction;
+                firstIndex = candidate.first;
+                secondIndex = candidate.second;
+                earliestHit = hit;
+            }
+        }
+
+        if (!foundHit) return;
+
+        const float elapsedTime = remainingTime * earliestHit.fraction;
+        for (std::size_t i = 0; i < bodies.size(); ++i) {
+            if (bodies[i].body->inverseMass > 0.0f) {
+                segmentStarts[i] += motionVelocities[i] * elapsedTime;
+                bodies[i].transform->position = segmentStarts[i];
+            }
+        }
+
+        Math::Vec2 velocityA{};
+        Math::Vec2 velocityB{};
+        CollisionBody& a = bodies[firstIndex];
+        CollisionBody& b = bodies[secondIndex];
+        if (!CalculateContactVelocities(a, b, earliestHit.normal,
+                                        velocityA, velocityB)) {
+            // Keep bodies at the last safe time of impact if the impulse would
+            // produce a non-finite state.
+            return;
+        }
+
+        const float nextRemainingTime =
+            remainingTime * (1.0f - earliestHit.fraction);
+        if (!std::isfinite(nextRemainingTime)) return;
+        a.body->velocity = velocityA;
+        b.body->velocity = velocityB;
+        if (a.body->inverseMass > 0.0f) motionVelocities[firstIndex] = velocityA;
+        if (b.body->inverseMass > 0.0f) motionVelocities[secondIndex] = velocityB;
+        remainingTime = nextRemainingTime;
+    }
+
+    // If the event budget is exhausted, positions remain at the last resolved
+    // impact, conservatively discarding the unprocessed part of the tick.
 }
 
 struct ContactSolveStats {
@@ -519,21 +544,14 @@ ContactSolveStats ResolveContacts(
 
     ContactSolveStats stats;
     std::vector<std::pair<std::size_t, std::size_t>> allCandidates;
-    const bool hasStaticObstacle = std::any_of(
-        bodies.begin(), bodies.end(), [](const CollisionBody& body) {
-            return body.body->inverseMass == 0.0f;
-        });
     const bool hasMovingPath = std::any_of(
         bodies.begin(), bodies.end(), [](const CollisionBody& body) {
             return body.body->inverseMass > 0.0f &&
                    (body.previousPosition.x != body.transform->position.x ||
                     body.previousPosition.y != body.transform->position.y);
         });
-    if (hasStaticObstacle && hasMovingPath) {
-        const auto sweptCandidates = BuildCandidates(bodies, true);
-        allCandidates.insert(allCandidates.end(), sweptCandidates.begin(),
-                             sweptCandidates.end());
-        ResolveContinuousStaticContacts(bodies, sweptCandidates, deltaTime);
+    if (bodies.size() > 1 && hasMovingPath) {
+        ResolveContinuousContacts(bodies, deltaTime, allCandidates);
     }
 
     for (std::size_t iteration = 0;
