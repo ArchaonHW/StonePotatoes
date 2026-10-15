@@ -214,6 +214,56 @@ int TestDynamicHeadOnContact() {
     return 0;
 }
 
+int TestCoulombContactFriction() {
+    ECS::World world;
+    RegisterPhysicsComponents(world);
+    world.GetSystemScheduler().RegisterSystem(
+        std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f}));
+    world.Initialize();
+
+    struct ContactPair {
+        ECS::Entity moving;
+        float expectedTangentialVelocity;
+    };
+    std::vector<ContactPair> pairs;
+    const auto addPair = [&world, &pairs](float y, float tangentSpeed,
+                                         float expectedTangentialVelocity) {
+        const ECS::Entity fixed = world.CreateEntity();
+        world.AddComponent(fixed, Transform2D{{0.0f, y}});
+        RigidBody2D fixedBody;
+        fixedBody.inverseMass = 0.0f;
+        world.AddComponent(fixed, fixedBody);
+        world.AddComponent(fixed, BoxCollider2D{{0.5f, 0.5f}, 1.0f, 0.5f});
+
+        const ECS::Entity moving = world.CreateEntity();
+        world.AddComponent(moving, Transform2D{{-0.75f, y}});
+        RigidBody2D movingBody;
+        movingBody.velocity = {1.0f, tangentSpeed};
+        world.AddComponent(moving, movingBody);
+        world.AddComponent(moving,
+                           BoxCollider2D{{0.5f, 0.5f}, 1.0f, 0.5f});
+        pairs.push_back({moving, expectedTangentialVelocity});
+    };
+
+    // The first body exceeds the static-friction limit and receives kinetic
+    // friction; the second remains within the limit and sticks.
+    addPair(0.0f, 4.0f, 3.5f);
+    addPair(8.0f, 0.25f, 0.0f);
+    world.Update(0.125f);
+
+    for (const ContactPair& pair : pairs) {
+        const auto* transform = world.GetComponent<Transform2D>(pair.moving);
+        const auto* body = world.GetComponent<RigidBody2D>(pair.moving);
+        CHECK(transform->position.x == -1.0f);
+        CHECK(body->velocity.x == 0.0f);
+        CHECK(std::fabs(body->velocity.y - pair.expectedTangentialVelocity) <
+              0.00001f);
+    }
+
+    world.Shutdown();
+    return 0;
+}
+
 int TestSpatialHashPrunesSeparatedPairsAndKeepsLargeColliders() {
     ECS::World world;
     auto physics = std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
@@ -399,6 +449,7 @@ int main() {
     if (const int result = TestStaticAabbContactAndFramePartitionDeterminism())
         return result;
     if (const int result = TestDynamicHeadOnContact()) return result;
+    if (const int result = TestCoulombContactFriction()) return result;
     if (const int result =
             TestSpatialHashPrunesSeparatedPairsAndKeepsLargeColliders())
         return result;
