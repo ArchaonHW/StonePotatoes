@@ -60,6 +60,8 @@ canonicalization are not promised.
   partitions.
 - A 256-body separated scene sends substantially fewer pairs to narrow phase
   than an all-pairs scan, while oversized colliders still find their contacts.
+- A fixed-seed scene spanning negative coordinates and exact cell boundaries
+  reports exactly the isolated overlapping pairs and resolves each contact.
 - Non-finite forces and invalid physics deltas do not contaminate body state.
 
 Rotated shapes, friction, joints, continuous collision detection (including

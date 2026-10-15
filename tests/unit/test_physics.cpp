@@ -3,6 +3,7 @@
 #include "physics/Physics2D.h"
 
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <vector>
@@ -255,6 +256,84 @@ int TestSpatialHashPrunesSeparatedPairsAndKeepsLargeColliders() {
     return 0;
 }
 
+int TestGridBoundaryAndNegativeCoordinateContacts() {
+    ECS::World world;
+    auto physics = std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
+    Physics2DSystem* physicsView = physics.get();
+    world.GetSystemScheduler().RegisterSystem(std::move(physics));
+    world.Initialize();
+
+    struct ExpectedBody {
+        ECS::Entity entity;
+        float x;
+        float y;
+    };
+    std::vector<ExpectedBody> expected;
+    const auto addPair = [&world, &expected](Math::Vec2 fixedPosition,
+                                             float direction) {
+        const ECS::Entity fixed = world.CreateEntity();
+        world.AddComponent(fixed, Transform2D{fixedPosition});
+        RigidBody2D fixedBody;
+        fixedBody.inverseMass = 0.0f;
+        world.AddComponent(fixed, fixedBody);
+        world.AddComponent(fixed, BoxCollider2D{{0.5f, 0.5f}});
+
+        const ECS::Entity moving = world.CreateEntity();
+        world.AddComponent(
+            moving,
+            Transform2D{{fixedPosition.x + direction * 0.75f,
+                         fixedPosition.y}});
+        RigidBody2D movingBody;
+        movingBody.velocity = {-direction, 0.0f};
+        world.AddComponent(moving, movingBody);
+        world.AddComponent(moving, BoxCollider2D{{0.5f, 0.5f}});
+        expected.push_back(
+            {moving, fixedPosition.x + direction, fixedPosition.y});
+    };
+
+    // These boxes touch the +2 and -2 grid boundaries exactly.
+    addPair({1.5f, 0.0f}, 1.0f);
+    addPair({-1.5f, 32.0f}, -1.0f);
+
+    // Deterministic pseudo-random layout of isolated contacts across positive
+    // and negative grid coordinates. The fixed seed keeps expected results
+    // reproducible across platforms and test runs.
+    std::uint32_t state = 0x12345678u;
+    const auto nextValue = [&state]() {
+        state = state * 1664525u + 1013904223u;
+        return state;
+    };
+    for (int i = 0; i < 64; ++i) {
+        const int column = i % 8;
+        const int row = i / 8;
+        const int xBand = column < 4 ? -256 : 256;
+        const int yBand = row < 4 ? -256 : 256;
+        const float centerX = static_cast<float>(
+            (column < 4 ? column : column - 4) * 16 + xBand) +
+            ((nextValue() & 1u) ? 1.5f : -1.5f);
+        const float centerY = static_cast<float>(
+            (row < 4 ? row : row - 4) * 16 + yBand) +
+            ((nextValue() & 1u) ? 1.5f : -1.5f);
+        const float direction = (nextValue() & 1u) ? 1.0f : -1.0f;
+        addPair({centerX, centerY}, direction);
+    }
+
+    world.Update(0.125f);
+
+    CHECK(physicsView->GetLastBroadPhasePairCount() == expected.size());
+    for (const ExpectedBody& result : expected) {
+        const auto* transform = world.GetComponent<Transform2D>(result.entity);
+        const auto* body = world.GetComponent<RigidBody2D>(result.entity);
+        CHECK(transform->position.x == result.x);
+        CHECK(transform->position.y == result.y);
+        CHECK(body->velocity.x == 0.0f);
+        CHECK(body->velocity.y == 0.0f);
+    }
+
+    world.Shutdown();
+    return 0;
+}
+
 int TestInvalidInputsAreIgnored() {
     RigidBody2D body;
     CHECK(!body.ApplyForce(
@@ -278,6 +357,8 @@ int main() {
     if (const int result = TestDynamicHeadOnContact()) return result;
     if (const int result =
             TestSpatialHashPrunesSeparatedPairsAndKeepsLargeColliders())
+        return result;
+    if (const int result = TestGridBoundaryAndNegativeCoordinateContacts())
         return result;
     if (const int result = TestInvalidInputsAreIgnored()) return result;
     return 0;
