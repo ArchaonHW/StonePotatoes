@@ -825,10 +825,10 @@ OpenGL 後備。以下進階渲染功能仍在規劃中：
 The engine includes a fixed-tick 2D rigid-body and axis-aligned box-contact
 foundation. It is available to external CMake projects as the installed
 `StonePotatoes::Physics` target; the installed-package consumer verifies
-gravity/force integration through the fixed-step game loop. Additional physics
-systems remain planned:
+gravity/force integration, high-speed wall contact, and friction through the
+public API. Additional physics systems remain planned:
 
-引擎已有固定 tick 的 2D 剛體與軸對齊方盒接觸基礎；其他物理系統仍在規劃中：
+引擎已有固定 tick 的 2D 剛體與軸對齊方盒接觸基礎；安裝後 consumer 亦透過公開 API 驗收高速撞牆與摩擦，其他物理系統仍在規劃中：
 
 - Advanced Rigid Body (rotated shapes, joints, and richer dynamics)
   進階剛體（旋轉形狀、關節與更完整的動力學）
