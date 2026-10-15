@@ -815,10 +815,13 @@ OpenGL 後備。以下進階渲染功能仍在規劃中：
 
 ## Physics | 物理
 
-The engine has a fixed-tick 2D rigid-body and box-contact foundation in progress.
-Additional physics systems remain planned:
+The engine includes a fixed-tick 2D rigid-body and axis-aligned box-contact
+foundation. It is available to external CMake projects as the installed
+`StonePotatoes::Physics` target; the installed-package consumer verifies
+gravity/force integration through the fixed-step game loop. Additional physics
+systems remain planned:
 
-引擎正在完善固定 tick 的 2D 剛體與方盒接觸基礎；其他物理系統仍在規劃中：
+引擎已有固定 tick 的 2D 剛體與軸對齊方盒接觸基礎；其他物理系統仍在規劃中：
 
 - Advanced Rigid Body (rotated shapes, joints, and richer dynamics)
   進階剛體（旋轉形狀、關節與更完整的動力學）
@@ -975,8 +978,8 @@ StonePotatoes/
 │   # 實體-組件-系統 ✓
 │   ├── rendering/               # Vulkan renderer + ImGui/2D; OpenGL fallback for CPU-only builds
 │   # Vulkan 渲染器 + ImGui/2D；CPU-only 建置保留 OpenGL 後備
-│   ├── physics/                 # Physics engine (stub)
-│   # 物理引擎（存根）
+│   ├── physics/                 # Fixed-tick 2D bodies and AABB contacts
+│   # 固定 tick 2D 剛體與 AABB 接觸
 │   ├── ai/                      # AI engine (stub)
 │   # AI 引擎（存根）
 │   ├── world/                   # World simulation (stub)
