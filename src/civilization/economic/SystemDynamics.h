@@ -4,11 +4,13 @@
 // 衍生自 PotatoEngine Simulation/SystemDynamics.{h,cpp}（MIT），詳見 THIRD_PARTY_NOTICES.md。
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <limits>
 #include <map>
 #include <random>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace StonePotatoes {
@@ -52,7 +54,7 @@ private:
  *   - RandomEvent: probabilistic event at a specific month (random shock layer).
  *
  * Update semantics (Euler): aux evaluated in registration order → all flows evaluated at t →
- *   stock[t+1] = stock[t] + dt·net_flow applied synchronously → CLAMP → record.
+ *   stock[t+1] = stock[t] + dt·net_flow + discrete_event_delta → CLAMP → record.
  * This guarantees mass conservation during A↔B transfers (flows all see t, not mixed temporal state).
  *
  * Delay modeling: use APrev for first-order exponential smoothing (information delay).
@@ -65,7 +67,7 @@ private:
  *   supply-line stocks, AI strategic resource simulation.
  * SDModel — 系統動力學存量-流量模擬器（離散步進，Euler 語義）。
  * 建模 API：Stock（存量）、Flow（流量）、Aux（輔助變數）、Param（參數）、Event（離散事件）、RandomEvent（機率事件）。
- * 更新語義（Euler）：aux 依註冊序求值 → 所有 flow 以 t 狀態求值 → 同步套用 stock[t+1] = stock[t] + dt·net_flow → CLAMP → 記錄。
+ * 更新語義（Euler）：aux 依註冊序求值 → 所有 flow 以 t 狀態求值 → 同步套用 stock[t+1] = stock[t] + dt·net_flow + 離散事件增量 → CLAMP → 記錄。
  * 保證 A↔B 互相轉移時總量守恆（flow 都看到 t 而非混合時態）。
  * 延遲建模：以 APrev 做一階指數平滑。多階延遲鏈串多個 aux；實體延遲用中間存量串。
  * 預設 dt=1（月模型）；SetDt 可切週/季。純 CPU、決定性、headless 可測。

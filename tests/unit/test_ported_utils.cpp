@@ -113,6 +113,15 @@ static void TestSystemDynamics() {
     CHECK(std::abs(model.Stock("cash") - 2200.0f) < 1e-3f); // 1000 + 12*100
 
     CHECK(model.History("cash").size() == 13); // initial + 12 steps
+
+    SDModel eventModel;
+    eventModel.AddStock("treasury", 10.0f);
+    eventModel.SetDt(0.5f);
+    eventModel.AddEvent(0, "treasury", -3.0f);
+    eventModel.Step();
+    CHECK(std::abs(eventModel.Stock("treasury") - 7.0f) < 1e-3f);
+    eventModel.Step();
+    CHECK(std::abs(eventModel.Stock("treasury") - 7.0f) < 1e-3f);
 }
 
 // ---- LockstepSync tests ----

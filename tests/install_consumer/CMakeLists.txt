@@ -9,6 +9,7 @@ target_link_libraries(StonePotatoesConsumer PRIVATE
     StonePotatoes::Core
     StonePotatoes::ECS
     StonePotatoes::Physics
+    StonePotatoes::Civilization
     StonePotatoes::Game
     StonePotatoes::Data
 )
