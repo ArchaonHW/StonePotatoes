@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <utility>
 #include <vector>
@@ -52,7 +53,12 @@ bool IsValidCollisionBody(const Transform2D& transform,
            IsFinite(body.accumulatedForce) &&
            std::isfinite(body.inverseMass) && body.inverseMass >= 0.0f &&
            IsFinite(collider.halfExtents) && collider.halfExtents.x > 0.0f &&
-           collider.halfExtents.y > 0.0f;
+           collider.halfExtents.y > 0.0f &&
+           std::isfinite(collider.staticFriction) &&
+           std::isfinite(collider.dynamicFriction) &&
+           collider.staticFriction >= 0.0f &&
+           collider.dynamicFriction >= 0.0f &&
+           collider.dynamicFriction <= collider.staticFriction;
 }
 
 bool ToCellCoordinate(double value, std::int64_t& result) {
@@ -147,13 +153,61 @@ bool ResolvePair(CollisionBody& a, CollisionBody& b) {
 
     Math::Vec2 velocityA = a.body->velocity;
     Math::Vec2 velocityB = b.body->velocity;
+    float normalImpulse = 0.0f;
     if (normalVelocity < 0.0f) {
-        const float impulseMagnitude = -normalVelocity / inverseMassSum;
+        normalImpulse = -normalVelocity / inverseMassSum;
+        if (!std::isfinite(normalImpulse)) return false;
         if (a.body->inverseMass > 0.0f) {
-            velocityA -= normal * (impulseMagnitude * a.body->inverseMass);
+            velocityA -= normal * (normalImpulse * a.body->inverseMass);
         }
         if (b.body->inverseMass > 0.0f) {
-            velocityB += normal * (impulseMagnitude * b.body->inverseMass);
+            velocityB += normal * (normalImpulse * b.body->inverseMass);
+        }
+    }
+
+    if (normalImpulse > 0.0f) {
+        const Math::Vec2 tangent{-normal.y, normal.x};
+        const Math::Vec2 velocityAForFriction = a.body->inverseMass > 0.0f
+            ? velocityA : Math::Vec2{};
+        const Math::Vec2 velocityBForFriction = b.body->inverseMass > 0.0f
+            ? velocityB : Math::Vec2{};
+        const float tangentVelocity =
+            (velocityBForFriction - velocityAForFriction).Dot(tangent);
+        if (!std::isfinite(tangentVelocity)) return false;
+
+        const float desiredTangentImpulse =
+            -tangentVelocity / inverseMassSum;
+        const double staticFriction = std::sqrt(
+            static_cast<double>(a.collider->staticFriction) *
+            static_cast<double>(b.collider->staticFriction));
+        const double dynamicFriction = std::sqrt(
+            static_cast<double>(a.collider->dynamicFriction) *
+            static_cast<double>(b.collider->dynamicFriction));
+        const double staticLimit =
+            staticFriction * static_cast<double>(normalImpulse);
+        const double desiredMagnitude =
+            std::fabs(static_cast<double>(desiredTangentImpulse));
+        const double tangentImpulseValue =
+            desiredMagnitude <= staticLimit
+                ? static_cast<double>(desiredTangentImpulse)
+                : -std::copysign(
+                      dynamicFriction * static_cast<double>(normalImpulse),
+                      static_cast<double>(tangentVelocity));
+        if (!std::isfinite(desiredTangentImpulse) ||
+            !std::isfinite(tangentImpulseValue) ||
+            std::fabs(tangentImpulseValue) >
+                static_cast<double>(std::numeric_limits<float>::max())) {
+            return false;
+        }
+
+        const float tangentImpulse = static_cast<float>(tangentImpulseValue);
+        if (a.body->inverseMass > 0.0f) {
+            velocityA -=
+                tangent * (tangentImpulse * a.body->inverseMass);
+        }
+        if (b.body->inverseMass > 0.0f) {
+            velocityB +=
+                tangent * (tangentImpulse * b.body->inverseMass);
         }
     }
     if (!IsFinite(velocityA) || !IsFinite(velocityB)) return false;

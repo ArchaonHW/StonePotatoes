@@ -1,8 +1,8 @@
 # Physics vertical slice: deterministic 2D fixed-tick bodies and box contacts
 
-Status: fixed-tick 2D body integration and discrete axis-aligned box contacts
-are implemented. This is a deliberately small collision slice, not a general
-purpose rigid-body solver.
+Status: fixed-tick 2D body integration, discrete axis-aligned box contacts,
+and Coulomb friction are implemented. This is a deliberately small collision
+slice, not a general-purpose rigid-body solver.
 
 ## Scope
 
@@ -32,9 +32,14 @@ chasing floating-point residue. `GetLastContactIterationCount()` and
 still changes state on the final allowed pass is conservatively reported as
 not converged. Overlapping boxes are separated along the axis with the smaller
 penetration (ties choose X), with displacement weighted by inverse mass. A
-zero-restitution normal impulse stops closing normal velocity; tangential
-velocity is unchanged. Invalid or non-finite body and collider state is skipped
-by collision handling.
+zero-restitution normal impulse stops closing normal velocity. When that
+impulse is nonzero, the solver applies Coulomb friction along the contact
+tangent: it cancels tangential velocity up to the static-friction limit, then
+uses the dynamic-friction limit for sliding. Each limit is the geometric mean
+of the two colliders' coefficients multiplied by the normal impulse. Both
+coefficients default to zero, preserving frictionless contacts; dynamic
+friction must be no greater than static friction. Invalid or non-finite body,
+collider, or material state is skipped by collision handling.
 
 `Game::SetFixedStep` owns the simulation clock and catch-up limit. Register the
 physics system in the ECS world and let `Game::Update` call the world once per
@@ -45,11 +50,11 @@ body if its state or calculated next state is non-finite.
 
 For a given executable, initial world state, force application sequence, and
 fixed-tick count, the system has no wall-clock reads, random inputs, or
-unordered collision-pair iteration. Collision resolution is a single ordered
-pass; with three or more simultaneously contacting bodies, changing entity IDs
-can change the result. Tests compare the same tick sequence supplied through
-different render-frame partitions. This is repeatability within the same
-platform/build; cross-platform bitwise lockstep and floating-point
+unordered collision-pair iteration. Each bounded solve iteration uses sorted
+entity-ID pairs; with three or more simultaneously contacting bodies, changing
+entity IDs can change the result. Tests compare the same tick sequence supplied
+through different render-frame partitions. This is repeatability within the
+same platform/build; cross-platform bitwise lockstep and floating-point
 canonicalization are not promised.
 
 ## Acceptance
@@ -62,6 +67,8 @@ canonicalization are not promised.
   render-frame deltas are partitioned differently.
 - A dynamic box is separated from a static box and its closing normal velocity
   is removed; two equal-mass boxes stop in a head-on contact.
+- Coulomb friction slows a sliding box according to the dynamic coefficient
+  and cancels a low tangential speed within the static-friction limit.
 - The same collision setup produces equal results across different render-frame
   partitions.
 - A 256-body separated scene sends substantially fewer pairs to narrow phase
@@ -72,6 +79,5 @@ canonicalization are not promised.
   iteration and settles within the iteration limit.
 - Non-finite forces and invalid physics deltas do not contaminate body state.
 
-Rotated shapes, friction, joints, continuous collision detection (including
-tunneling at high speed), iterative multi-contact solving, and cross-platform
-replay serialization remain future work.
+Rotated shapes, joints, continuous collision detection (including tunneling at
+high speed), and cross-platform replay serialization remain future work.
