@@ -147,17 +147,18 @@ set_target_properties(StonePotatoesCore PROPERTIES EXPORT_NAME Core)
 set_target_properties(StonePotatoesECS PROPERTIES EXPORT_NAME ECS)
 set_target_properties(StonePotatoesPhysics PROPERTIES EXPORT_NAME Physics)
 set_target_properties(StonePotatoesCivilization PROPERTIES EXPORT_NAME Civilization)
+set_target_properties(StonePotatoesNetworking PROPERTIES EXPORT_NAME Networking)
 set_target_properties(StonePotatoesMath PROPERTIES EXPORT_NAME Math)
 set_target_properties(StonePotatoesAI PROPERTIES EXPORT_NAME AI)
 set_target_properties(StonePotatoesWorld PROPERTIES EXPORT_NAME World)
 set_target_properties(StonePotatoesGame PROPERTIES EXPORT_NAME Game)
 set_target_properties(StonePotatoesData PROPERTIES EXPORT_NAME Data)
 set_target_properties(StonePotatoesAPI_CPP PROPERTIES EXPORT_NAME CppAPI)
-foreach(_target StonePotatoesCore StonePotatoesECS StonePotatoesPhysics StonePotatoesCivilization StonePotatoesMath StonePotatoesAI StonePotatoesWorld StonePotatoesGame StonePotatoesData)
+foreach(_target StonePotatoesCore StonePotatoesECS StonePotatoesPhysics StonePotatoesCivilization StonePotatoesNetworking StonePotatoesMath StonePotatoesAI StonePotatoesWorld StonePotatoesGame StonePotatoesData)
     target_compile_options(${_target} PUBLIC "$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 endforeach()
 
-install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesPhysics StonePotatoesCivilization StonePotatoesMath StonePotatoesAI StonePotatoesWorld StonePotatoesGame StonePotatoesData StonePotatoesAPI_CPP
+install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesPhysics StonePotatoesCivilization StonePotatoesNetworking StonePotatoesMath StonePotatoesAI StonePotatoesWorld StonePotatoesGame StonePotatoesData StonePotatoesAPI_CPP
     EXPORT StonePotatoesTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -168,7 +169,7 @@ install(TARGETS StonePotatoesCore StonePotatoesECS StonePotatoesPhysics StonePot
 # Install headers only for modules represented by exported package targets.
 install(DIRECTORY src/core/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes/core
     FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "platform" EXCLUDE)
-foreach(_module ecs physics civilization math ai world data)
+foreach(_module ecs physics civilization networking math ai world data)
     install(DIRECTORY src/${_module}/
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes/${_module}
         FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")

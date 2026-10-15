@@ -93,8 +93,8 @@ Game/Scene lifecycle and configuration: [docs/game-runtime.md](docs/game-runtime
 ### In Progress 🚧 | 進行中 🚧
 - [ ] v0.1 engine productization: fixed-step simulation and complete data module; world save format v1 is documented and validates malformed files (headless ECS + Game/Scene lifecycle and deferred scene switching are available)
   v0.1 引擎產品化：固定步長模擬與完整資料模組；world save v1 已文件化並驗證損壞檔案（headless ECS、Game/Scene lifecycle 與延後切換場景已可使用）
-- [ ] Rendering, deterministic physics, and full civilization/networking systems
-  渲染、決定性物理與完整文明/網路系統
+- [ ] Rendering, deterministic physics, and full civilization/networking systems; partial installed C++ slices include `SDModel` and `LockstepSync`
+  渲染、決定性物理與完整文明/網路系統仍在進行；已提供可安裝的 `SDModel` 與 `LockstepSync` 部分切片
 - [x] Game/window settings from `engine_config.json` and a user-driven runtime loop
   從 `engine_config.json` 載入遊戲/視窗設定，並由使用者控制執行主迴圈
 
@@ -995,8 +995,8 @@ StonePotatoes/
 │   # 文明經濟存量／流量模擬（SystemDynamics）
 │   ├── agent/                   # Agent systems (stub)
 │   # 代理系統（存根）
-│   ├── networking/              # Networking (stub)
-│   # 網路（存根）
+│   ├── networking/              # Deterministic lockstep commands (partial)
+│   # 決定性 lockstep 指令同步（部分）
 │   ├── data/                    # Root-scoped binary/text asset cache
 │   # 資料與資產（根目錄限制的二進位／文字快取）
 │   ├── gpu/                     # GPU compute (stub)

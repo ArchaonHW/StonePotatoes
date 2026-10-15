@@ -1,8 +1,12 @@
-# Networking library - lockstep sync (partial; TODO: Phase 9 full implementation)
-# 網路函式庫 — lockstep 同步（部分；完整實作於 Phase 9）
+# Networking library - deterministic lockstep command synchronization (partial)
+# 網路函式庫 — 決定性 lockstep 指令同步（部分）
 add_library(StonePotatoesNetworking STATIC
     core/LockstepSync.cpp
-    stub.cpp
 )
-target_include_directories(StonePotatoesNetworking PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(StonePotatoesNetworking PUBLIC StonePotatoesCore StonePotatoesECS StonePotatoesWorld StonePotatoesCivilization)
+target_include_directories(StonePotatoesNetworking
+    PUBLIC
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/StonePotatoes>
+)
+target_compile_features(StonePotatoesNetworking PUBLIC cxx_std_20)
