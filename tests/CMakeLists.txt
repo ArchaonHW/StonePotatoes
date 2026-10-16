@@ -121,6 +121,13 @@ add_test(NAME ported_utils_unit COMMAND StonePotatoesPortedUtilsTests)
 # 無 GPU / loader 時回傳 77，ctest 顯示為 Skipped。
 set_tests_properties(vulkan_unit PROPERTIES SKIP_RETURN_CODE 77)
 
+add_executable(StonePotatoesRenderer3DTests unit/test_renderer3d.cpp)
+target_include_directories(StonePotatoesRenderer3DTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesRenderer3DTests PRIVATE
+    StonePotatoesRendering)
+add_test(NAME renderer3d_geometry_unit COMMAND StonePotatoesRenderer3DTests)
+
 # Exercise the integrated Vulkan renderer and compute path without a physical
 # display. CI provides Xvfb and Mesa's software Vulkan driver.
 if(Vulkan_FOUND AND TARGET StonePotatoesVulkanComputeRendererDemo AND

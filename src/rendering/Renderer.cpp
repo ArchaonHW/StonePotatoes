@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include "Renderer3D.h"
 
 #include "../core/logging/Logger.h"
 
@@ -28,6 +29,7 @@ struct Renderer::Impl {
     std::unique_ptr<VulkanPresentationSmoke> presentation;
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     VkRenderPass imguiPipelineRenderPass = VK_NULL_HANDLE;
+    Detail::Renderer3D geometry3D;
     glm::vec2 viewCenter{0.0f, 0.0f};
     float zoom = 1.0f;
     bool imguiContext = false;
@@ -162,6 +164,9 @@ void Renderer::BeginFrame() {
 bool Renderer::EndFrame() {
     Impl& im = *m_Impl;
     if (!im.initialized) return false;
+    im.geometry3D.Flush(ImGui::GetBackgroundDrawList(),
+                        {ImGui::GetIO().DisplaySize.x,
+                         ImGui::GetIO().DisplaySize.y});
     ImGui::Render();
     VkClearColorValue clear{};
     clear.float32[0] = 0.1f;
@@ -229,6 +234,20 @@ void Renderer::DrawCircle(float x, float y, float radius,
         2.0f);
 }
 
+bool Renderer::SetCamera3D(const glm::vec3& position,
+                           const glm::vec3& target, const glm::vec3& up,
+                           float verticalFovRadians, float nearPlane,
+                           float farPlane) {
+    return m_Impl->geometry3D.SetCamera(position, target, up,
+                                        verticalFovRadians, nearPlane,
+                                        farPlane);
+}
+
+void Renderer::DrawTriangle3D(const glm::vec3& a, const glm::vec3& b,
+                              const glm::vec3& c, const glm::vec3& color) {
+    m_Impl->geometry3D.DrawTriangle(a, b, c, color);
+}
+
 void Renderer::BeginImGui() {
     if (m_Impl->initialized) ImGui::Begin("StonePotatoes Stats");
 }
@@ -262,6 +281,7 @@ struct Renderer::Impl {
     bool imguiContext = false;
     bool imguiGlfw = false;
     bool imguiOpenGL = false;
+    Detail::Renderer3D geometry3D;
 };
 
 Renderer::Renderer() : m_Impl(std::make_unique<Impl>()) {}
@@ -342,6 +362,9 @@ void Renderer::BeginFrame() {
 
 bool Renderer::EndFrame() {
     if (!m_Impl->window) return false;
+    m_Impl->geometry3D.Flush(ImGui::GetBackgroundDrawList(),
+                             {ImGui::GetIO().DisplaySize.x,
+                              ImGui::GetIO().DisplaySize.y});
     ImGui::Render();
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(m_Impl->window);
@@ -375,6 +398,20 @@ void Renderer::DrawCircle(float x, float y, float radius,
                    y + std::sin(angle) * radius);
     }
     glEnd();
+}
+
+bool Renderer::SetCamera3D(const glm::vec3& position,
+                           const glm::vec3& target, const glm::vec3& up,
+                           float verticalFovRadians, float nearPlane,
+                           float farPlane) {
+    return m_Impl->geometry3D.SetCamera(position, target, up,
+                                        verticalFovRadians, nearPlane,
+                                        farPlane);
+}
+
+void Renderer::DrawTriangle3D(const glm::vec3& a, const glm::vec3& b,
+                              const glm::vec3& c, const glm::vec3& color) {
+    m_Impl->geometry3D.DrawTriangle(a, b, c, color);
 }
 
 void Renderer::BeginImGui() {

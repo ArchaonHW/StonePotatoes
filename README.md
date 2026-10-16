@@ -777,12 +777,15 @@ This forms **Machine Generated History** — a persistent, queryable timeline of
 
 ## Rendering | 渲染
 
-The engine now includes a foundational 2D renderer with Vulkan presentation and
-ImGui, plus an OpenGL fallback for CPU-only builds. The following advanced
-rendering features remain planned:
+The engine includes a foundational 2D renderer and an initial 3D triangle path.
+The 3D path uses a perspective camera and back-to-front sorting for opaque,
+non-intersecting faces; Vulkan presentation and the CPU-only OpenGL fallback
+share the same API. A GPU mesh pipeline with depth buffering and the following
+advanced rendering features remain planned:
 
-引擎目前已有 2D 渲染基礎，支援 Vulkan 呈現與 ImGui，CPU-only 建置則保留
-OpenGL 後備。以下進階渲染功能仍在規劃中：
+引擎目前已有 2D 渲染基礎及初步 3D 三角面路徑。3D 使用透視相機，並以
+由遠到近排序處理不相交的不透明表面；Vulkan 呈現與 CPU-only OpenGL 後備共用
+同一 API。GPU mesh pipeline、depth buffer 與以下進階功能仍在規劃中：
 
 - PBR (Physically Based Rendering)
   PBR（基於物理的渲染）
@@ -983,7 +986,7 @@ StonePotatoes/
 │   # 核心引擎系統 ✓
 │   ├── ecs/                     # Entity-Component-System ✓
 │   # 實體-組件-系統 ✓
-│   ├── rendering/               # Vulkan renderer + ImGui/2D; OpenGL fallback for CPU-only builds
+│   ├── rendering/               # Vulkan 2D/initial 3D renderer + ImGui; OpenGL CPU-only fallback
 │   # Vulkan 渲染器 + ImGui/2D；CPU-only 建置保留 OpenGL 後備
 │   ├── physics/                 # Fixed-tick 2D bodies and AABB contacts
 │   # 固定 tick 2D 剛體與 AABB 接觸

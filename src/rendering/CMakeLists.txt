@@ -1,7 +1,8 @@
-# Rendering library - 2D Vulkan renderer + ImGui (OpenGL fallback without Vulkan)
-# 渲染庫 — 2D Vulkan 渲染器 + ImGui（無 Vulkan 時使用 OpenGL 後備）
+# Rendering library - Vulkan 2D/3D slice + ImGui (OpenGL fallback without Vulkan)
+# 渲染庫 — Vulkan 2D／3D 切片 + ImGui（無 Vulkan 時使用 OpenGL 後備）
 add_library(StonePotatoesRendering STATIC
     Renderer.cpp
+    Renderer3D.cpp
     VulkanPresentationSmoke.cpp
     stub.cpp
 )
