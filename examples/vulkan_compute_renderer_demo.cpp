@@ -31,6 +31,11 @@ int RunDemo(uint32_t maxFrames) {
         std::fprintf(stderr, "Renderer initialization failed\n");
         return 1;
     }
+    if (!renderer.SetCamera3D({3.0f, 2.0f, 5.0f}, {0.0f, 0.0f, 0.0f})) {
+        std::fprintf(stderr, "3D camera configuration failed\n");
+        renderer.Shutdown();
+        return 1;
+    }
 
     GPU::VulkanBackend compute(context);
     if (!compute.Initialize()) {
@@ -100,6 +105,24 @@ int RunDemo(uint32_t maxFrames) {
     while (!renderer.ShouldClose() &&
            (maxFrames == 0 || renderedFrames < maxFrames)) {
         renderer.BeginFrame();
+        // A small tetrahedral object exercises perspective projection and
+        // per-frame back-to-front ordering in the 3D renderer slice.
+        renderer.DrawTriangle3D({-0.8f, -0.6f, 0.5f},
+                                {0.8f, -0.6f, 0.5f},
+                                {0.0f, 0.8f, 0.5f},
+                                {0.95f, 0.25f, 0.12f});
+        renderer.DrawTriangle3D({-0.8f, -0.6f, 0.5f},
+                                {0.0f, 0.0f, -0.8f},
+                                {0.0f, 0.8f, 0.5f},
+                                {0.15f, 0.7f, 0.9f});
+        renderer.DrawTriangle3D({0.8f, -0.6f, 0.5f},
+                                {0.0f, 0.8f, 0.5f},
+                                {0.0f, 0.0f, -0.8f},
+                                {0.3f, 0.8f, 0.25f});
+        renderer.DrawTriangle3D({0.8f, -0.6f, 0.5f},
+                                {0.0f, 0.0f, -0.8f},
+                                {-0.8f, -0.6f, 0.5f},
+                                {0.9f, 0.72f, 0.12f});
         for (uint32_t i = 0; i < kElementCount; ++i) {
             const float x = static_cast<float>(i % 8) * 0.20f - 0.10f;
             const float y = 0.70f - static_cast<float>(i / 8) * 0.19f;

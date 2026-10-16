@@ -1,9 +1,9 @@
 #pragma once
 
-// Simple 2D renderer for the StonePotatoes world visualization.
+// 2D and introductory 3D renderer for StonePotatoes visualization.
 // Uses Vulkan presentation when available and OpenGL for CPU-only builds;
 // ImGui provides the UI overlay in both configurations.
-// 簡單 2D 渲染器用於 StonePotatoes 世界可視化。
+// 簡單 2D 與基礎 3D 渲染器，用於 StonePotatoes 世界可視化。
 // 有 Vulkan 時使用 Vulkan 呈現；CPU-only 建置使用 OpenGL，兩者都以 ImGui 繪製 UI。
 
 #include <glm/glm.hpp>
@@ -43,6 +43,15 @@ public:
     void SetView(float centerX, float centerY, float zoom);
     void DrawPoint(float x, float y, float radius, const glm::vec3& color);
     void DrawCircle(float x, float y, float radius, const glm::vec3& color);
+
+    // Perspective 3D triangle slice. Opaque triangles are depth-sorted per
+    // frame; intersecting surfaces require the future depth-buffer pipeline.
+    bool SetCamera3D(const glm::vec3& position, const glm::vec3& target,
+                     const glm::vec3& up = {0.0f, 1.0f, 0.0f},
+                     float verticalFovRadians = 1.04719755f,
+                     float nearPlane = 0.1f, float farPlane = 1000.0f);
+    void DrawTriangle3D(const glm::vec3& a, const glm::vec3& b,
+                        const glm::vec3& c, const glm::vec3& color);
 
     // Immediate-mode ImGui API | ImGui 即時模式 API
     void BeginImGui();
