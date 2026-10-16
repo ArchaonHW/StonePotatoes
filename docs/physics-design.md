@@ -100,8 +100,9 @@ canonicalization are not promised.
   velocity after impact.
 - A separately configured installed-package consumer can use the public
   `StonePotatoes::Physics` target to stop a fast box at a static wall and apply
-  friction to a sliding box, and apply restitution to a bouncing box, without
-  relying on the repository's unit target.
+  friction to a sliding box, resolve a fast dynamic-dynamic head-on impact,
+  and apply restitution to a bouncing box, without relying on the repository's
+  unit target.
 - The same collision setup produces equal results across different render-frame
   partitions.
 - A 256-body separated scene sends substantially fewer pairs to narrow phase
