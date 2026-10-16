@@ -317,6 +317,45 @@ int main(int argc, char** argv) {
         world.Shutdown();
     }
 
+    // Verify that the installed Physics target resolves a fast dynamic pair
+    // before the boxes cross, using only the public API.
+    {
+        using namespace StonePotatoes::Physics;
+        StonePotatoes::ECS::World world;
+        world.GetSystemScheduler().RegisterSystem(
+            std::make_unique<Physics2DSystem>(StonePotatoes::Math::Vec2{}));
+        world.Initialize();
+
+        const auto left = world.CreateEntity();
+        world.AddComponent(left, Transform2D{{-5.0f, 0.0f}});
+        RigidBody2D leftBody;
+        leftBody.velocity = {100.0f, 0.0f};
+        world.AddComponent(left, leftBody);
+        world.AddComponent(left, BoxCollider2D{{0.5f, 0.5f}});
+
+        const auto right = world.CreateEntity();
+        world.AddComponent(right, Transform2D{{5.0f, 0.0f}});
+        RigidBody2D rightBody;
+        rightBody.velocity = {-100.0f, 0.0f};
+        world.AddComponent(right, rightBody);
+        world.AddComponent(right, BoxCollider2D{{0.5f, 0.5f}});
+
+        world.Update(0.1f);
+        const auto* leftTransform = world.GetComponent<Transform2D>(left);
+        const auto* rightTransform = world.GetComponent<Transform2D>(right);
+        const auto* stoppedLeft = world.GetComponent<RigidBody2D>(left);
+        const auto* stoppedRight = world.GetComponent<RigidBody2D>(right);
+        if (!leftTransform || !rightTransform || !stoppedLeft ||
+            !stoppedRight ||
+            std::fabs(leftTransform->position.x + 0.5f) > 0.001f ||
+            std::fabs(rightTransform->position.x - 0.5f) > 0.001f ||
+            std::fabs(stoppedLeft->velocity.x) > 0.0001f ||
+            std::fabs(stoppedRight->velocity.x) > 0.0001f) {
+            return 57;
+        }
+        world.Shutdown();
+    }
+
     // The installed Physics target exposes optional restitution independently
     // of BoxCollider2D's persisted layout.
     {
