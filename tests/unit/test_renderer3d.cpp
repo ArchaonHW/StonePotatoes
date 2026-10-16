@@ -67,9 +67,43 @@ int main() {
     }
 
     renderer.Clear();
+    renderer.DrawTriangle({-12.0f, -1.0f, -4.0f}, {-2.0f, -1.0f, -4.0f},
+                          {-2.0f, 2.0f, -4.0f}, {0.0f, 1.0f, 1.0f});
+    renderer.DrawTriangle({12.0f, -1.0f, -4.0f}, {2.0f, -1.0f, -4.0f},
+                          {2.0f, 2.0f, -4.0f}, {1.0f, 0.0f, 1.0f});
+    renderer.DrawTriangle({-1.0f, 6.0f, -4.0f}, {1.0f, 6.0f, -4.0f},
+                          {0.0f, 1.0f, -4.0f}, {1.0f, 1.0f, 0.0f});
+    renderer.DrawTriangle({-1.0f, -6.0f, -4.0f}, {1.0f, -6.0f, -4.0f},
+                          {0.0f, -1.0f, -4.0f}, {0.0f, 1.0f, 0.0f});
+    renderer.DrawTriangle({-24.0f, -1.0f, -4.0f}, {-20.0f, -1.0f, -4.0f},
+                          {-22.0f, 2.0f, -4.0f}, {1.0f, 0.5f, 0.0f});
+    renderer.DrawTriangle({20.0f, -1.0f, -4.0f}, {24.0f, -1.0f, -4.0f},
+                          {22.0f, 2.0f, -4.0f}, {0.5f, 0.0f, 1.0f});
+    renderer.DrawTriangle({-1.0f, 20.0f, -4.0f}, {1.0f, 20.0f, -4.0f},
+                          {0.0f, 24.0f, -4.0f}, {1.0f, 0.5f, 1.0f});
+    renderer.DrawTriangle({-1.0f, -20.0f, -4.0f}, {1.0f, -20.0f, -4.0f},
+                          {0.0f, -24.0f, -4.0f}, {0.0f, 0.5f, 1.0f});
+    const auto sideClipped = renderer.ProjectTriangles({800.0f, 400.0f});
+    if (sideClipped.size() != 6) {
+        std::fprintf(stderr, "side-frustum clipping expected 6 triangles, got %zu\n",
+                     sideClipped.size());
+        return 6;
+    }
+    for (const auto& triangle : sideClipped) {
+        for (const glm::vec2 point : {triangle.a, triangle.b, triangle.c}) {
+            if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
+                point.x < -0.01f || point.x > 800.01f ||
+                point.y < -0.01f || point.y > 400.01f) {
+                std::fprintf(stderr, "side clipping projected outside viewport\n");
+                return 7;
+            }
+        }
+    }
+
+    renderer.Clear();
     if (!renderer.ProjectTriangles({800.0f, 400.0f}).empty()) {
         std::fprintf(stderr, "clear retained queued triangles\n");
-        return 6;
+        return 8;
     }
     return 0;
 }

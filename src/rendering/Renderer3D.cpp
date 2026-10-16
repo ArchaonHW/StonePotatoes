@@ -62,6 +62,36 @@ std::vector<glm::vec3> ClipDepthPlane(const std::vector<glm::vec3>& input,
     return output;
 }
 
+std::vector<glm::vec3> ClipViewPlane(const std::vector<glm::vec3>& input,
+                                     const glm::dvec3& normal) {
+    std::vector<glm::vec3> output;
+    if (input.empty()) return output;
+    output.reserve(input.size() + 1);
+
+    const auto distance = [&normal](const glm::vec3& point) {
+        return glm::dot(normal, glm::dvec3(point));
+    };
+    glm::vec3 previous = input.back();
+    double previousDistance = distance(previous);
+    bool previousInside = previousDistance >= 0.0;
+    for (const glm::vec3& current : input) {
+        const double currentDistance = distance(current);
+        const bool currentInside = currentDistance >= 0.0;
+        if (currentInside != previousInside) {
+            const double t = previousDistance /
+                             (previousDistance - currentDistance);
+            const glm::dvec3 intersection = glm::dvec3(previous) +
+                (glm::dvec3(current) - glm::dvec3(previous)) * t;
+            output.emplace_back(intersection);
+        }
+        if (currentInside) output.push_back(current);
+        previous = current;
+        previousDistance = currentDistance;
+        previousInside = currentInside;
+    }
+    return output;
+}
+
 } // namespace
 
 bool Renderer3D::SetCamera(const glm::vec3& position,
@@ -116,6 +146,10 @@ std::vector<ProjectedTriangle> Renderer3D::ProjectTriangles(
     const glm::mat4 projection = glm::perspectiveRH_NO(
         m_VerticalFovRadians, viewport.x / viewport.y, m_NearPlane,
         m_FarPlane);
+    const double halfHeightSlope = std::tan(m_VerticalFovRadians * 0.5);
+    const double halfWidthSlope = halfHeightSlope *
+                                  static_cast<double>(viewport.x) /
+                                  static_cast<double>(viewport.y);
     projected.reserve(m_Triangles.size());
 
     for (const Triangle& triangle : m_Triangles) {
@@ -134,6 +168,10 @@ std::vector<ProjectedTriangle> Renderer3D::ProjectTriangles(
                                         glm::vec3(viewC)};
         polygon = ClipDepthPlane(polygon, m_NearPlane, true);
         polygon = ClipDepthPlane(polygon, m_FarPlane, false);
+        polygon = ClipViewPlane(polygon, {1.0, 0.0, -halfWidthSlope});
+        polygon = ClipViewPlane(polygon, {-1.0, 0.0, -halfWidthSlope});
+        polygon = ClipViewPlane(polygon, {0.0, -1.0, -halfHeightSlope});
+        polygon = ClipViewPlane(polygon, {0.0, 1.0, -halfHeightSlope});
         if (polygon.size() < 3) continue;
 
         for (std::size_t i = 1; i + 1 < polygon.size(); ++i) {
