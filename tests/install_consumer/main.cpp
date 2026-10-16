@@ -317,6 +317,38 @@ int main(int argc, char** argv) {
         world.Shutdown();
     }
 
+    // The installed Physics target exposes optional restitution independently
+    // of BoxCollider2D's persisted layout.
+    {
+        using namespace StonePotatoes::Physics;
+        StonePotatoes::ECS::World world;
+        world.GetSystemScheduler().RegisterSystem(
+            std::make_unique<Physics2DSystem>(StonePotatoes::Math::Vec2{}));
+        world.Initialize();
+
+        const auto wall = world.CreateEntity();
+        world.AddComponent(wall, Transform2D{{0.0f, 0.0f}});
+        RigidBody2D wallBody;
+        wallBody.inverseMass = 0.0f;
+        world.AddComponent(wall, wallBody);
+        world.AddComponent(wall, BoxCollider2D{{0.5f, 2.0f}});
+
+        const auto bouncingBody = world.CreateEntity();
+        world.AddComponent(bouncingBody, Transform2D{{-1.05f, 0.0f}});
+        RigidBody2D body;
+        body.velocity = {1.0f, 0.0f};
+        world.AddComponent(bouncingBody, body);
+        world.AddComponent(bouncingBody, BoxCollider2D{{0.5f, 0.5f}});
+        world.AddComponent(bouncingBody, Restitution2D{0.5f});
+
+        world.Update(0.1f);
+        const auto* result = world.GetComponent<RigidBody2D>(bouncingBody);
+        if (!result || std::fabs(result->velocity.x + 0.5f) > 0.0001f) {
+            return 56;
+        }
+        world.Shutdown();
+    }
+
     // Exercise the installed civilization stock-flow model using only its
     // public target. Transfers observe the same pre-step state, while an event
     // and KPI probe record the completed monthly step.

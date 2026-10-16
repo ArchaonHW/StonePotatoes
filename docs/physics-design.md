@@ -1,8 +1,8 @@
 # Physics vertical slice: deterministic 2D fixed-tick bodies and box contacts
 
 Status: fixed-tick 2D body integration, discrete axis-aligned box contacts,
-Coulomb friction, and event-driven swept-AABB contacts between static and
-dynamic boxes are implemented.
+Coulomb friction, configurable restitution, and event-driven swept-AABB
+contacts between static and dynamic boxes are implemented.
 This is a deliberately small collision slice, not a general-purpose rigid-body
 solver.
 
@@ -34,26 +34,32 @@ chasing floating-point residue. `GetLastContactIterationCount()` and
 still changes state on the final allowed pass is conservatively reported as
 not converged. Overlapping boxes are separated along the axis with the smaller
 penetration (ties choose X), with displacement weighted by inverse mass. A
-zero-restitution normal impulse stops closing normal velocity. When that
-impulse is nonzero, the solver applies Coulomb friction along the contact
-tangent: it cancels tangential velocity up to the static-friction limit, then
-uses the dynamic-friction limit for sliding. Each limit is the geometric mean
-of the two colliders' coefficients multiplied by the normal impulse. Both
-coefficients default to zero, preserving frictionless contacts; dynamic
-friction must be no greater than static friction. Invalid or non-finite body,
-collider, or material state is skipped by collision handling.
+normal impulse applies the contact restitution. `Restitution2D` is an optional
+POD component with a coefficient in `[0, 1]`; absent components behave as zero.
+The contact uses the larger coefficient from its two bodies, so a moving body
+can opt into bounce without requiring static geometry to carry a material.
+With `e` as the combined coefficient and `vN` as the closing normal speed, the
+impulse magnitude is `-(1 + e) * vN / inverseMassSum`. Zero preserves the
+existing inelastic behavior. When the normal impulse is nonzero, the solver
+applies Coulomb friction along the contact tangent: it cancels tangential
+velocity up to the static-friction limit, then uses the dynamic-friction limit
+for sliding. Each limit is the geometric mean of the two colliders'
+coefficients multiplied by the normal impulse. Both friction coefficients
+default to zero, preserving frictionless contacts; dynamic friction must be no
+greater than static friction. Invalid or non-finite body, collider, or material
+state is skipped by collision handling.
 
 Before the discrete solver, an event-driven swept-AABB pass uses each
 collider's previous and integrated positions to find the earliest impact among
 static-dynamic and dynamic-dynamic pairs during the remaining tick. Bodies
 advance to that time of impact in entity-ID pair order, then receive the same
-zero-restitution normal and Coulomb friction impulses as discrete contacts;
-dynamic motion is distributed by inverse mass. The remaining tick is simulated
-again with the updated velocities. A bounded event budget prevents unbounded
-work; if it is exhausted, bodies stay at the last resolved impact and the
-unprocessed time is discarded to avoid tunneling. Initial overlaps remain the
-discrete solver's responsibility. Rotated shapes still require a different
-narrow phase.
+restitution-aware normal and Coulomb friction impulses as discrete contacts;
+dynamic motion is distributed by inverse mass. The remaining tick is
+simulated again with the updated velocities. A bounded event budget prevents
+unbounded work; if it is exhausted, bodies stay at the last resolved impact
+and the unprocessed time is discarded to avoid tunneling. Initial overlaps
+remain the discrete solver's responsibility. Rotated shapes still require a
+different narrow phase.
 
 `Game::SetFixedStep` owns the simulation clock and catch-up limit. Register the
 physics system in the ECS world and let `Game::Update` call the world once per
@@ -81,6 +87,10 @@ canonicalization are not promised.
   render-frame deltas are partitioned differently.
 - A dynamic box is separated from a static box and its closing normal velocity
   is removed; two equal-mass boxes stop in a head-on contact.
+- A body with restitution 0.5 rebounds from a static wall at half its incoming
+  normal speed for both discrete overlap contacts and swept-AABB impacts.
+- Invalid restitution outside `[0, 1]` excludes that body from collision
+  handling without changing its integrated motion.
 - Coulomb friction slows a sliding box according to the dynamic coefficient
   and cancels a low tangential speed within the static-friction limit.
 - Fast boxes moving in either direction stop at static walls without crossing
@@ -90,7 +100,8 @@ canonicalization are not promised.
   velocity after impact.
 - A separately configured installed-package consumer can use the public
   `StonePotatoes::Physics` target to stop a fast box at a static wall and apply
-  friction to a sliding box, without relying on the repository's unit target.
+  friction to a sliding box, and apply restitution to a bouncing box, without
+  relying on the repository's unit target.
 - The same collision setup produces equal results across different render-frame
   partitions.
 - A 256-body separated scene sends substantially fewer pairs to narrow phase
