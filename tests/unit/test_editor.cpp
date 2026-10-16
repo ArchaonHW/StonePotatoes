@@ -29,6 +29,8 @@ int main() {
     CHECK(!session.SetEntityLabel(first, longLabel));
     CHECK(session.SetEntityLabel(first, "Hero"));
     CHECK(session.GetEntityLabel(first) == "Hero");
+    CHECK(session.SetEntityLabel(first, "Hero Prime"));
+    CHECK(session.GetEntityLabel(first) == "Hero Prime");
 
     CHECK(session.SelectEntity(first));
     CHECK(!session.SelectEntity(StonePotatoes::ECS::INVALID_ENTITY));
