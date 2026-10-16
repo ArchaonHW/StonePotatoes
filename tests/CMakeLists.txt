@@ -128,6 +128,14 @@ target_link_libraries(StonePotatoesRenderer3DTests PRIVATE
     StonePotatoesRendering)
 add_test(NAME renderer3d_geometry_unit COMMAND StonePotatoesRenderer3DTests)
 
+add_executable(StonePotatoesSpriteAnimationTests
+    unit/test_sprite_animation2d.cpp)
+target_include_directories(StonePotatoesSpriteAnimationTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesSpriteAnimationTests PRIVATE
+    StonePotatoesRendering)
+add_test(NAME sprite_animation2d_unit COMMAND StonePotatoesSpriteAnimationTests)
+
 # Exercise the integrated Vulkan renderer and compute path without a physical
 # display. CI provides Xvfb and Mesa's software Vulkan driver.
 if(Vulkan_FOUND AND TARGET StonePotatoesVulkanComputeRendererDemo AND

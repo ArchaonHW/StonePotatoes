@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include "Renderer2D.h"
 #include "Renderer3D.h"
 
 #include "../core/logging/Logger.h"
@@ -29,6 +30,7 @@ struct Renderer::Impl {
     std::unique_ptr<VulkanPresentationSmoke> presentation;
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
     VkRenderPass imguiPipelineRenderPass = VK_NULL_HANDLE;
+    Detail::Renderer2D sprites2D;
     Detail::Renderer3D geometry3D;
     glm::vec2 viewCenter{0.0f, 0.0f};
     float zoom = 1.0f;
@@ -96,10 +98,12 @@ struct Renderer::Impl {
 
     void ShutdownImGui() {
         if (context && context->GetDevice()) vkDeviceWaitIdle(context->GetDevice());
+        sprites2D.ReleaseUserTextureReferences();
         if (imguiVulkan) ImGui_ImplVulkan_Shutdown();
         imguiVulkan = false;
         if (imguiGlfw) ImGui_ImplGlfw_Shutdown();
         imguiGlfw = false;
+        sprites2D.ShutdownTextures();
         if (imguiContext) ImGui::DestroyContext();
         imguiContext = false;
         if (descriptorPool && context && context->GetDevice())
@@ -159,6 +163,7 @@ void Renderer::BeginFrame() {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+    im.sprites2D.CollectDestroyedTextures();
 }
 
 bool Renderer::EndFrame() {
@@ -167,6 +172,9 @@ bool Renderer::EndFrame() {
     im.geometry3D.Flush(ImGui::GetBackgroundDrawList(),
                         {ImGui::GetIO().DisplaySize.x,
                          ImGui::GetIO().DisplaySize.y});
+    im.sprites2D.Flush(ImGui::GetBackgroundDrawList(),
+                       {ImGui::GetIO().DisplaySize.x,
+                        ImGui::GetIO().DisplaySize.y});
     ImGui::Render();
     VkClearColorValue clear{};
     clear.float32[0] = 0.1f;
@@ -197,6 +205,27 @@ bool Renderer::EndFrame() {
 void Renderer::SetView(float centerX, float centerY, float zoom) {
     m_Impl->viewCenter = {centerX, centerY};
     m_Impl->zoom = zoom;
+    m_Impl->sprites2D.SetView(centerX, centerY, zoom);
+}
+
+Renderer::Texture2DHandle Renderer::CreateTexture2D(
+    int width, int height, std::span<const std::uint8_t> rgba8) {
+    if (!m_Impl->initialized) return InvalidTexture2D;
+    return m_Impl->sprites2D.CreateTexture(width, height, rgba8.data(),
+                                           rgba8.size());
+}
+
+bool Renderer::DestroyTexture2D(Texture2DHandle texture) {
+    return m_Impl->initialized && m_Impl->sprites2D.DestroyTexture(texture);
+}
+
+void Renderer::DrawSprite2D(Texture2DHandle texture, const glm::vec2& center,
+                            const glm::vec2& size, const glm::vec4& uvRect,
+                            float rotationRadians, const glm::vec4& tint,
+                            int layer) {
+    if (m_Impl->initialized)
+        m_Impl->sprites2D.QueueSprite(texture, center, size, uvRect,
+                                       rotationRadians, tint, layer);
 }
 
 void Renderer::DrawPoint(float x, float y, float radius,
@@ -281,6 +310,7 @@ struct Renderer::Impl {
     bool imguiContext = false;
     bool imguiGlfw = false;
     bool imguiOpenGL = false;
+    Detail::Renderer2D sprites2D;
     Detail::Renderer3D geometry3D;
 };
 
@@ -325,10 +355,12 @@ bool Renderer::Initialize(const Config& cfg) {
 
 void Renderer::Shutdown() {
     if (!m_Impl) return;
+    m_Impl->sprites2D.ReleaseUserTextureReferences();
     if (m_Impl->imguiOpenGL) ImGui_ImplOpenGL2_Shutdown();
     m_Impl->imguiOpenGL = false;
     if (m_Impl->imguiGlfw) ImGui_ImplGlfw_Shutdown();
     m_Impl->imguiGlfw = false;
+    m_Impl->sprites2D.ShutdownTextures();
     if (m_Impl->imguiContext) ImGui::DestroyContext();
     m_Impl->imguiContext = false;
     if (m_Impl->window) glfwDestroyWindow(m_Impl->window);
@@ -345,6 +377,7 @@ void Renderer::BeginFrame() {
     ImGui_ImplOpenGL2_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+    m_Impl->sprites2D.CollectDestroyedTextures();
     glClearColor(0.1f, 0.1f, 0.12f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glViewport(0, 0, m_Impl->width, m_Impl->height);
@@ -365,6 +398,9 @@ bool Renderer::EndFrame() {
     m_Impl->geometry3D.Flush(ImGui::GetBackgroundDrawList(),
                              {ImGui::GetIO().DisplaySize.x,
                               ImGui::GetIO().DisplaySize.y});
+    m_Impl->sprites2D.Flush(ImGui::GetBackgroundDrawList(),
+                            {ImGui::GetIO().DisplaySize.x,
+                             ImGui::GetIO().DisplaySize.y});
     ImGui::Render();
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(m_Impl->window);
@@ -374,6 +410,28 @@ bool Renderer::EndFrame() {
 void Renderer::SetView(float centerX, float centerY, float zoom) {
     m_Impl->viewCenter = {centerX, centerY};
     m_Impl->zoom = zoom;
+    m_Impl->sprites2D.SetView(centerX, centerY, zoom);
+}
+
+Renderer::Texture2DHandle Renderer::CreateTexture2D(
+    int width, int height, std::span<const std::uint8_t> rgba8) {
+    if (!m_Impl->imguiContext || !m_Impl->window)
+        return InvalidTexture2D;
+    return m_Impl->sprites2D.CreateTexture(width, height, rgba8.data(),
+                                           rgba8.size());
+}
+
+bool Renderer::DestroyTexture2D(Texture2DHandle texture) {
+    return m_Impl->imguiContext && m_Impl->sprites2D.DestroyTexture(texture);
+}
+
+void Renderer::DrawSprite2D(Texture2DHandle texture, const glm::vec2& center,
+                            const glm::vec2& size, const glm::vec4& uvRect,
+                            float rotationRadians, const glm::vec4& tint,
+                            int layer) {
+    if (m_Impl->imguiContext)
+        m_Impl->sprites2D.QueueSprite(texture, center, size, uvRect,
+                                       rotationRadians, tint, layer);
 }
 
 void Renderer::DrawPoint(float x, float y, float radius,

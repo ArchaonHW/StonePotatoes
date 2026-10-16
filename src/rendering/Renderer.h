@@ -8,7 +8,10 @@
 
 #include <glm/glm.hpp>
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <span>
 
 namespace StonePotatoes {
 namespace GPU {
@@ -18,6 +21,9 @@ namespace Rendering {
 
 class Renderer {
 public:
+    using Texture2DHandle = std::uint32_t;
+    static constexpr Texture2DHandle InvalidTexture2D = 0;
+
     struct Config {
         int width = 1280;
         int height = 720;
@@ -43,6 +49,20 @@ public:
     void SetView(float centerX, float centerY, float zoom);
     void DrawPoint(float x, float y, float radius, const glm::vec3& color);
     void DrawCircle(float x, float y, float radius, const glm::vec3& color);
+
+    // RGBA8 texture intended for sprite atlases. Handles are renderer-owned;
+    // destroy is deferred until the GPU has released in-flight frame references.
+    Texture2DHandle CreateTexture2D(int width, int height,
+                                    std::span<const std::uint8_t> rgba8);
+    bool DestroyTexture2D(Texture2DHandle texture);
+    // World-space sprite center/size, normalized atlas UV rectangle, radians,
+    // tint, and stable painter-order layer.
+    void DrawSprite2D(Texture2DHandle texture, const glm::vec2& center,
+                      const glm::vec2& size,
+                      const glm::vec4& uvRect = {0.0f, 0.0f, 1.0f, 1.0f},
+                      float rotationRadians = 0.0f,
+                      const glm::vec4& tint = {1.0f, 1.0f, 1.0f, 1.0f},
+                      int layer = 0);
 
     // Perspective 3D triangle slice. Opaque triangles are depth-sorted per
     // frame; intersecting surfaces require the future depth-buffer pipeline.

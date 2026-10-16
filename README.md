@@ -780,12 +780,21 @@ This forms **Machine Generated History** — a persistent, queryable timeline of
 The engine includes a foundational 2D renderer and an initial 3D triangle path.
 The 3D path uses a perspective camera and back-to-front sorting for opaque,
 non-intersecting faces; Vulkan presentation and the CPU-only OpenGL fallback
-share the same API. A GPU mesh pipeline with depth buffering and the following
-advanced rendering features remain planned:
+share the same API. The 2D path accepts RGBA8 atlas data and batches rotated,
+tinted sprites with normalized UVs and painter layers through the dynamic
+texture support in both backends. Integer tick driven sprite clips support
+looping and one-shot playback without coupling animation to simulation time.
+Atlas packing, image decoding, dedicated GPU instancing, a GPU mesh pipeline
+with depth buffering, and the following advanced rendering features remain
+planned:
 
-引擎目前已有 2D 渲染基礎及初步 3D 三角面路徑。3D 使用透視相機，並以
+引擎目前已有 2D atlas 精靈路徑及初步 3D 三角面路徑。2D 接受 RGBA8 atlas，
+支援標準化 UV、旋轉、tint 與 layer 排序，並由 Vulkan 與 CPU-only OpenGL
+後端共用動態貼圖；動畫 clip 可用整數 tick 播放 loop 或 one-shot，與模擬時鐘
+解耦。3D 使用透視相機，並以
 由遠到近排序處理不相交的不透明表面；Vulkan 呈現與 CPU-only OpenGL 後備共用
-同一 API。GPU mesh pipeline、depth buffer 與以下進階功能仍在規劃中：
+同一 API。atlas 打包、圖片解碼、專用 GPU instancing、GPU mesh
+pipeline、depth buffer 與以下進階功能仍在規劃中：
 
 - PBR (Physically Based Rendering)
   PBR（基於物理的渲染）

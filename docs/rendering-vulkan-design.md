@@ -48,6 +48,22 @@ projection, clipping, depth order, and per-frame geometry reset. The Vulkan
 compute/renderer demo includes a tetrahedron so the Linux Xvfb runtime check
 exercises this path.
 
+## Atlas-based 2D sprites
+
+`Renderer::CreateTexture2D` accepts caller-provided RGBA8 pixels and returns an
+opaque renderer-owned handle. `DrawSprite2D` queues world-space quads with
+normalized atlas UVs, size, rotation, tint, and a stable painter layer. The
+renderer sorts by layer and sends quads through Dear ImGui's dynamic texture
+support, which is implemented by both the Vulkan and OpenGL2 backends. Sprites
+using the same atlas share a texture and are batched by the draw-list backend.
+Texture destruction is deferred through the backend's texture lifecycle so
+in-flight frames can release their references. `SpriteAnimation2D` advances
+atlas UV clips by explicit integer ticks and supports looping or one-shot
+playback; it stays presentation-side so simulation timing remains independent.
+Image-file decoding, atlas packing, and a dedicated GPU instancing pipeline
+remain later work. The compute/renderer demo animates a sprite from a
+procedural 2x2 atlas through the integrated runtime path.
+
 ## Why an extraction is required
 
 `VulkanContext` now owns the `VkInstance`, `VkDevice`, and compute queue, and
