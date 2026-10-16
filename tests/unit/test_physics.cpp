@@ -264,6 +264,76 @@ int TestCoulombContactFriction() {
     return 0;
 }
 
+int TestRestitutionForDiscreteAndSweptContacts() {
+    const auto simulate = [](bool swept) {
+        ECS::World world;
+        world.GetSystemScheduler().RegisterSystem(
+            std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f}));
+        world.Initialize();
+
+        const ECS::Entity wall = world.CreateEntity();
+        world.AddComponent(wall, Transform2D{{0.0f, 0.0f}});
+        RigidBody2D wallBody;
+        wallBody.inverseMass = 0.0f;
+        world.AddComponent(wall, wallBody);
+        world.AddComponent(wall, BoxCollider2D{{0.5f, 2.0f}});
+
+        const ECS::Entity moving = world.CreateEntity();
+        world.AddComponent(moving,
+                           Transform2D{{swept ? -5.0f : -1.05f, 0.0f}});
+        RigidBody2D movingBody;
+        movingBody.velocity = {swept ? 100.0f : 1.0f, 0.0f};
+        world.AddComponent(moving, movingBody);
+        world.AddComponent(moving, BoxCollider2D{{0.5f, 0.5f}});
+        world.AddComponent(moving, Restitution2D{0.5f});
+
+        world.Update(0.1f);
+        const Snapshot result{
+            world.GetComponent<Transform2D>(moving)->position,
+            world.GetComponent<RigidBody2D>(moving)->velocity};
+        world.Shutdown();
+        return result;
+    };
+
+    const Snapshot discrete = simulate(false);
+    CHECK(std::isfinite(discrete.position.x));
+    CHECK(std::fabs(discrete.velocity.x + 0.5f) < 0.0001f);
+
+    const Snapshot swept = simulate(true);
+    CHECK(std::fabs(swept.position.x + 4.0f) < 0.001f);
+    CHECK(std::fabs(swept.velocity.x + 50.0f) < 0.0001f);
+    return 0;
+}
+
+int TestInvalidRestitutionSkipsCollision() {
+    ECS::World world;
+    world.GetSystemScheduler().RegisterSystem(
+        std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f}));
+    world.Initialize();
+
+    const ECS::Entity wall = world.CreateEntity();
+    world.AddComponent(wall, Transform2D{{0.0f, 0.0f}});
+    RigidBody2D wallBody;
+    wallBody.inverseMass = 0.0f;
+    world.AddComponent(wall, wallBody);
+    world.AddComponent(wall, BoxCollider2D{{0.5f, 2.0f}});
+
+    const ECS::Entity moving = world.CreateEntity();
+    world.AddComponent(moving, Transform2D{{-1.05f, 0.0f}});
+    RigidBody2D movingBody;
+    movingBody.velocity = {1.0f, 0.0f};
+    world.AddComponent(moving, movingBody);
+    world.AddComponent(moving, BoxCollider2D{{0.5f, 0.5f}});
+    world.AddComponent(moving, Restitution2D{1.1f});
+
+    world.Update(0.1f);
+    CHECK(std::fabs(world.GetComponent<Transform2D>(moving)->position.x +
+                    0.95f) < 0.0001f);
+    CHECK(world.GetComponent<RigidBody2D>(moving)->velocity.x == 1.0f);
+    world.Shutdown();
+    return 0;
+}
+
 int TestContinuousCollisionAgainstStaticWalls() {
     ECS::World world;
     auto physics = std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
@@ -561,6 +631,10 @@ int main() {
         return result;
     if (const int result = TestDynamicHeadOnContact()) return result;
     if (const int result = TestCoulombContactFriction()) return result;
+    if (const int result = TestRestitutionForDiscreteAndSweptContacts())
+        return result;
+    if (const int result = TestInvalidRestitutionSkipsCollision())
+        return result;
     if (const int result = TestContinuousCollisionAgainstStaticWalls())
         return result;
     if (const int result = TestContinuousDynamicHeadOnContacts())

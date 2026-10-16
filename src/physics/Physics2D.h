@@ -38,21 +38,28 @@ struct BoxCollider2D {
     float dynamicFriction = 0.0f;
 };
 
+// Optional bounce material. Contacts combine two coefficients by their max;
+// zero on both bodies preserves the existing inelastic behavior.
+struct Restitution2D {
+    float coefficient = 0.0f;
+};
+
 static_assert(std::is_trivially_copyable_v<Transform2D>);
 static_assert(std::is_trivially_copyable_v<RigidBody2D>);
 static_assert(std::is_trivially_copyable_v<BoxCollider2D>);
+static_assert(std::is_trivially_copyable_v<Restitution2D>);
 
 void RegisterPhysicsComponents(ECS::World& world);
 
 // Integrates bodies with semi-implicit Euler, then performs bounded,
-// entity-ID ordered iterations over discrete zero-restitution AABB contacts
-// with Coulomb friction, plus event-driven swept-AABB contacts between static
-// and dynamic boxes.
+// entity-ID ordered iterations over discrete AABB contacts with optional
+// restitution and Coulomb friction, plus event-driven swept-AABB contacts
+// between static and dynamic boxes.
 // Use Game::SetFixedStep to feed this system a stable tick; inverseMass == 0
 // marks an immovable body. Rotated shapes and recovery of initial overlaps are
 // intentionally outside this slice.
-// 以半隱式 Euler 積分剛體，再依 entity ID 順序有限輪解析離散、零恢復係數
-// AABB 接觸與庫侖摩擦，並以事件推進方式處理靜態與動態方盒的 swept-AABB
+// 以半隱式 Euler 積分剛體，再依 entity ID 順序有限輪解析離散 AABB 接觸、
+// 可選恢復係數與庫侖摩擦，並以事件推進方式處理靜態與動態方盒的 swept-AABB
 // 碰撞。透過
 // Game::SetFixedStep 提供固定 tick；inverseMass == 0 代表不可移動的剛體。
 // 旋轉形狀與初始重疊修復不在此切片範圍。

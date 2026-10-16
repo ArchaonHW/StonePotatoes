@@ -23,6 +23,7 @@ struct CollisionBody {
     Transform2D* transform;
     RigidBody2D* body;
     BoxCollider2D* collider;
+    float restitution;
     Math::Vec2 previousPosition;
 };
 
@@ -49,7 +50,8 @@ constexpr std::size_t kMaxContactIterations = 16;
 
 bool IsValidCollisionBody(const Transform2D& transform,
                           const RigidBody2D& body,
-                          const BoxCollider2D& collider) {
+                          const BoxCollider2D& collider,
+                          float restitution) {
     return IsFinite(transform.position) && IsFinite(body.velocity) &&
            IsFinite(body.accumulatedForce) &&
            std::isfinite(body.inverseMass) && body.inverseMass >= 0.0f &&
@@ -59,7 +61,9 @@ bool IsValidCollisionBody(const Transform2D& transform,
            std::isfinite(collider.dynamicFriction) &&
            collider.staticFriction >= 0.0f &&
            collider.dynamicFriction >= 0.0f &&
-           collider.dynamicFriction <= collider.staticFriction;
+           collider.dynamicFriction <= collider.staticFriction &&
+           std::isfinite(restitution) && restitution >= 0.0f &&
+           restitution <= 1.0f;
 }
 
 bool ToCellCoordinate(double value, std::int64_t& result) {
@@ -146,7 +150,9 @@ bool CalculateContactVelocities(const CollisionBody& a,
     velocityB = b.body->velocity;
     float normalImpulse = 0.0f;
     if (normalVelocity < 0.0f) {
-        normalImpulse = -normalVelocity / inverseMassSum;
+        const float restitution = std::max(a.restitution, b.restitution);
+        normalImpulse = -(1.0f + restitution) * normalVelocity /
+                        inverseMassSum;
         if (!std::isfinite(normalImpulse)) return false;
         if (a.body->inverseMass > 0.0f) {
             velocityA -= normal * (normalImpulse * a.body->inverseMass);
@@ -523,17 +529,22 @@ ContactSolveStats ResolveContacts(
     float deltaTime) {
     std::vector<CollisionBody> bodies;
     world.ForEach<Transform2D, RigidBody2D, BoxCollider2D>(
-        [&bodies, &previousPositions](ECS::Entity entity,
-                                      Transform2D& transform,
-                                      RigidBody2D& body,
-                                      BoxCollider2D& collider) {
-            if (IsValidCollisionBody(transform, body, collider)) {
+        [&world, &bodies, &previousPositions](ECS::Entity entity,
+                                              Transform2D& transform,
+                                              RigidBody2D& body,
+                                              BoxCollider2D& collider) {
+            const Restitution2D* material =
+                world.GetComponent<Restitution2D>(entity);
+            const float restitution = material ? material->coefficient : 0.0f;
+            if (IsValidCollisionBody(transform, body, collider,
+                                     restitution)) {
                 const auto previous = previousPositions.find(entity.id);
                 const Math::Vec2 previousPosition =
                     previous == previousPositions.end()
                         ? transform.position : previous->second;
                 bodies.push_back(
-                    {entity, &transform, &body, &collider, previousPosition});
+                    {entity, &transform, &body, &collider, restitution,
+                     previousPosition});
             }
         });
 
@@ -596,6 +607,7 @@ void RegisterPhysicsComponents(ECS::World& world) {
     world.RegisterComponent<Transform2D>("PhysicsTransform2D");
     world.RegisterComponent<RigidBody2D>("PhysicsRigidBody2D");
     world.RegisterComponent<BoxCollider2D>("PhysicsBoxCollider2D");
+    world.RegisterComponent<Restitution2D>("PhysicsRestitution2D");
 }
 
 Physics2DSystem::Physics2DSystem(Math::Vec2 gravity) : m_Gravity(gravity) {}
@@ -657,6 +669,7 @@ void Physics2DSystem::DescribeAccess(ECS::AccessSpec& access) const {
     access.Write<Transform2D>();
     access.Write<RigidBody2D>();
     access.Read<BoxCollider2D>();
+    access.Read<Restitution2D>();
 }
 
 } // namespace StonePotatoes::Physics
