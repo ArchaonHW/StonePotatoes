@@ -815,8 +815,8 @@ OpenGL 後備。以下進階渲染功能仍在規劃中：
 - Massive Crowd (thousands of characters)
   大規模群眾（數千個角色）
 
-**Status: Phase 3 in progress; advanced features planned**
-**狀態：第三階段進行中；進階功能仍在規劃**
+**Status: The foundational 2D rendering slice is implemented; Phase 3 remains in progress for advanced features.**
+**狀態：2D 渲染基礎切片已完成；第三階段尚未完成，進階功能列為後續工作。**
 
 ---
 
@@ -1154,8 +1154,8 @@ See [ROADMAP.md](ROADMAP.md) for the complete technical roadmap.
   **第 8 階段 — GPU 大規模模擬** 📋（計畫中）
 - **Phase 9 — Networking** 📋 (Planned)
   **第 9 階段 — 網路** 📋（計畫中）
-- **Phase 10 — Editor** 📋 (Planned)
-  **第 10 階段 — 編輯器** 📋（計畫中）
+- **Phase 10 — Editor** 🧪 (The first entity hierarchy and identity inspector slice is implemented; broader editing tools remain planned)
+  **第 10 階段 — 編輯器** 🧪（首個實體階層與 identity inspector 切片已完成；完整編輯工具仍在規劃中）
 - **Phase 11 — Mod System** 📋 (Planned)
   **第 11 階段 — Mod 系統** 📋（計畫中）
 - **Phase 12 — Cloud/Distributed Simulation** 📋 (Planned)

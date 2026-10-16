@@ -171,6 +171,27 @@ add_test(NAME install_consumer
         -P ${CMAKE_CURRENT_SOURCE_DIR}/install_consumer/run.cmake
 )
 
+# The developer editor's ECS hierarchy and selection model can be verified
+# without opening a graphics window.
+if(TARGET StonePotatoesEditorCore)
+    add_executable(StonePotatoesEditorTests unit/test_editor.cpp)
+    target_link_libraries(StonePotatoesEditorTests PRIVATE StonePotatoesEditorCore)
+    add_test(NAME editor_session_unit COMMAND StonePotatoesEditorTests)
+
+    # Exercise window creation, frame submission, and orderly shutdown with the
+    # software Vulkan device on headless Linux CI.
+    if(Vulkan_FOUND AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        find_program(STONEPOTATOES_EDITOR_XVFB_RUN xvfb-run)
+        if(STONEPOTATOES_EDITOR_XVFB_RUN)
+            add_test(NAME editor_runtime_smoke
+                COMMAND ${STONEPOTATOES_EDITOR_XVFB_RUN} -a
+                    $<TARGET_FILE:StonePotatoesEditor> --frames 3
+            )
+            set_tests_properties(editor_runtime_smoke PROPERTIES TIMEOUT 90)
+        endif()
+    endif()
+endif()
+
 # Plugin system tests (incl. a real shared-library plugin) | 外掛系統測試（含實際共享函式庫外掛）
 add_library(StonePotatoesTestPlugin MODULE unit/test_plugin_module.cpp)
 target_include_directories(StonePotatoesTestPlugin PRIVATE ${CMAKE_SOURCE_DIR}/src)
