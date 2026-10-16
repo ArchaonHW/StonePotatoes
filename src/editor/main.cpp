@@ -3,8 +3,10 @@
 
 #include <imgui.h>
 
+#include <algorithm>
 #include <charconv>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -50,7 +52,8 @@ bool ParseArguments(int argc, char** argv, std::uint64_t& frameLimit,
 void DrawEditor(StonePotatoes::Editor::EditorSession& session,
                 StonePotatoes::ECS::World& world,
                 char* entityLabel, const std::string& savePath,
-                std::string& saveStatus) {
+                std::string& saveStatus, char* inspectorLabel,
+                std::uint64_t& inspectorEntityId) {
     using StonePotatoes::ECS::Entity;
 
     if (ImGui::Begin("Entity Hierarchy")) {
@@ -94,10 +97,32 @@ void DrawEditor(StonePotatoes::Editor::EditorSession& session,
         ImGui::Separator();
         const Entity selected = session.SelectedEntity();
         if (world.IsEntityValid(selected)) {
+            if (inspectorEntityId != selected.id) {
+                inspectorEntityId = selected.id;
+                std::memset(inspectorLabel, 0, 64);
+                const std::string_view current =
+                    session.GetEntityLabel(selected);
+                const size_t copySize =
+                    std::min(current.size(), size_t{63});
+                if (copySize > 0) {
+                    std::memcpy(inspectorLabel, current.data(), copySize);
+                }
+            }
             ImGui::Text("Entity identity");
             ImGui::Separator();
             ImGui::Text("Index: %u", selected.GetIndex());
             ImGui::Text("Generation: %u", selected.GetGeneration());
+            if (ImGui::InputText("Label", inspectorLabel, 64) &&
+                !session.SetEntityLabel(selected, inspectorLabel)) {
+                std::memset(inspectorLabel, 0, 64);
+                const std::string_view current =
+                    session.GetEntityLabel(selected);
+                const size_t copySize =
+                    std::min(current.size(), size_t{63});
+                if (copySize > 0) {
+                    std::memcpy(inspectorLabel, current.data(), copySize);
+                }
+            }
             if (ImGui::Button("Delete Entity")) {
                 session.DeleteEntity(selected);
             }
@@ -141,11 +166,14 @@ int main(int argc, char** argv) {
 
     std::uint64_t renderedFrames = 0;
     char entityLabel[64]{};
+    char inspectorLabel[64]{};
+    std::uint64_t inspectorEntityId = 0;
     std::string saveStatus;
     int result = 0;
     while (!renderer.ShouldClose() && renderedFrames < frameLimit) {
         renderer.BeginFrame();
-        DrawEditor(session, world, entityLabel, savePath, saveStatus);
+        DrawEditor(session, world, entityLabel, savePath, saveStatus,
+                   inspectorLabel, inspectorEntityId);
         if (!renderer.EndFrame()) {
             result = 1;
             break;
