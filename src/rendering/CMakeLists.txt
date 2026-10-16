@@ -2,6 +2,7 @@
 # 渲染庫 — Vulkan 2D／3D 切片 + ImGui（無 Vulkan 時使用 OpenGL 後備）
 add_library(StonePotatoesRendering STATIC
     Renderer.cpp
+    Renderer2D.cpp
     Renderer3D.cpp
     VulkanPresentationSmoke.cpp
     stub.cpp

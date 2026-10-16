@@ -37,6 +37,21 @@ int RunDemo(uint32_t maxFrames) {
         return 1;
     }
 
+    // A 2x2 atlas demonstrates normalized UV selection and shared-texture
+    // sprite batching through the same renderer backend.
+    constexpr std::array<std::uint8_t, 4 * 4 * 4> atlasPixels{{
+        240, 65, 55, 255, 240, 65, 55, 255, 45, 190, 110, 255, 45, 190, 110, 255,
+        240, 65, 55, 255, 240, 65, 55, 255, 45, 190, 110, 255, 45, 190, 110, 255,
+        55, 125, 235, 255, 55, 125, 235, 255, 245, 195, 55, 255, 245, 195, 55, 255,
+        55, 125, 235, 255, 55, 125, 235, 255, 245, 195, 55, 255, 245, 195, 55, 255,
+    }};
+    const auto atlas = renderer.CreateTexture2D(4, 4, atlasPixels);
+    if (atlas == Rendering::Renderer::InvalidTexture2D) {
+        std::fprintf(stderr, "Failed to create sprite atlas\n");
+        renderer.Shutdown();
+        return 1;
+    }
+
     GPU::VulkanBackend compute(context);
     if (!compute.Initialize()) {
         std::fprintf(stderr, "Vulkan compute initialization failed: %s\n",
@@ -123,6 +138,18 @@ int RunDemo(uint32_t maxFrames) {
                                 {0.0f, 0.0f, -0.8f},
                                 {-0.8f, -0.6f, 0.5f},
                                 {0.9f, 0.72f, 0.12f});
+        renderer.DrawSprite2D(atlas, {-1.35f, -0.9f}, {0.35f, 0.35f},
+                              {0.0f, 0.0f, 0.5f, 0.5f}, 0.0f,
+                              {1.0f, 1.0f, 1.0f, 1.0f}, 1);
+        renderer.DrawSprite2D(atlas, {-0.95f, -0.9f}, {0.35f, 0.35f},
+                              {0.5f, 0.0f, 1.0f, 0.5f}, 0.2f,
+                              {1.0f, 1.0f, 1.0f, 1.0f}, 1);
+        renderer.DrawSprite2D(atlas, {-1.35f, -1.3f}, {0.35f, 0.35f},
+                              {0.0f, 0.5f, 0.5f, 1.0f}, 0.0f,
+                              {1.0f, 1.0f, 1.0f, 1.0f}, 1);
+        renderer.DrawSprite2D(atlas, {-0.95f, -1.3f}, {0.35f, 0.35f},
+                              {0.5f, 0.5f, 1.0f, 1.0f}, -0.2f,
+                              {1.0f, 1.0f, 1.0f, 1.0f}, 1);
         for (uint32_t i = 0; i < kElementCount; ++i) {
             const float x = static_cast<float>(i % 8) * 0.20f - 0.10f;
             const float y = 0.70f - static_cast<float>(i / 8) * 0.19f;
@@ -148,6 +175,7 @@ int RunDemo(uint32_t maxFrames) {
     }
 
     compute.Shutdown();
+    renderer.DestroyTexture2D(atlas);
     renderer.Shutdown();
     if (maxFrames != 0) {
         if (renderedFrames != maxFrames) {
