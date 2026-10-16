@@ -1154,8 +1154,8 @@ See [ROADMAP.md](ROADMAP.md) for the complete technical roadmap.
   **第 8 階段 — GPU 大規模模擬** 📋（計畫中）
 - **Phase 9 — Networking** 📋 (Planned)
   **第 9 階段 — 網路** 📋（計畫中）
-- **Phase 10 — Editor** 📋 (Planned; the near-term roadmap scopes its first slice)
-  **第 10 階段 — 編輯器** 📋（計畫中；近期路線圖已界定首切片範圍）
+- **Phase 10 — Editor** 🧪 (The first entity hierarchy and identity inspector slice is implemented; broader editing tools remain planned)
+  **第 10 階段 — 編輯器** 🧪（首個實體階層與 identity inspector 切片已完成；完整編輯工具仍在規劃中）
 - **Phase 11 — Mod System** 📋 (Planned)
   **第 11 階段 — Mod 系統** 📋（計畫中）
 - **Phase 12 — Cloud/Distributed Simulation** 📋 (Planned)

@@ -98,6 +98,11 @@ add_subdirectory(src/game)
 # API libraries
 add_subdirectory(src/api/cpp)
 
+# Editor target is developer-only and excluded from installation.
+if(STONEPOTATOES_BUILD_EDITOR)
+    add_subdirectory(src/editor)
+endif()
+
 # Standalone self-developing development tool
 add_subdirectory(tools/self_developing_agent)
 
@@ -110,11 +115,6 @@ endif()
 # Examples
 if(STONEPOTATOES_BUILD_EXAMPLES)
     add_subdirectory(examples)
-endif()
-
-# Editor
-if(STONEPOTATOES_BUILD_EDITOR)
-    add_subdirectory(src/editor)
 endif()
 
 # Main executable

@@ -9,7 +9,7 @@
 | 區塊 | 位置 | 狀態 | 測試／CI |
 |---|---|---|---|
 | C++ 引擎核心（core / ecs / game / math / iqgpu / gpu / ai / world） | `src/` | 可運作；含 ECS、Game/Scene lifecycle、wave 平行排程、IQGPU CPU 後端、Vulkan 計算後端、NPC 切片、程序化世界串流 | `ctest` 預設註冊 12 項（Linux Vulkan/Xvfb 環境另加 1 項；Vulkan 無 GPU 時 unit 測試 Skipped） |
-| C++ 未完成模組 | `src/{rendering,physics,civilization,networking,editor}` | rendering 的第一個 Vulkan/ImGui 2D 切片已完成；physics 有固定 tick、確定順序 AABB 接觸與空間格 broad phase 首切片；civilization 已提供可安裝的 stock-flow 經濟模型；networking 已提供可安裝的 lockstep 指令同步；完整子系統仍在後續路線圖 | `physics_fixed_tick_unit`、`ported_utils_unit`、`install_consumer`；renderer runtime 驗收已完成（#10） |
+| C++ 未完成模組 | `src/{rendering,physics,civilization,networking,editor}` | rendering 的第一個 Vulkan/ImGui 2D 切片已完成；editor 提供獨立的 ECS entity hierarchy、建立／選取／刪除及 identity inspector；physics 有固定 tick、確定順序 AABB 接觸與空間格 broad phase 首切片；civilization 已提供可安裝的 stock-flow 經濟模型；networking 已提供可安裝的 lockstep 指令同步；完整子系統仍在後續路線圖 | `editor_session_unit`、`editor_runtime_smoke`（Vulkan/Xvfb）、`physics_fixed_tick_unit`、`ported_utils_unit`、`install_consumer` |
 | self_developing_agent | `tools/self_developing_agent/` | 實驗性獨立開發工具；不連結至遊戲執行檔 | CMake target `StonePotatoesSelfDevelopingAgent` |
 | web3-agent（Java 25） | `web3-agent/` | 可運作；EIP-1559、合約、P2P、LLM | `mvn test`（離線）+ 可選 Anvil/LLM 整合測試 |
 | web3-ide（Spring Boot 3.5 / Cloud 2025.0 + Vue） | `web3-ide/` | 可建置；agent-service 可啟動，其他服務為骨架 | agent-service 冒煙測試 + 密碼 fail-fast 檢查 |
@@ -47,7 +47,7 @@
 |---|---|
 | #13 | civilization（含 SystemDynamics 移植） | `StonePotatoes::Civilization` 匯出 stock-flow `SDModel`；安裝後 consumer 驗證同步存量轉移、月事件與 KPI probe。人口、政治、文化等完整模擬仍是後續工作；移植來源已列於 `THIRD_PARTY_NOTICES.md` |
 | #14 | networking / lockstep | `StonePotatoes::Networking` 匯出移植的 `LockstepSync`；安裝後 consumer 驗證 input-delay 封包、tick readiness、peer command 與 checksum mismatch。傳輸、重送與斷線復原仍待實作；來源已列於 `THIRD_PARTY_NOTICES.md` |
-| #15 | editor（#10 前置條件已完成） | [待啟動：首切片範圍] 提供獨立的開發用 `StonePotatoesEditor` 視窗程式，不併入遊戲執行檔或安裝套件；使用 Renderer 顯示 ECS entity hierarchy，支援建立、選取、刪除 entity，Inspector 顯示 entity index/generation。以 `--frames N` 支援 Xvfb 啟動／關閉 smoke 驗收。首切片不含通用 component reflection、場景存檔、資產瀏覽器或遊戲套件發布；先補獨立 UI/狀態測試，再擴充編輯功能。 |
+| #15 | editor（#10 前置條件已完成） | [首切片完成] 獨立的開發用 `StonePotatoesEditor` 視窗程式，不併入遊戲執行檔或安裝套件；以 Renderer/ImGui 顯示 ECS entity hierarchy，支援建立、選取、刪除 entity，Inspector 顯示 entity index/generation。`--frames N` 提供 Xvfb 啟動／關閉 smoke 驗收，`editor_session_unit` 驗證狀態生命週期。通用 component reflection、場景存檔、資產瀏覽器與更完整編輯功能仍為後續工作。 |
 
 Phase 11–13（Modding、雲端、AAA）維持在長期 `ROADMAP.md`，暫不開 issue。
 

@@ -82,12 +82,11 @@ jobs:
       - name: Configure
         run: >
           cmake -S . -B build-vulkan -DCMAKE_BUILD_TYPE=Release
-          -DSTONEPOTATOES_BUILD_EDITOR=OFF
           -DSTONEPOTATOES_BUILD_EXAMPLES=OFF
       - name: Build Vulkan backend
-        run: cmake --build build-vulkan --target StonePotatoesVulkanTests StonePotatoesVulkanPresentationSmoke StonePotatoesVulkanComputeRendererDemo -j"$(nproc)"
+        run: cmake --build build-vulkan --target StonePotatoesVulkanTests StonePotatoesVulkanPresentationSmoke StonePotatoesVulkanComputeRendererDemo StonePotatoesEditor StonePotatoesEditorTests -j"$(nproc)"
       - name: Test Vulkan backend
-        run: ctest --test-dir build-vulkan -R 'vulkan_(unit|compute_renderer_runtime|presentation_resize_runtime)' --output-on-failure --timeout 300
+        run: ctest --test-dir build-vulkan -R 'vulkan_(unit|compute_renderer_runtime|presentation_resize_runtime)|editor_(session_unit|runtime_smoke)' --output-on-failure --timeout 300
 
   coverage:
     name: C++ coverage (gcov/lcov)
