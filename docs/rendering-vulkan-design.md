@@ -1,6 +1,6 @@
 # Rendering backend decision: shared Vulkan context
 
-Status: shared-context Vulkan Renderer complete; initial perspective 3D triangle slice added with CPU projection and painter sorting; Linux CI runs Xvfb checks for shared-device presentation and resize-driven swapchain recreation
+Status: shared-context Vulkan Renderer complete; perspective 3D triangles use CPU projection, near/far plane clipping, and painter sorting; Linux CI runs Xvfb checks for shared-device presentation and resize-driven swapchain recreation
 
 ## Decision
 
@@ -34,17 +34,20 @@ window-system extensions can be enabled before device selection.
 
 `Renderer::SetCamera3D` configures a right-handed perspective camera and
 `Renderer::DrawTriangle3D` queues colored world-space triangles. At frame end,
-the shared rendering layer projects the vertices to screen space, rejects
-non-finite, degenerate, and near/far-out-of-range triangles, then draws opaque faces
-back-to-front through ImGui. This keeps the API available in both Vulkan and
-CPU-only OpenGL builds and does not add Vulkan types to the public interface.
+the shared rendering layer transforms triangles to view space, clips them
+against all six camera-frustum planes, triangulates the remaining polygon,
+projects the visible faces, and draws opaque faces back-to-front through ImGui. Fully
+outside and degenerate geometry is rejected. This keeps the API available in
+both Vulkan and CPU-only OpenGL builds and does not add Vulkan types to the
+public interface.
 
 This is a bootstrap for 3D visualization, not a general mesh renderer. Painter
 sorting works for separated or non-intersecting opaque surfaces; intersecting
 surfaces, order-independent transparency, lighting, materials, GPU mesh
 buffers, and depth-buffer testing require the next renderer phase. The
 `renderer3d_geometry_unit` test covers camera validation, perspective
-projection, clipping, depth order, and per-frame geometry reset. The Vulkan
+projection, near/far and viewport-side clipping, depth order, and per-frame
+geometry reset. The Vulkan
 compute/renderer demo includes a tetrahedron so the Linux Xvfb runtime check
 exercises this path.
 
