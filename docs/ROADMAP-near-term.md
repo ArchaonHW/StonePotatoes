@@ -8,7 +8,7 @@
 
 | 區塊 | 位置 | 狀態 | 測試／CI |
 |---|---|---|---|
-| C++ 引擎核心（core / ecs / game / math / iqgpu / gpu / ai / world） | `src/` | 可運作；含 ECS、Game/Scene lifecycle、wave 平行排程、IQGPU CPU 後端、Vulkan 計算後端、NPC 切片、程序化世界串流 | `ctest` 預設註冊 13 項（Linux Vulkan/Xvfb 環境另加 2 項；Vulkan 無 GPU 時 unit 測試 Skipped） |
+| C++ 引擎核心（core / ecs / game / math / iqgpu / gpu / ai / world） | `src/` | 可運作；含 ECS、Game/Scene lifecycle、wave 平行排程、IQGPU CPU 後端、Vulkan 計算後端、NPC 切片、程序化世界串流 | `ctest` 預設註冊 14 項（Linux Vulkan/Xvfb 環境另加 2 項；Vulkan 無 GPU 時 unit 測試 Skipped） |
 | C++ 未完成模組 | `src/{rendering,physics,civilization,networking,editor}` | rendering 已有 Vulkan/ImGui 2D 與透視相機、深度排序三角面的初步 3D 切片；editor 提供獨立的 ECS entity hierarchy、建立／選取／刪除、可編輯名稱標籤及場景存檔載入；physics 有固定 tick、確定順序 AABB 接觸、空間格 broad phase 與可選恢復係數；civilization 已提供可安裝的 stock-flow 經濟模型；networking 已提供可安裝的 lockstep 指令同步；完整子系統仍在後續路線圖 | `renderer3d_geometry_unit`、`editor_session_unit`、`editor_runtime_smoke`（Vulkan/Xvfb）、`physics_fixed_tick_unit`、`ported_utils_unit`、`install_consumer` |
 | self_developing_agent | `tools/self_developing_agent/` | 實驗性獨立開發工具；不連結至遊戲執行檔 | CMake target `StonePotatoesSelfDevelopingAgent` |
 | web3-agent（Java 25） | `web3-agent/` | 可運作；EIP-1559、合約、P2P、LLM | `mvn test`（離線）+ 可選 Anvil/LLM 整合測試 |
@@ -38,7 +38,7 @@
 ### v0.2 可視化與模擬（Phase 3–6）
 | Issue | 主題 | 備註 |
 |---|---|---|
-| #10 | rendering | [基礎切片完成] 共用 Vulkan context、swapchain 呈現、ImGui Vulkan 與既有點／圓 2D API 已接入正式 Renderer；新增 RGBA8 atlas texture handle、UV sprite、旋轉／tint 與 layer sorting，透過 Dear ImGui 動態貼圖支援 Vulkan/OpenGL fallback，並提供共用 atlas 的 demo 驗收；另有透視相機及深度排序的 3D 不透明三角面切片。現階段的 3D 仍用 painter sorting；z-buffer、mesh 資產、貼圖載入／打包、動畫 clips、專用 GPU instancing 與 PBR/HDR/GI 仍待後續。設計見 [`rendering-vulkan-design.md`](rendering-vulkan-design.md) |
+| #10 | rendering | [基礎切片完成] 共用 Vulkan context、swapchain 呈現、ImGui Vulkan 與既有點／圓 2D API 已接入正式 Renderer；新增 RGBA8 atlas texture handle、UV sprite、旋轉／tint、layer sorting 及整數 tick 驅動的 loop/one-shot atlas animation，透過 Dear ImGui 動態貼圖支援 Vulkan/OpenGL fallback，並提供共用 atlas 動畫 demo 驗收；另有透視相機及深度排序的 3D 不透明三角面切片。現階段的 3D 仍用 painter sorting；z-buffer、mesh 資產、貼圖載入／打包、專用 GPU instancing 與 PBR/HDR/GI 仍待後續。設計見 [`rendering-vulkan-design.md`](rendering-vulkan-design.md) |
 | #11 | physics | [進行中] `Physics2DSystem` 提供固定 tick 半隱式 Euler 積分、依 entity ID 排序的空間格候選篩選、最多 16 輪 AABB 接觸解析、靜／動庫侖摩擦、可選 `Restitution2D` 恢復係數，以及靜態與動態方盒間事件推進式 swept-AABB 首次接觸；含大型碰撞體 fallback、有限事件預算、候選數與收斂診斷。`StonePotatoes::Physics` 已匯出至安裝套件；獨立 consumer 驗證公開 headers、相依連結、固定 tick 與重力／力積分、高速撞牆、摩擦及恢復係數。旋轉、初始重疊修復與跨平台 bitwise lockstep 延後；設計見 [`physics-design.md`](physics-design.md) |
 | #12 | agent 模組與各 agent 的定位 | 決策見 [`ARCHITECTURE.md`](../ARCHITECTURE.md)「Repository Component Boundaries」及下方第 2 節；目前不建立獨立 `src/agent` 執行期模組 |
 

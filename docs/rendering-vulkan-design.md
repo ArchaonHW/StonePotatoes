@@ -57,10 +57,12 @@ renderer sorts by layer and sends quads through Dear ImGui's dynamic texture
 support, which is implemented by both the Vulkan and OpenGL2 backends. Sprites
 using the same atlas share a texture and are batched by the draw-list backend.
 Texture destruction is deferred through the backend's texture lifecycle so
-in-flight frames can release their references. Image-file decoding, atlas
-packing, animation clips, and a dedicated GPU instancing pipeline remain later
-work. The compute/renderer demo creates a procedural 2x2 atlas and presents
-four rotated atlas sprites through the integrated runtime path.
+in-flight frames can release their references. `SpriteAnimation2D` advances
+atlas UV clips by explicit integer ticks and supports looping or one-shot
+playback; it stays presentation-side so simulation timing remains independent.
+Image-file decoding, atlas packing, and a dedicated GPU instancing pipeline
+remain later work. The compute/renderer demo animates a sprite from a
+procedural 2x2 atlas through the integrated runtime path.
 
 ## Why an extraction is required
 

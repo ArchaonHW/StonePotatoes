@@ -2,6 +2,7 @@
 #include "gpu/VulkanBackend.h"
 #include "gpu/VulkanContext.h"
 #include "rendering/Renderer.h"
+#include "rendering/SpriteAnimation2D.h"
 
 #include <imgui.h>
 
@@ -48,6 +49,19 @@ int RunDemo(uint32_t maxFrames) {
     const auto atlas = renderer.CreateTexture2D(4, 4, atlasPixels);
     if (atlas == Rendering::Renderer::InvalidTexture2D) {
         std::fprintf(stderr, "Failed to create sprite atlas\n");
+        renderer.Shutdown();
+        return 1;
+    }
+    const std::array<Rendering::SpriteAnimationFrame2D, 4> walkFrames{{
+        {{0.0f, 0.0f, 0.5f, 0.5f}, 1},
+        {{0.5f, 0.0f, 1.0f, 0.5f}, 1},
+        {{0.5f, 0.5f, 1.0f, 1.0f}, 1},
+        {{0.0f, 0.5f, 0.5f, 1.0f}, 1},
+    }};
+    Rendering::SpriteAnimation2D walkAnimation;
+    if (!walkAnimation.Configure(walkFrames)) {
+        std::fprintf(stderr, "Failed to configure sprite animation\n");
+        renderer.DestroyTexture2D(atlas);
         renderer.Shutdown();
         return 1;
     }
@@ -150,6 +164,9 @@ int RunDemo(uint32_t maxFrames) {
         renderer.DrawSprite2D(atlas, {-0.95f, -1.3f}, {0.35f, 0.35f},
                               {0.5f, 0.5f, 1.0f, 1.0f}, -0.2f,
                               {1.0f, 1.0f, 1.0f, 1.0f}, 1);
+        renderer.DrawSprite2D(atlas, {0.9f, -1.1f}, {0.45f, 0.45f},
+                              walkAnimation.UVRect(), 0.0f,
+                              {1.0f, 1.0f, 1.0f, 1.0f}, 1);
         for (uint32_t i = 0; i < kElementCount; ++i) {
             const float x = static_cast<float>(i % 8) * 0.20f - 0.10f;
             const float y = 0.70f - static_cast<float>(i / 8) * 0.19f;
@@ -171,6 +188,7 @@ int RunDemo(uint32_t maxFrames) {
             renderer.Shutdown();
             return 1;
         }
+        walkAnimation.Advance();
         ++renderedFrames;
     }
 
