@@ -101,8 +101,9 @@ canonicalization are not promised.
 - A separately configured installed-package consumer can use the public
   `StonePotatoes::Physics` target to stop a fast box at a static wall and apply
   friction to a sliding box, resolve a fast dynamic-dynamic head-on impact,
-  and apply restitution to a bouncing box, without relying on the repository's
-  unit target.
+  apply restitution to a bouncing box, and deterministically separate two
+  coincident dynamic boxes within the bounded contact solve, without relying
+  on the repository's unit target.
 - The same collision setup produces equal results across different render-frame
   partitions.
 - A 256-body separated scene sends substantially fewer pairs to narrow phase
@@ -113,5 +114,6 @@ canonicalization are not promised.
   iteration and settles within the iteration limit.
 - Non-finite forces and invalid physics deltas do not contaminate body state.
 
-Rotated shapes, joints, recovery of initial overlaps beyond the discrete
-solver, and cross-platform replay serialization remain future work.
+The discrete solver separates coincident initial AABBs using entity-ID order.
+More advanced initial-overlap recovery beyond that bounded solver, rotated
+shapes, joints, and cross-platform replay serialization remain future work.

@@ -609,6 +609,42 @@ int TestMultiContactIterationsDiscoverNewContacts() {
     return 0;
 }
 
+int TestCoincidentInitialOverlapSeparatesDeterministically() {
+    ECS::World world;
+    auto physics = std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
+    Physics2DSystem* physicsView = physics.get();
+    world.GetSystemScheduler().RegisterSystem(std::move(physics));
+    world.Initialize();
+
+    const ECS::Entity lowerId = world.CreateEntity();
+    world.AddComponent(lowerId, Transform2D{{0.0f, 0.0f}});
+    world.AddComponent(lowerId, RigidBody2D{});
+    world.AddComponent(lowerId, BoxCollider2D{{0.5f, 0.5f}});
+
+    const ECS::Entity higherId = world.CreateEntity();
+    world.AddComponent(higherId, Transform2D{{0.0f, 0.0f}});
+    world.AddComponent(higherId, RigidBody2D{});
+    world.AddComponent(higherId, BoxCollider2D{{0.5f, 0.5f}});
+
+    // A fully coincident pair has no geometric normal; the solver must use
+    // entity order to choose one and finish within its bounded iteration set.
+    world.Update(1.0f / 60.0f);
+
+    const auto* lower = world.GetComponent<Transform2D>(lowerId);
+    const auto* higher = world.GetComponent<Transform2D>(higherId);
+    CHECK(lower != nullptr && higher != nullptr);
+    CHECK(lower->position.x < higher->position.x);
+    CHECK(higher->position.x - lower->position.x >= 0.999f);
+    CHECK(lower->position.y == 0.0f && higher->position.y == 0.0f);
+    CHECK(physicsView->GetLastContactIterationCount() <= 16);
+    CHECK(physicsView->DidLastContactSolveConverge());
+    CHECK(world.GetComponent<RigidBody2D>(lowerId)->velocity.x == 0.0f);
+    CHECK(world.GetComponent<RigidBody2D>(higherId)->velocity.x == 0.0f);
+
+    world.Shutdown();
+    return 0;
+}
+
 int TestInvalidInputsAreIgnored() {
     RigidBody2D body;
     CHECK(!body.ApplyForce(
@@ -645,6 +681,9 @@ int main() {
     if (const int result = TestGridBoundaryAndNegativeCoordinateContacts())
         return result;
     if (const int result = TestMultiContactIterationsDiscoverNewContacts())
+        return result;
+    if (const int result =
+            TestCoincidentInitialOverlapSeparatesDeterministically())
         return result;
     if (const int result = TestInvalidInputsAreIgnored()) return result;
     return 0;
