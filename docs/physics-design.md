@@ -1,8 +1,8 @@
 # Physics vertical slice: deterministic 2D fixed-tick bodies and box contacts
 
-Status: fixed-tick 2D body integration, discrete axis-aligned box contacts,
+Status: fixed-tick 2D body integration, discrete oriented-box contacts,
 Coulomb friction, configurable restitution, and event-driven swept-AABB
-contacts between static and dynamic boxes are implemented.
+contacts between static and dynamic axis-aligned boxes are implemented.
 This is a deliberately small collision slice, not a general-purpose rigid-body
 solver.
 
@@ -13,12 +13,14 @@ solver.
 body's accumulated force to velocity, advances position using the new velocity,
 then clears the accumulated force. A body with `inverseMass == 0` is immovable.
 Entities that also have a `BoxCollider2D` participate in collision handling;
-the collider is an axis-aligned box centered on the transform with positive
-half-extents.
+the collider is centered on the transform with positive half-extents. An
+optional `Rotation2D` component supplies a finite, fixed orientation in
+radians. Without it, the box is axis-aligned. Rotation has no angular velocity
+or integration.
 
 After integration, the system sorts valid collider bodies by `Entity::id` and
-places each AABB into a deterministic 2D grid with 2-unit cells. Each collider
-occupies every cell touched by its bounds. Candidate pairs are deduplicated and
+places each box's world-space AABB into a deterministic 2D grid with 2-unit
+cells. Each collider occupies every cell touched by its bounds. Candidate pairs are deduplicated and
 sorted by entity ID before narrow-phase checks. Colliders spanning more than
 256 cells (or outside the grid's integer coordinate range) conservatively pair
 with every body, avoiding unbounded grid allocation. The public
@@ -32,8 +34,9 @@ change; penetrations at or below `0.001` world units are tolerated to avoid
 chasing floating-point residue. `GetLastContactIterationCount()` and
 `DidLastContactSolveConverge()` report the last solve's progress; a solve that
 still changes state on the final allowed pass is conservatively reported as
-not converged. Overlapping boxes are separated along the axis with the smaller
-penetration (ties choose X), with displacement weighted by inverse mass. A
+not converged. The narrow phase uses the four box axes SAT and separates
+overlapping boxes along the least-penetration axis, with displacement weighted
+by inverse mass. A
 normal impulse applies the contact restitution. `Restitution2D` is an optional
 POD component with a coefficient in `[0, 1]`; absent components behave as zero.
 The contact uses the larger coefficient from its two bodies, so a moving body
@@ -50,16 +53,16 @@ greater than static friction. Invalid or non-finite body, collider, or material
 state is skipped by collision handling.
 
 Before the discrete solver, an event-driven swept-AABB pass uses each
-collider's previous and integrated positions to find the earliest impact among
-static-dynamic and dynamic-dynamic pairs during the remaining tick. Bodies
+axis-aligned collider's previous and integrated positions to find the earliest
+impact among static-dynamic and dynamic-dynamic pairs during the remaining tick. Bodies
 advance to that time of impact in entity-ID pair order, then receive the same
 restitution-aware normal and Coulomb friction impulses as discrete contacts;
 dynamic motion is distributed by inverse mass. The remaining tick is
 simulated again with the updated velocities. A bounded event budget prevents
 unbounded work; if it is exhausted, bodies stay at the last resolved impact
 and the unprocessed time is discarded to avoid tunneling. Initial overlaps
-remain the discrete solver's responsibility. Rotated shapes still require a
-different narrow phase.
+remain the discrete solver's responsibility. Rotated boxes use the discrete
+OBB solver; rotated swept time-of-impact and angular dynamics are not included.
 
 `Game::SetFixedStep` owns the simulation clock and catch-up limit. Register the
 physics system in the ECS world and let `Game::Update` call the world once per
@@ -104,6 +107,9 @@ canonicalization are not promised.
   apply restitution to a bouncing box, and deterministically separate two
   coincident dynamic boxes within the bounded contact solve, without relying
   on the repository's unit target.
+- Rotated thin boxes whose world AABBs overlap but whose OBBs are separated do
+  not collide; overlapping OBBs separate along their SAT minimum-penetration
+  axis.
 - The same collision setup produces equal results across different render-frame
   partitions.
 - A 256-body separated scene sends substantially fewer pairs to narrow phase
@@ -114,6 +120,7 @@ canonicalization are not promised.
   iteration and settles within the iteration limit.
 - Non-finite forces and invalid physics deltas do not contaminate body state.
 
-The discrete solver separates coincident initial AABBs using entity-ID order.
-More advanced initial-overlap recovery beyond that bounded solver, rotated
-shapes, joints, and cross-platform replay serialization remain future work.
+The discrete solver separates coincident initial boxes using entity-ID order.
+Rotated swept time-of-impact, angular dynamics, more advanced initial-overlap
+recovery beyond the bounded solver, joints, and cross-platform replay
+serialization remain future work.

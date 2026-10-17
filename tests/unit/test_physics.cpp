@@ -645,6 +645,84 @@ int TestCoincidentInitialOverlapSeparatesDeterministically() {
     return 0;
 }
 
+int TestRotatedBoxesUseOrientedContactAxes() {
+    constexpr float diagonal = 0.70710678118f;
+    constexpr float rotation = 0.78539816339f;
+
+    // World AABBs overlap, but the equally oriented thin OBBs are 0.5 units
+    // apart along their short axis and must remain untouched.
+    {
+        ECS::World world;
+        auto physics =
+            std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
+        Physics2DSystem* physicsView = physics.get();
+        world.GetSystemScheduler().RegisterSystem(std::move(physics));
+        world.Initialize();
+
+        const ECS::Entity first = world.CreateEntity();
+        world.AddComponent(first, Transform2D{{0.0f, 0.0f}});
+        world.AddComponent(first, Rotation2D{rotation});
+        world.AddComponent(first, RigidBody2D{});
+        world.AddComponent(first, BoxCollider2D{{2.0f, 0.1f}});
+
+        const ECS::Entity second = world.CreateEntity();
+        world.AddComponent(second,
+                           Transform2D{{-0.5f * diagonal,
+                                        0.5f * diagonal}});
+        world.AddComponent(second, Rotation2D{rotation});
+        world.AddComponent(second, RigidBody2D{});
+        world.AddComponent(second, BoxCollider2D{{2.0f, 0.1f}});
+
+        world.Update(1.0f / 60.0f);
+        CHECK(physicsView->GetLastBroadPhasePairCount() == 1);
+        CHECK(world.GetComponent<Transform2D>(first)->position.x == 0.0f);
+        CHECK(world.GetComponent<Transform2D>(first)->position.y == 0.0f);
+        CHECK(std::fabs(world.GetComponent<Transform2D>(second)->position.x +
+                        0.5f * diagonal) < 0.00001f);
+        CHECK(std::fabs(world.GetComponent<Transform2D>(second)->position.y -
+                        0.5f * diagonal) < 0.00001f);
+        world.Shutdown();
+    }
+
+    // The same boxes with 0.15 units of short-axis separation overlap and
+    // are pushed apart along the OBB normal.
+    {
+        ECS::World world;
+        auto physics =
+            std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
+        Physics2DSystem* physicsView = physics.get();
+        world.GetSystemScheduler().RegisterSystem(std::move(physics));
+        world.Initialize();
+
+        const ECS::Entity first = world.CreateEntity();
+        world.AddComponent(first, Transform2D{{0.0f, 0.0f}});
+        world.AddComponent(first, Rotation2D{rotation});
+        world.AddComponent(first, RigidBody2D{});
+        world.AddComponent(first, BoxCollider2D{{2.0f, 0.1f}});
+
+        const ECS::Entity second = world.CreateEntity();
+        world.AddComponent(second,
+                           Transform2D{{-0.15f * diagonal,
+                                        0.15f * diagonal}});
+        world.AddComponent(second, Rotation2D{rotation});
+        world.AddComponent(second, RigidBody2D{});
+        world.AddComponent(second, BoxCollider2D{{2.0f, 0.1f}});
+
+        world.Update(1.0f / 60.0f);
+        const Math::Vec2 firstPosition =
+            world.GetComponent<Transform2D>(first)->position;
+        const Math::Vec2 secondPosition =
+            world.GetComponent<Transform2D>(second)->position;
+        CHECK((secondPosition - firstPosition)
+                  .Dot({-diagonal, diagonal}) >= 0.199f);
+        CHECK(physicsView->GetLastContactIterationCount() > 0);
+        CHECK(physicsView->DidLastContactSolveConverge());
+        world.Shutdown();
+    }
+
+    return 0;
+}
+
 int TestInvalidInputsAreIgnored() {
     RigidBody2D body;
     CHECK(!body.ApplyForce(
@@ -684,6 +762,8 @@ int main() {
         return result;
     if (const int result =
             TestCoincidentInitialOverlapSeparatesDeterministically())
+        return result;
+    if (const int result = TestRotatedBoxesUseOrientedContactAxes())
         return result;
     if (const int result = TestInvalidInputsAreIgnored()) return result;
     return 0;

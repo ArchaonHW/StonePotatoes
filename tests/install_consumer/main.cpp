@@ -393,6 +393,44 @@ int main(int argc, char** argv) {
         world.Shutdown();
     }
 
+    // Verify the installed Physics target supports rotated box contacts.
+    {
+        using namespace StonePotatoes::Physics;
+        constexpr float diagonal = 0.70710678118f;
+        constexpr float rotation = 0.78539816339f;
+        StonePotatoes::ECS::World world;
+        auto physics = std::make_unique<Physics2DSystem>(
+            StonePotatoes::Math::Vec2{});
+        Physics2DSystem* physicsView = physics.get();
+        world.GetSystemScheduler().RegisterSystem(std::move(physics));
+        world.Initialize();
+
+        const auto first = world.CreateEntity();
+        world.AddComponent(first, Transform2D{{0.0f, 0.0f}});
+        world.AddComponent(first, Rotation2D{rotation});
+        world.AddComponent(first, RigidBody2D{});
+        world.AddComponent(first, BoxCollider2D{{2.0f, 0.1f}});
+
+        const auto second = world.CreateEntity();
+        world.AddComponent(second,
+                           Transform2D{{-0.15f * diagonal,
+                                        0.15f * diagonal}});
+        world.AddComponent(second, Rotation2D{rotation});
+        world.AddComponent(second, RigidBody2D{});
+        world.AddComponent(second, BoxCollider2D{{2.0f, 0.1f}});
+
+        world.Update(1.0f / 60.0f);
+        const auto* firstTransform = world.GetComponent<Transform2D>(first);
+        const auto* secondTransform = world.GetComponent<Transform2D>(second);
+        if (!firstTransform || !secondTransform ||
+            (secondTransform->position - firstTransform->position)
+                    .Dot({-diagonal, diagonal}) < 0.199f ||
+            !physicsView->DidLastContactSolveConverge()) {
+            return 59;
+        }
+        world.Shutdown();
+    }
+
     // The installed Physics target exposes optional restitution independently
     // of BoxCollider2D's persisted layout.
     {
