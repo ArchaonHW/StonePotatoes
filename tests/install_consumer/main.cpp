@@ -356,6 +356,43 @@ int main(int argc, char** argv) {
         world.Shutdown();
     }
 
+    // Verify deterministic recovery when two installed-package bodies start
+    // at the exact same position, where the contact has no geometric normal.
+    {
+        using namespace StonePotatoes::Physics;
+        StonePotatoes::ECS::World world;
+        auto physics = std::make_unique<Physics2DSystem>(
+            StonePotatoes::Math::Vec2{});
+        Physics2DSystem* physicsView = physics.get();
+        world.GetSystemScheduler().RegisterSystem(std::move(physics));
+        world.Initialize();
+
+        const auto first = world.CreateEntity();
+        world.AddComponent(first, Transform2D{{0.0f, 0.0f}});
+        world.AddComponent(first, RigidBody2D{});
+        world.AddComponent(first, BoxCollider2D{{0.5f, 0.5f}});
+
+        const auto second = world.CreateEntity();
+        world.AddComponent(second, Transform2D{{0.0f, 0.0f}});
+        world.AddComponent(second, RigidBody2D{});
+        world.AddComponent(second, BoxCollider2D{{0.5f, 0.5f}});
+
+        world.Update(1.0f / 60.0f);
+        const auto* firstTransform = world.GetComponent<Transform2D>(first);
+        const auto* secondTransform = world.GetComponent<Transform2D>(second);
+        if (!firstTransform || !secondTransform ||
+            !(firstTransform->position.x < secondTransform->position.x) ||
+            secondTransform->position.x - firstTransform->position.x <
+                0.999f ||
+            firstTransform->position.y != 0.0f ||
+            secondTransform->position.y != 0.0f ||
+            !physicsView->DidLastContactSolveConverge() ||
+            physicsView->GetLastContactIterationCount() > 16) {
+            return 58;
+        }
+        world.Shutdown();
+    }
+
     // The installed Physics target exposes optional restitution independently
     // of BoxCollider2D's persisted layout.
     {
