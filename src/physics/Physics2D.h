@@ -18,6 +18,12 @@ struct Transform2D {
     Math::Vec2 position{};
 };
 
+// Optional fixed orientation for a box collider, expressed in radians.
+// This does not add angular velocity or rotational integration.
+struct Rotation2D {
+    float radians = 0.0f;
+};
+
 struct RigidBody2D {
     Math::Vec2 velocity{};
     Math::Vec2 accumulatedForce{};
@@ -28,8 +34,9 @@ struct RigidBody2D {
     bool ApplyForce(const Math::Vec2& force);
 };
 
-// Axis-aligned box collider centered on Transform2D::position.
-// 以 Transform2D::position 為中心的軸對齊方盒碰撞體。
+// Box collider centered on Transform2D::position. An optional Rotation2D
+// component gives it a fixed orientation; without one the box is axis-aligned.
+// 以 Transform2D::position 為中心的方盒；可選 Rotation2D 指定固定朝向。
 struct BoxCollider2D {
     Math::Vec2 halfExtents{0.5f, 0.5f};
     // Coulomb friction coefficients; zero keeps contacts frictionless.
@@ -45,6 +52,7 @@ struct Restitution2D {
 };
 
 static_assert(std::is_trivially_copyable_v<Transform2D>);
+static_assert(std::is_trivially_copyable_v<Rotation2D>);
 static_assert(std::is_trivially_copyable_v<RigidBody2D>);
 static_assert(std::is_trivially_copyable_v<BoxCollider2D>);
 static_assert(std::is_trivially_copyable_v<Restitution2D>);
@@ -52,17 +60,16 @@ static_assert(std::is_trivially_copyable_v<Restitution2D>);
 void RegisterPhysicsComponents(ECS::World& world);
 
 // Integrates bodies with semi-implicit Euler, then performs bounded,
-// entity-ID ordered iterations over discrete AABB contacts with optional
-// restitution and Coulomb friction, plus event-driven swept-AABB contacts
-// between static and dynamic boxes.
+// entity-ID ordered iterations over discrete oriented-box contacts with
+// optional restitution and Coulomb friction, plus event-driven swept-AABB
+// contacts for axis-aligned static and dynamic boxes.
 // Use Game::SetFixedStep to feed this system a stable tick; inverseMass == 0
-// marks an immovable body. Rotated shapes and recovery of initial overlaps are
-// intentionally outside this slice.
-// 以半隱式 Euler 積分剛體，再依 entity ID 順序有限輪解析離散 AABB 接觸、
-// 可選恢復係數與庫侖摩擦，並以事件推進方式處理靜態與動態方盒的 swept-AABB
-// 碰撞。透過
-// Game::SetFixedStep 提供固定 tick；inverseMass == 0 代表不可移動的剛體。
-// 旋轉形狀與初始重疊修復不在此切片範圍。
+// marks an immovable body. Rotation2D adds fixed-angle OBB contacts only;
+// angular dynamics and rotated swept time-of-impact are outside this slice.
+// 以半隱式 Euler 積分剛體，再依 entity ID 順序有限輪解析離散 OBB SAT 接觸、
+// 可選恢復係數與庫侖摩擦，並以事件推進方式處理軸對齊靜態／動態方盒的 swept-AABB
+// 碰撞。透過 Game::SetFixedStep 提供固定 tick；inverseMass == 0 代表不可移動的剛體。
+// Rotation2D 僅指定固定朝向，不包含角速度或旋轉 swept CCD。
 class Physics2DSystem final : public ECS::System {
 public:
     explicit Physics2DSystem(Math::Vec2 gravity = {0.0f, -9.81f});

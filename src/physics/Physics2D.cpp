@@ -24,8 +24,25 @@ struct CollisionBody {
     RigidBody2D* body;
     BoxCollider2D* collider;
     float restitution;
+    float rotationRadians;
     Math::Vec2 previousPosition;
 };
+
+Math::Vec2 GetAabbHalfExtents(const CollisionBody& body) {
+    const float cosine = std::fabs(std::cos(body.rotationRadians));
+    const float sine = std::fabs(std::sin(body.rotationRadians));
+    return {cosine * body.collider->halfExtents.x +
+                sine * body.collider->halfExtents.y,
+            sine * body.collider->halfExtents.x +
+                cosine * body.collider->halfExtents.y};
+}
+
+void GetBoxAxes(float radians, Math::Vec2& xAxis, Math::Vec2& yAxis) {
+    const float cosine = std::cos(radians);
+    const float sine = std::sin(radians);
+    xAxis = {cosine, sine};
+    yAxis = {-sine, cosine};
+}
 
 struct CellCoordinate {
     std::int64_t x;
@@ -51,9 +68,10 @@ constexpr std::size_t kMaxContactIterations = 16;
 bool IsValidCollisionBody(const Transform2D& transform,
                           const RigidBody2D& body,
                           const BoxCollider2D& collider,
-                          float restitution) {
+                          float restitution, float rotationRadians) {
     return IsFinite(transform.position) && IsFinite(body.velocity) &&
            IsFinite(body.accumulatedForce) &&
+           std::isfinite(rotationRadians) &&
            std::isfinite(body.inverseMass) && body.inverseMass >= 0.0f &&
            IsFinite(collider.halfExtents) && collider.halfExtents.x > 0.0f &&
            collider.halfExtents.y > 0.0f &&
@@ -80,10 +98,9 @@ bool ToCellCoordinate(double value, std::int64_t& result) {
 bool GetCellRange(const CollisionBody& body, CellRange& range) {
     const double x = static_cast<double>(body.transform->position.x);
     const double y = static_cast<double>(body.transform->position.y);
-    const double halfWidth =
-        static_cast<double>(body.collider->halfExtents.x);
-    const double halfHeight =
-        static_cast<double>(body.collider->halfExtents.y);
+    const Math::Vec2 aabbHalfExtents = GetAabbHalfExtents(body);
+    const double halfWidth = static_cast<double>(aabbHalfExtents.x);
+    const double halfHeight = static_cast<double>(aabbHalfExtents.y);
     const double minCellX = std::floor((x - halfWidth) / kBroadPhaseCellSize);
     const double maxCellX = std::floor((x + halfWidth) / kBroadPhaseCellSize);
     const double minCellY = std::floor((y - halfHeight) / kBroadPhaseCellSize);
@@ -99,10 +116,9 @@ bool GetSweptCellRange(const CollisionBody& body, CellRange& range) {
     const double startY = static_cast<double>(body.previousPosition.y);
     const double endX = static_cast<double>(body.transform->position.x);
     const double endY = static_cast<double>(body.transform->position.y);
-    const double halfWidth =
-        static_cast<double>(body.collider->halfExtents.x);
-    const double halfHeight =
-        static_cast<double>(body.collider->halfExtents.y);
+    const Math::Vec2 aabbHalfExtents = GetAabbHalfExtents(body);
+    const double halfWidth = static_cast<double>(aabbHalfExtents.x);
+    const double halfHeight = static_cast<double>(aabbHalfExtents.y);
     const double minCellX = std::floor(
         (std::min(startX, endX) - halfWidth) / kBroadPhaseCellSize);
     const double maxCellX = std::floor(
@@ -212,30 +228,38 @@ bool CalculateContactVelocities(const CollisionBody& a,
 }
 
 bool ResolvePair(CollisionBody& a, CollisionBody& b) {
-    const float dx = b.transform->position.x - a.transform->position.x;
-    const float dy = b.transform->position.y - a.transform->position.y;
-    const float combinedHalfWidth = a.collider->halfExtents.x +
-                                    b.collider->halfExtents.x;
-    const float combinedHalfHeight = a.collider->halfExtents.y +
-                                     b.collider->halfExtents.y;
-    if (!std::isfinite(dx) || !std::isfinite(dy) ||
-        !std::isfinite(combinedHalfWidth) ||
-        !std::isfinite(combinedHalfHeight)) {
-        return false;
+    const Math::Vec2 centerDelta =
+        b.transform->position - a.transform->position;
+    if (!IsFinite(centerDelta)) return false;
+
+    Math::Vec2 axesA[2];
+    Math::Vec2 axesB[2];
+    GetBoxAxes(a.rotationRadians, axesA[0], axesA[1]);
+    GetBoxAxes(b.rotationRadians, axesB[0], axesB[1]);
+    const Math::Vec2 candidateAxes[] = {
+        axesA[0], axesA[1], axesB[0], axesB[1]};
+
+    float penetration = std::numeric_limits<float>::infinity();
+    Math::Vec2 normal{};
+    for (const Math::Vec2& axis : candidateAxes) {
+        const float radiusA =
+            a.collider->halfExtents.x * std::fabs(axesA[0].Dot(axis)) +
+            a.collider->halfExtents.y * std::fabs(axesA[1].Dot(axis));
+        const float radiusB =
+            b.collider->halfExtents.x * std::fabs(axesB[0].Dot(axis)) +
+            b.collider->halfExtents.y * std::fabs(axesB[1].Dot(axis));
+        const float signedDistance = centerDelta.Dot(axis);
+        const float overlap = radiusA + radiusB - std::fabs(signedDistance);
+        if (!std::isfinite(radiusA) || !std::isfinite(radiusB) ||
+            !std::isfinite(signedDistance) || !std::isfinite(overlap)) {
+            return false;
+        }
+        if (overlap <= 0.0f) return false;
+        if (overlap < penetration) {
+            penetration = overlap;
+            normal = axis * (signedDistance < 0.0f ? -1.0f : 1.0f);
+        }
     }
-
-    const float overlapX = combinedHalfWidth - std::fabs(dx);
-    const float overlapY = combinedHalfHeight - std::fabs(dy);
-    if (overlapX <= 0.0f || overlapY <= 0.0f) return false;
-
-    // Resolve the axis with the least penetration. Ties use X, and coincident
-    // centers point from the lower entity ID toward the higher entity ID.
-    const bool useX = overlapX <= overlapY;
-    const float penetration = useX ? overlapX : overlapY;
-    const float signedDelta = useX ? dx : dy;
-    const Math::Vec2 normal = useX
-        ? Math::Vec2{signedDelta < 0.0f ? -1.0f : 1.0f, 0.0f}
-        : Math::Vec2{0.0f, signedDelta < 0.0f ? -1.0f : 1.0f};
 
     const float inverseMassSum = a.body->inverseMass + b.body->inverseMass;
     if (!std::isfinite(inverseMassSum) || inverseMassSum <= 0.0f)
@@ -467,6 +491,10 @@ void ResolveContinuousContacts(
             const CollisionBody& a = bodies[candidate.first];
             const CollisionBody& b = bodies[candidate.second];
             if (a.body->inverseMass + b.body->inverseMass <= 0.0f) continue;
+            // Swept-AABB time of impact is exact only for axis-aligned boxes.
+            // Rotated boxes are handled by the discrete OBB solver below.
+            if (a.rotationRadians != 0.0f || b.rotationRadians != 0.0f)
+                continue;
 
             SweepHit hit;
             if (FindSweptAabbHit(a, b, segmentStarts[candidate.first],
@@ -533,17 +561,21 @@ ContactSolveStats ResolveContacts(
                                               Transform2D& transform,
                                               RigidBody2D& body,
                                               BoxCollider2D& collider) {
+            const Rotation2D* rotation =
+                world.GetComponent<Rotation2D>(entity);
+            const float rotationRadians = rotation ? rotation->radians : 0.0f;
             const Restitution2D* material =
                 world.GetComponent<Restitution2D>(entity);
             const float restitution = material ? material->coefficient : 0.0f;
             if (IsValidCollisionBody(transform, body, collider,
-                                     restitution)) {
+                                     restitution, rotationRadians)) {
                 const auto previous = previousPositions.find(entity.id);
                 const Math::Vec2 previousPosition =
                     previous == previousPositions.end()
                         ? transform.position : previous->second;
                 bodies.push_back(
                     {entity, &transform, &body, &collider, restitution,
+                     rotationRadians,
                      previousPosition});
             }
         });
@@ -605,6 +637,7 @@ bool RigidBody2D::ApplyForce(const Math::Vec2& force) {
 
 void RegisterPhysicsComponents(ECS::World& world) {
     world.RegisterComponent<Transform2D>("PhysicsTransform2D");
+    world.RegisterComponent<Rotation2D>("PhysicsRotation2D");
     world.RegisterComponent<RigidBody2D>("PhysicsRigidBody2D");
     world.RegisterComponent<BoxCollider2D>("PhysicsBoxCollider2D");
     world.RegisterComponent<Restitution2D>("PhysicsRestitution2D");
@@ -669,6 +702,7 @@ void Physics2DSystem::DescribeAccess(ECS::AccessSpec& access) const {
     access.Write<Transform2D>();
     access.Write<RigidBody2D>();
     access.Read<BoxCollider2D>();
+    access.Read<Rotation2D>();
     access.Read<Restitution2D>();
 }
 

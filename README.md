@@ -835,16 +835,17 @@ pipeline、depth buffer 與以下進階功能仍在規劃中：
 
 ## Physics | 物理
 
-The engine includes a fixed-tick 2D rigid-body and axis-aligned box-contact
-foundation. It is available to external CMake projects as the installed
+The engine includes fixed-tick 2D rigid bodies, discrete rotated-box contacts,
+and swept contacts for axis-aligned boxes. It is available to external CMake projects as the installed
 `StonePotatoes::Physics` target; the installed-package consumer verifies
 gravity/force integration, high-speed wall and dynamic-body contacts, and
-friction through the public API. Additional physics systems remain planned:
+friction plus discrete rotated-box contacts through the public API. Rotated
+swept contacts and angular dynamics remain planned:
 
-引擎已有固定 tick 的 2D 剛體與軸對齊方盒接觸基礎；安裝後 consumer 亦透過公開 API 驗收高速撞牆、動態方盒對撞與摩擦，其他物理系統仍在規劃中：
+引擎已有固定 tick 的 2D 剛體與旋轉方盒離散接觸；安裝後 consumer 亦透過公開 API 驗收高速軸對齊方盒碰撞、旋轉方盒接觸與摩擦。旋轉 swept 碰撞及角動力學仍在規劃中：
 
-- Advanced Rigid Body (rotated shapes, joints, and richer dynamics)
-  進階剛體（旋轉形狀、關節與更完整的動力學）
+- Advanced Rigid Body (joints and richer dynamics)
+  進階剛體（關節與更完整的動力學）
 - Soft Body (deformation, cloth)
   軟體（變形、布料）
 - Fluid (water, gases)
@@ -998,7 +999,7 @@ StonePotatoes/
 │   # 實體-組件-系統 ✓
 │   ├── rendering/               # Vulkan 2D/initial 3D renderer + ImGui; OpenGL CPU-only fallback
 │   # Vulkan 渲染器 + ImGui/2D；CPU-only 建置保留 OpenGL 後備
-│   ├── physics/                 # Fixed-tick 2D bodies and AABB contacts
+│   ├── physics/                 # Fixed-tick 2D bodies and OBB SAT contacts
 │   # 固定 tick 2D 剛體與 AABB 接觸
 │   ├── ai/                      # AI engine (stub)
 │   # AI 引擎（存根）
