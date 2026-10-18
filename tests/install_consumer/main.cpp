@@ -498,6 +498,37 @@ int main(int argc, char** argv) {
         world.Shutdown();
     }
 
+    // An off-center swept impact through the installed API generates spin.
+    {
+        using namespace StonePotatoes::Physics;
+        StonePotatoes::ECS::World world;
+        world.GetSystemScheduler().RegisterSystem(
+            std::make_unique<Physics2DSystem>(StonePotatoes::Math::Vec2{}));
+        world.Initialize();
+
+        const auto wall = world.CreateEntity();
+        world.AddComponent(wall, Transform2D{});
+        RigidBody2D wallBody;
+        wallBody.inverseMass = 0.0f;
+        world.AddComponent(wall, wallBody);
+        world.AddComponent(wall, BoxCollider2D{{0.5f, 0.5f}});
+
+        const auto moving = world.CreateEntity();
+        world.AddComponent(moving, Transform2D{{-1.2f, 0.4f}});
+        world.AddComponent(moving, Rotation2D{});
+        RigidBody2D body;
+        body.velocity = {2.0f, 0.0f};
+        body.inverseInertia = 1.0f;
+        world.AddComponent(moving, body);
+        world.AddComponent(moving, BoxCollider2D{{0.5f, 0.5f}});
+
+        world.Update(0.2f);
+        const auto* result = world.GetComponent<RigidBody2D>(moving);
+        if (!result || std::fabs(result->angularVelocity) <= 0.05f)
+            return 63;
+        world.Shutdown();
+    }
+
     // The installed Physics target exposes optional restitution independently
     // of BoxCollider2D's persisted layout.
     {

@@ -147,52 +147,119 @@ bool IsSmallCellRange(const CellRange& range) {
            width * height <= kMaxCellsPerCollider;
 }
 
+float Cross(const Math::Vec2& a, const Math::Vec2& b) {
+    return a.x * b.y - a.y * b.x;
+}
+
+float ProjectionRadius(const CollisionBody& body, const Math::Vec2& axis) {
+    Math::Vec2 axes[2];
+    GetBoxAxes(body.rotationRadians, axes[0], axes[1]);
+    return body.collider->halfExtents.x * std::fabs(axes[0].Dot(axis)) +
+           body.collider->halfExtents.y * std::fabs(axes[1].Dot(axis));
+}
+
+bool FindContactPoint(const CollisionBody& a, const CollisionBody& b,
+                      const Math::Vec2& normal, Math::Vec2& contactPoint) {
+    const Math::Vec2 tangent{-normal.y, normal.x};
+    const float radiusNormalA = ProjectionRadius(a, normal);
+    const float radiusNormalB = ProjectionRadius(b, normal);
+    const float radiusTangentA = ProjectionRadius(a, tangent);
+    const float radiusTangentB = ProjectionRadius(b, tangent);
+    const float normalA = a.transform->position.Dot(normal) + radiusNormalA;
+    const float normalB = b.transform->position.Dot(normal) - radiusNormalB;
+    const float tangentCenterA = a.transform->position.Dot(tangent);
+    const float tangentCenterB = b.transform->position.Dot(tangent);
+    const float tangentMinimum = std::max(
+        tangentCenterA - radiusTangentA, tangentCenterB - radiusTangentB);
+    const float tangentMaximum = std::min(
+        tangentCenterA + radiusTangentA, tangentCenterB + radiusTangentB);
+    if (!std::isfinite(radiusNormalA) || !std::isfinite(radiusNormalB) ||
+        !std::isfinite(radiusTangentA) || !std::isfinite(radiusTangentB) ||
+        !std::isfinite(normalA) || !std::isfinite(normalB) ||
+        !std::isfinite(tangentMinimum) || !std::isfinite(tangentMaximum) ||
+        tangentMinimum > tangentMaximum) {
+        return false;
+    }
+    const float normalCoordinate = 0.5f * (normalA + normalB);
+    const float tangentCoordinate = 0.5f * (tangentMinimum + tangentMaximum);
+    contactPoint = normal * normalCoordinate + tangent * tangentCoordinate;
+    return IsFinite(contactPoint);
+}
+
 bool CalculateContactVelocities(const CollisionBody& a,
                                 const CollisionBody& b,
                                 const Math::Vec2& normal,
+                                const Math::Vec2& contactPoint,
                                 Math::Vec2& velocityA,
-                                Math::Vec2& velocityB) {
-    const float inverseMassSum = a.body->inverseMass + b.body->inverseMass;
-    if (!std::isfinite(inverseMassSum) || inverseMassSum <= 0.0f)
+                                Math::Vec2& velocityB,
+                                float& angularVelocityA,
+                                float& angularVelocityB) {
+    const Math::Vec2 armA = contactPoint - a.transform->position;
+    const Math::Vec2 armB = contactPoint - b.transform->position;
+    const float normalArmA = Cross(armA, normal);
+    const float normalArmB = Cross(armB, normal);
+    const float inverseMassA = a.body->inverseMass;
+    const float inverseMassB = b.body->inverseMass;
+    const float inverseInertiaA = a.body->inverseInertia;
+    const float inverseInertiaB = b.body->inverseInertia;
+    const float inverseNormalMass = inverseMassA + inverseMassB +
+        inverseInertiaA * normalArmA * normalArmA +
+        inverseInertiaB * normalArmB * normalArmB;
+    if (!std::isfinite(inverseNormalMass) || inverseNormalMass <= 0.0f)
         return false;
-
-    const Math::Vec2 velocityAForContact = a.body->inverseMass > 0.0f
-        ? a.body->velocity : Math::Vec2{};
-    const Math::Vec2 velocityBForContact = b.body->inverseMass > 0.0f
-        ? b.body->velocity : Math::Vec2{};
-    const Math::Vec2 relativeVelocity =
-        velocityBForContact - velocityAForContact;
-    const float normalVelocity = relativeVelocity.Dot(normal);
-    if (!std::isfinite(normalVelocity)) return false;
 
     velocityA = a.body->velocity;
     velocityB = b.body->velocity;
+    angularVelocityA = a.body->angularVelocity;
+    angularVelocityB = b.body->angularVelocity;
+    const auto pointVelocity = [](const Math::Vec2& linear, float angular,
+                                  const Math::Vec2& arm) {
+        return linear + Math::Vec2{-angular * arm.y, angular * arm.x};
+    };
+    const auto relativeAtContact = [&]() {
+        const Math::Vec2 linearA = inverseMassA > 0.0f
+            ? velocityA : Math::Vec2{};
+        const Math::Vec2 linearB = inverseMassB > 0.0f
+            ? velocityB : Math::Vec2{};
+        const float angularA = inverseInertiaA > 0.0f
+            ? angularVelocityA : 0.0f;
+        const float angularB = inverseInertiaB > 0.0f
+            ? angularVelocityB : 0.0f;
+        const Math::Vec2 pointA = pointVelocity(linearA, angularA, armA);
+        const Math::Vec2 pointB = pointVelocity(linearB, angularB, armB);
+        return pointB - pointA;
+    };
+
+    const float normalVelocity = relativeAtContact().Dot(normal);
+    if (!std::isfinite(normalVelocity)) return false;
     float normalImpulse = 0.0f;
     if (normalVelocity < 0.0f) {
         const float restitution = std::max(a.restitution, b.restitution);
         normalImpulse = -(1.0f + restitution) * normalVelocity /
-                        inverseMassSum;
+                        inverseNormalMass;
         if (!std::isfinite(normalImpulse)) return false;
-        if (a.body->inverseMass > 0.0f) {
-            velocityA -= normal * (normalImpulse * a.body->inverseMass);
-        }
-        if (b.body->inverseMass > 0.0f) {
-            velocityB += normal * (normalImpulse * b.body->inverseMass);
-        }
+        if (inverseMassA > 0.0f)
+            velocityA -= normal * (normalImpulse * inverseMassA);
+        if (inverseMassB > 0.0f)
+            velocityB += normal * (normalImpulse * inverseMassB);
+        angularVelocityA -= normalImpulse * normalArmA * inverseInertiaA;
+        angularVelocityB += normalImpulse * normalArmB * inverseInertiaB;
     }
 
     if (normalImpulse > 0.0f) {
         const Math::Vec2 tangent{-normal.y, normal.x};
-        const Math::Vec2 velocityAForFriction = a.body->inverseMass > 0.0f
-            ? velocityA : Math::Vec2{};
-        const Math::Vec2 velocityBForFriction = b.body->inverseMass > 0.0f
-            ? velocityB : Math::Vec2{};
-        const float tangentVelocity =
-            (velocityBForFriction - velocityAForFriction).Dot(tangent);
-        if (!std::isfinite(tangentVelocity)) return false;
-
+        const float tangentArmA = Cross(armA, tangent);
+        const float tangentArmB = Cross(armB, tangent);
+        const float inverseTangentMass = inverseMassA + inverseMassB +
+            inverseInertiaA * tangentArmA * tangentArmA +
+            inverseInertiaB * tangentArmB * tangentArmB;
+        const float tangentVelocity = relativeAtContact().Dot(tangent);
+        if (!std::isfinite(inverseTangentMass) || inverseTangentMass <= 0.0f ||
+            !std::isfinite(tangentVelocity)) {
+            return false;
+        }
         const float desiredTangentImpulse =
-            -tangentVelocity / inverseMassSum;
+            -tangentVelocity / inverseTangentMass;
         const double staticFriction = std::sqrt(
             static_cast<double>(a.collider->staticFriction) *
             static_cast<double>(b.collider->staticFriction));
@@ -215,19 +282,18 @@ bool CalculateContactVelocities(const CollisionBody& a,
                 static_cast<double>(std::numeric_limits<float>::max())) {
             return false;
         }
-
         const float tangentImpulse = static_cast<float>(tangentImpulseValue);
-        if (a.body->inverseMass > 0.0f) {
-            velocityA -=
-                tangent * (tangentImpulse * a.body->inverseMass);
-        }
-        if (b.body->inverseMass > 0.0f) {
-            velocityB +=
-                tangent * (tangentImpulse * b.body->inverseMass);
-        }
+        if (inverseMassA > 0.0f)
+            velocityA -= tangent * (tangentImpulse * inverseMassA);
+        if (inverseMassB > 0.0f)
+            velocityB += tangent * (tangentImpulse * inverseMassB);
+        angularVelocityA -= tangentImpulse * tangentArmA * inverseInertiaA;
+        angularVelocityB += tangentImpulse * tangentArmB * inverseInertiaB;
     }
 
-    return IsFinite(velocityA) && IsFinite(velocityB);
+    return IsFinite(velocityA) && IsFinite(velocityB) &&
+           std::isfinite(angularVelocityA) &&
+           std::isfinite(angularVelocityB);
 }
 
 bool ResolvePair(CollisionBody& a, CollisionBody& b) {
@@ -265,22 +331,30 @@ bool ResolvePair(CollisionBody& a, CollisionBody& b) {
     }
 
     const float inverseMassSum = a.body->inverseMass + b.body->inverseMass;
-    if (!std::isfinite(inverseMassSum) || inverseMassSum <= 0.0f)
+    if (!std::isfinite(inverseMassSum) || inverseMassSum < 0.0f)
         return false;
-
-    const float aShare = a.body->inverseMass / inverseMassSum;
-    const float bShare = b.body->inverseMass / inverseMassSum;
-    const float correctionDepth =
-        penetration > kContactPositionSlop ? penetration : 0.0f;
+    const float aShare = inverseMassSum > 0.0f
+        ? a.body->inverseMass / inverseMassSum : 0.0f;
+    const float bShare = inverseMassSum > 0.0f
+        ? b.body->inverseMass / inverseMassSum : 0.0f;
+    const float correctionDepth = inverseMassSum > 0.0f &&
+                                  penetration > kContactPositionSlop
+        ? penetration : 0.0f;
     const Math::Vec2 correctionA = normal * (-correctionDepth * aShare);
     const Math::Vec2 correctionB = normal * (correctionDepth * bShare);
     const Math::Vec2 positionA = a.transform->position + correctionA;
     const Math::Vec2 positionB = b.transform->position + correctionB;
 
     if (!IsFinite(positionA) || !IsFinite(positionB)) return false;
+    Math::Vec2 contactPoint{};
+    if (!FindContactPoint(a, b, normal, contactPoint)) return false;
     Math::Vec2 velocityA{};
     Math::Vec2 velocityB{};
-    if (!CalculateContactVelocities(a, b, normal, velocityA, velocityB))
+    float angularVelocityA = 0.0f;
+    float angularVelocityB = 0.0f;
+    if (!CalculateContactVelocities(a, b, normal, contactPoint,
+                                   velocityA, velocityB,
+                                   angularVelocityA, angularVelocityB))
         return false;
 
     const bool changed = positionA.x != a.transform->position.x ||
@@ -290,13 +364,17 @@ bool ResolvePair(CollisionBody& a, CollisionBody& b) {
                          velocityA.x != a.body->velocity.x ||
                          velocityA.y != a.body->velocity.y ||
                          velocityB.x != b.body->velocity.x ||
-                         velocityB.y != b.body->velocity.y;
+                         velocityB.y != b.body->velocity.y ||
+                         angularVelocityA != a.body->angularVelocity ||
+                         angularVelocityB != b.body->angularVelocity;
     if (!changed) return false;
 
     a.transform->position = positionA;
     b.transform->position = positionB;
     a.body->velocity = velocityA;
     b.body->velocity = velocityB;
+    a.body->angularVelocity = angularVelocityA;
+    b.body->angularVelocity = angularVelocityB;
     return true;
 }
 
@@ -499,7 +577,10 @@ void ResolveContinuousContacts(
         for (const auto& candidate : candidates) {
             const CollisionBody& a = bodies[candidate.first];
             const CollisionBody& b = bodies[candidate.second];
-            if (a.body->inverseMass + b.body->inverseMass <= 0.0f) continue;
+            if (a.body->inverseMass + a.body->inverseInertia +
+                    b.body->inverseMass + b.body->inverseInertia <= 0.0f) {
+                continue;
+            }
             SweepHit hit;
             if (FindSweptBoxHit(a, b, segmentStarts[candidate.first],
                                 a.transform->position,
@@ -526,10 +607,16 @@ void ResolveContinuousContacts(
 
         Math::Vec2 velocityA{};
         Math::Vec2 velocityB{};
+        float angularVelocityA = 0.0f;
+        float angularVelocityB = 0.0f;
         CollisionBody& a = bodies[firstIndex];
         CollisionBody& b = bodies[secondIndex];
-        if (!CalculateContactVelocities(a, b, earliestHit.normal,
-                                        velocityA, velocityB)) {
+        Math::Vec2 contactPoint{};
+        if (!FindContactPoint(a, b, earliestHit.normal, contactPoint) ||
+            !CalculateContactVelocities(a, b, earliestHit.normal,
+                                        contactPoint, velocityA, velocityB,
+                                        angularVelocityA,
+                                        angularVelocityB)) {
             // Keep bodies at the last safe time of impact if the impulse would
             // produce a non-finite state.
             return;
@@ -540,6 +627,8 @@ void ResolveContinuousContacts(
         if (!std::isfinite(nextRemainingTime)) return;
         a.body->velocity = velocityA;
         b.body->velocity = velocityB;
+        a.body->angularVelocity = angularVelocityA;
+        b.body->angularVelocity = angularVelocityB;
         if (a.body->inverseMass > 0.0f) motionVelocities[firstIndex] = velocityA;
         if (b.body->inverseMass > 0.0f) motionVelocities[secondIndex] = velocityB;
         remainingTime = nextRemainingTime;

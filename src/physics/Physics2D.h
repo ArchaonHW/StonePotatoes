@@ -69,14 +69,14 @@ void RegisterPhysicsComponents(ECS::World& world);
 // optional restitution and Coulomb friction, plus event-driven swept SAT
 // contacts for boxes whose orientations remain fixed during a tick.
 // Use Game::SetFixedStep to feed this system a stable tick; inverseMass == 0
-// marks an immovable body. Rotation2D is integrated from angular velocity;
-// collision impulses remain linear and swept SAT assumes fixed orientation
-// during the tick.
+// disables translation and inverseInertia == 0 disables rotation. Contact
+// impulses affect both velocities using an estimated OBB contact point;
+// swept SAT keeps orientations fixed for the duration of a tick.
 // 以半隱式 Euler 積分剛體，再依 entity ID 順序有限輪解析離散 OBB SAT 接觸、
 // 可選恢復係數與庫侖摩擦，並以事件推進方式處理固定朝向方盒的 swept SAT
-// 碰撞。透過 Game::SetFixedStep 提供固定 tick；inverseMass == 0 代表不可移動的剛體。
-// Rotation2D 可由角速度積分更新；碰撞衝量目前仍只影響線速度，且 swept SAT
-// 假設單一 tick 內朝向固定。
+// 碰撞。透過 Game::SetFixedStep 提供固定 tick；inverseMass == 0 停用平移，
+// inverseInertia == 0 停用旋轉。接觸衝量會透過估算的 OBB 接觸點影響兩種速度；
+// swept SAT 在整個 tick 內將朝向視為固定。
 class Physics2DSystem final : public ECS::System {
 public:
     explicit Physics2DSystem(Math::Vec2 gravity = {0.0f, -9.81f});

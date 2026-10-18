@@ -252,6 +252,37 @@ int TestDynamicHeadOnContact() {
     return 0;
 }
 
+int TestOffCenterContactGeneratesAngularVelocity() {
+    ECS::World world;
+    RegisterPhysicsComponents(world);
+    world.GetSystemScheduler().RegisterSystem(
+        std::make_unique<Physics2DSystem>(Math::Vec2{}));
+    world.Initialize();
+
+    const ECS::Entity wall = world.CreateEntity();
+    world.AddComponent(wall, Transform2D{});
+    RigidBody2D wallBody;
+    wallBody.inverseMass = 0.0f;
+    world.AddComponent(wall, wallBody);
+    world.AddComponent(wall, BoxCollider2D{{0.5f, 0.5f}});
+
+    const ECS::Entity moving = world.CreateEntity();
+    world.AddComponent(moving, Transform2D{{-1.2f, 0.4f}});
+    world.AddComponent(moving, Rotation2D{});
+    RigidBody2D movingBody;
+    movingBody.velocity = {2.0f, 0.0f};
+    movingBody.inverseInertia = 1.0f;
+    world.AddComponent(moving, movingBody);
+    world.AddComponent(moving, BoxCollider2D{{0.5f, 0.5f}});
+
+    world.Update(0.2f);
+    const auto* result = world.GetComponent<RigidBody2D>(moving);
+    CHECK(result && std::fabs(result->angularVelocity) > 0.05f);
+
+    world.Shutdown();
+    return 0;
+}
+
 int TestCoulombContactFriction() {
     ECS::World world;
     RegisterPhysicsComponents(world);
@@ -826,6 +857,8 @@ int main() {
     if (const int result = TestStaticAabbContactAndFramePartitionDeterminism())
         return result;
     if (const int result = TestDynamicHeadOnContact()) return result;
+    if (const int result = TestOffCenterContactGeneratesAngularVelocity())
+        return result;
     if (const int result = TestCoulombContactFriction()) return result;
     if (const int result = TestRestitutionForDiscreteAndSweptContacts())
         return result;
