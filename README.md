@@ -837,15 +837,15 @@ pipeline、depth buffer 與以下進階功能仍在規劃中：
 
 The engine includes fixed-tick 2D rigid bodies, torque-driven orientation
 updates, and contact-point angular impulses for discrete and swept box
-contacts. Swept SAT holds box orientation fixed during each tick. It is
+contacts. Swept SAT uses conservative advancement when boxes rotate during a
+tick. It is
 available to external CMake projects as the installed
 `StonePotatoes::Physics` target; the installed-package consumer verifies
 gravity/force/torque integration, high-speed axis-aligned and rotated-box
-contacts, friction, and angular impulses from offset impacts through the public
-API. Multi-point contact manifolds and rotation-aware continuous collision
-detection remain planned:
+contacts, rotation-sweep impacts, friction, and angular impulses from offset
+impacts through the public API. Multi-point contact manifolds remain planned:
 
-引擎已有固定 tick 的 2D 剛體、角速度／扭矩積分與單點接觸角衝量；安裝後 consumer 亦透過公開 API 驗收高速軸對齊及旋轉方盒碰撞、摩擦與偏心衝擊角速度。多點接觸流形與旋轉中的連續碰撞偵測仍在規劃中：
+引擎已有固定 tick 的 2D 剛體、角速度／扭矩積分、單點接觸角衝量與旋轉中的保守連續碰撞偵測；安裝後 consumer 亦透過公開 API 驗收高速軸對齊／旋轉方盒碰撞、旋轉掃掠碰撞、摩擦與偏心衝擊角速度。多點接觸流形仍在規劃中：
 
 - Advanced Rigid Body (joints and richer contact manifolds)
   進階剛體（關節與多點接觸流形）

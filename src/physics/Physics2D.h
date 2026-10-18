@@ -30,6 +30,7 @@ struct RigidBody2D {
     float inverseMass = 1.0f;
     float angularVelocity = 0.0f;
     float accumulatedTorque = 0.0f;
+    // Zero locks rotation. OBB contact angular response requires Rotation2D.
     float inverseInertia = 0.0f;
 
     // Accumulate a finite force for the next physics tick.
@@ -67,16 +68,17 @@ void RegisterPhysicsComponents(ECS::World& world);
 // Integrates bodies with semi-implicit Euler, then performs bounded,
 // entity-ID ordered iterations over discrete oriented-box contacts with
 // optional restitution and Coulomb friction, plus event-driven swept SAT
-// contacts for boxes whose orientations remain fixed during a tick.
+// contacts with conservative advancement for rotating boxes.
 // Use Game::SetFixedStep to feed this system a stable tick; inverseMass == 0
 // disables translation and inverseInertia == 0 disables rotation. Contact
 // impulses affect both velocities using an estimated OBB contact point;
-// swept SAT keeps orientations fixed for the duration of a tick.
+// rotating swept SAT bounds per-pair advancement and recalculates orientation
+// during the remaining tick after an impact.
 // 以半隱式 Euler 積分剛體，再依 entity ID 順序有限輪解析離散 OBB SAT 接觸、
 // 可選恢復係數與庫侖摩擦，並以事件推進方式處理固定朝向方盒的 swept SAT
 // 碰撞。透過 Game::SetFixedStep 提供固定 tick；inverseMass == 0 停用平移，
 // inverseInertia == 0 停用旋轉。接觸衝量會透過估算的 OBB 接觸點影響兩種速度；
-// swept SAT 在整個 tick 內將朝向視為固定。
+// 旋轉 swept SAT 使用有界保守推進，碰撞後會依新角速度重算剩餘 tick 的朝向。
 class Physics2DSystem final : public ECS::System {
 public:
     explicit Physics2DSystem(Math::Vec2 gravity = {0.0f, -9.81f});
