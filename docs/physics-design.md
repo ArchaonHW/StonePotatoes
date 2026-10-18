@@ -1,8 +1,9 @@
 # Physics vertical slice: deterministic 2D fixed-tick bodies and box contacts
 
-Status: fixed-tick 2D body integration, discrete oriented-box contacts,
-Coulomb friction, configurable restitution, and event-driven swept SAT
-contacts between boxes with fixed orientations are implemented.
+Status: the Phase 4 core vertical slice is implemented: fixed-tick 2D body
+integration, discrete oriented-box contacts, Coulomb friction, configurable
+restitution, and event-driven swept SAT with bounded conservative advancement
+for rotating boxes.
 This is a deliberately small collision slice, not a general-purpose rigid-body
 solver.
 
