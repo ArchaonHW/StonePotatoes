@@ -529,7 +529,7 @@ int main(int argc, char** argv) {
         world.Shutdown();
     }
 
-    // Swept rotational SAT catches a bar crossing a static obstacle mid-tick.
+    // Swept rotational SAT catches a fast rotating bar crossing an obstacle.
     {
         using namespace StonePotatoes::Physics;
         StonePotatoes::ECS::World world;
@@ -543,7 +543,7 @@ int main(int argc, char** argv) {
         RigidBody2D rotatingBody;
         rotatingBody.inverseMass = 0.0f;
         rotatingBody.inverseInertia = 1.0f;
-        rotatingBody.angularVelocity = 3.14159265359f;
+        rotatingBody.angularVelocity = 16.0f * 3.14159265359f;
         world.AddComponent(rotating, rotatingBody);
         world.AddComponent(rotating, BoxCollider2D{{2.0f, 0.1f}});
 
@@ -557,9 +557,13 @@ int main(int argc, char** argv) {
         world.Update(1.0f);
         const auto* rotation = world.GetComponent<Rotation2D>(rotating);
         const auto* result = world.GetComponent<RigidBody2D>(rotating);
-        if (!rotation || !result ||
-            std::fabs(rotation->radians - 1.57079632679f) <= 0.05f ||
-            std::fabs(result->angularVelocity) >= 3.0f) {
+        if (!rotation || !result || !std::isfinite(rotation->radians) ||
+            !std::isfinite(result->angularVelocity) ||
+            std::fabs(result->angularVelocity) >=
+                std::fabs(rotatingBody.angularVelocity) ||
+            std::fabs(rotation->radians -
+                      (-1.57079632679f + rotatingBody.angularVelocity)) <=
+                1.0f) {
             return 64;
         }
         world.Shutdown();

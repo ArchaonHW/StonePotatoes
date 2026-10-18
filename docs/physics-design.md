@@ -137,7 +137,9 @@ canonicalization are not promised.
   contact instead of crossing the other box.
 - A rotating long box that would sweep through an obstacle is stopped at its
   first rotational SAT impact, and the post-impact angular speed controls the
-  rest of the tick.
+  rest of the tick. The unit and installed-consumer cases also cover an angular
+  speed of eight revolutions per second within one tick, exercising the
+  conservative-advancement budget of 128 steps.
 - The same collision setup produces equal results across different render-frame
   partitions.
 - A 256-body separated scene sends substantially fewer pairs to narrow phase
