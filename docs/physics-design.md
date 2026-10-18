@@ -41,18 +41,25 @@ chasing floating-point residue. `GetLastContactIterationCount()` and
 still changes state on the final allowed pass is conservatively reported as
 not converged. The narrow phase uses the four box axes SAT and separates
 overlapping boxes along the least-penetration axis, with displacement weighted
-by inverse mass. A
-normal impulse applies the contact restitution. `Restitution2D` is an optional
+by inverse mass. The contact point is estimated from the midpoint of the
+tangent overlap interval and the average of the two projected normal
+surfaces. A normal impulse applies contact restitution and changes both linear
+and angular velocity. Its effective inverse mass is `invMassA + invMassB +
+invInertiaA * cross(rA, n)^2 + invInertiaB * cross(rB, n)^2`, where `rA` and
+`rB` are contact offsets from each center and `n` is the contact normal.
+`Restitution2D` is an optional
 POD component with a coefficient in `[0, 1]`; absent components behave as zero.
 The contact uses the larger coefficient from its two bodies, so a moving body
 can opt into bounce without requiring static geometry to carry a material.
 With `e` as the combined coefficient and `vN` as the closing normal speed, the
-impulse magnitude is `-(1 + e) * vN / inverseMassSum`. Zero preserves the
+impulse magnitude is `-(1 + e) * vN / effectiveInverseMass`. Zero preserves the
 existing inelastic behavior. When the normal impulse is nonzero, the solver
 applies Coulomb friction along the contact tangent: it cancels tangential
 velocity up to the static-friction limit, then uses the dynamic-friction limit
 for sliding. Each limit is the geometric mean of the two colliders'
-coefficients multiplied by the normal impulse. Both friction coefficients
+coefficients multiplied by the normal impulse. Friction uses the corresponding
+contact-point effective mass and can also change angular velocity. Both
+friction coefficients
 default to zero, preserving frictionless contacts; dynamic friction must be no
 greater than static friction. Invalid or non-finite body, collider, or material
 state is skipped by collision handling.
@@ -63,9 +70,13 @@ static-dynamic and dynamic-dynamic pairs during the remaining tick. The four
 OBB axes remain fixed during the tick; their projected intervals yield the
 continuous contact time for axis-aligned and rotated boxes. Bodies
 advance to that time of impact in entity-ID pair order, then receive the same
-restitution-aware normal and Coulomb friction impulses as discrete contacts;
-dynamic motion is distributed by inverse mass. The remaining tick is
-simulated again with the updated velocities. A bounded event budget prevents
+restitution-aware normal and Coulomb friction impulses as discrete contacts,
+including angular velocity changes at the estimated contact point; linear
+motion is distributed by inverse mass and angular motion by inverse inertia.
+The event loop advances remaining linear motion with the updated linear
+velocities. Orientation has already been integrated for this tick, so angular
+velocity changes from a swept impact affect orientation starting on the next
+tick. A bounded event budget prevents
 unbounded work; if it is exhausted, bodies stay at the last resolved impact
 and the unprocessed time is discarded to avoid tunneling. Initial overlaps
 remain the discrete solver's responsibility. Rotated boxes use the same OBB
@@ -132,6 +143,7 @@ canonicalization are not promised.
 - Non-finite forces and invalid physics deltas do not contaminate body state.
 
 The discrete solver separates coincident initial boxes using entity-ID order.
-Angular velocity and torque integration are implemented, but angular contact
-impulses, more advanced initial-overlap recovery beyond the bounded solver,
-joints, and cross-platform replay serialization remain future work.
+Angular velocity and torque integration, plus single-point angular contact
+impulses, are implemented. Multi-point manifolds, rotation-aware continuous
+collision detection, more advanced initial-overlap recovery beyond the bounded
+solver, joints, and cross-platform replay serialization remain future work.
