@@ -21,12 +21,23 @@ bool IsFinite(const Math::Vec2& value) {
 struct CollisionBody {
     ECS::Entity entity;
     Transform2D* transform;
+    Rotation2D* rotation;
     RigidBody2D* body;
     BoxCollider2D* collider;
     float restitution;
     float rotationRadians;
     Math::Vec2 previousPosition;
+    float previousRotationRadians;
 };
+
+float GetRotationRate(const CollisionBody& body) {
+    return body.rotation && body.body->inverseInertia > 0.0f
+        ? body.body->angularVelocity : 0.0f;
+}
+
+float GetCollisionInverseInertia(const CollisionBody& body) {
+    return body.rotation ? body.body->inverseInertia : 0.0f;
+}
 
 Math::Vec2 GetAabbHalfExtents(const CollisionBody& body) {
     const float cosine = std::fabs(std::cos(body.rotationRadians));
@@ -119,7 +130,13 @@ bool GetSweptCellRange(const CollisionBody& body, CellRange& range) {
     const double startY = static_cast<double>(body.previousPosition.y);
     const double endX = static_cast<double>(body.transform->position.x);
     const double endY = static_cast<double>(body.transform->position.y);
-    const Math::Vec2 aabbHalfExtents = GetAabbHalfExtents(body);
+    Math::Vec2 aabbHalfExtents = GetAabbHalfExtents(body);
+    if (GetRotationRate(body) != 0.0f) {
+        const float radius = std::sqrt(
+            body.collider->halfExtents.x * body.collider->halfExtents.x +
+            body.collider->halfExtents.y * body.collider->halfExtents.y);
+        aabbHalfExtents = {radius, radius};
+    }
     const double halfWidth = static_cast<double>(aabbHalfExtents.x);
     const double halfHeight = static_cast<double>(aabbHalfExtents.y);
     const double minCellX = std::floor(
@@ -158,6 +175,14 @@ float ProjectionRadius(const CollisionBody& body, const Math::Vec2& axis) {
            body.collider->halfExtents.y * std::fabs(axes[1].Dot(axis));
 }
 
+float ProjectionRadius(const BoxCollider2D& collider, float rotationRadians,
+                       const Math::Vec2& axis) {
+    Math::Vec2 axes[2];
+    GetBoxAxes(rotationRadians, axes[0], axes[1]);
+    return collider.halfExtents.x * std::fabs(axes[0].Dot(axis)) +
+           collider.halfExtents.y * std::fabs(axes[1].Dot(axis));
+}
+
 bool FindContactPoint(const CollisionBody& a, const CollisionBody& b,
                       const Math::Vec2& normal, Math::Vec2& contactPoint) {
     const Math::Vec2 tangent{-normal.y, normal.x};
@@ -186,6 +211,140 @@ bool FindContactPoint(const CollisionBody& a, const CollisionBody& b,
     return IsFinite(contactPoint);
 }
 
+struct SweepHit {
+    float fraction = 0.0f;
+    Math::Vec2 normal{};
+};
+
+bool FindSweptRotatingBoxHit(const CollisionBody& a, const CollisionBody& b,
+                             const Math::Vec2& startA,
+                             const Math::Vec2& velocityA,
+                             float angleA,
+                             const Math::Vec2& startB,
+                             const Math::Vec2& velocityB,
+                             float angleB,
+                             float deltaTime,
+                             SweepHit& hit) {
+    if (!std::isfinite(deltaTime) || deltaTime <= 0.0f) return false;
+    const float angularRateA = GetRotationRate(a);
+    const float angularRateB = GetRotationRate(b);
+    const float radiusA = std::sqrt(
+        a.collider->halfExtents.x * a.collider->halfExtents.x +
+        a.collider->halfExtents.y * a.collider->halfExtents.y);
+    const float radiusB = std::sqrt(
+        b.collider->halfExtents.x * b.collider->halfExtents.x +
+        b.collider->halfExtents.y * b.collider->halfExtents.y);
+    const Math::Vec2 relativeVelocity = velocityB - velocityA;
+    const float linearSpeed = std::sqrt(relativeVelocity.Dot(relativeVelocity));
+    constexpr float kSeparationTolerance = 1.0e-4f;
+    constexpr int kMaxAdvances = 128;
+
+    float time = 0.0f;
+    for (int advanceIndex = 0; advanceIndex < kMaxAdvances; ++advanceIndex) {
+        const Math::Vec2 positionA = startA + velocityA * time;
+        const Math::Vec2 positionB = startB + velocityB * time;
+        const float rotationA = angleA + angularRateA * time;
+        const float rotationB = angleB + angularRateB * time;
+        const Math::Vec2 centerDelta = positionB - positionA;
+        if (!IsFinite(positionA) || !IsFinite(positionB) ||
+            !std::isfinite(rotationA) || !std::isfinite(rotationB) ||
+            !IsFinite(centerDelta)) {
+            return false;
+        }
+
+        Math::Vec2 axesA[2];
+        Math::Vec2 axesB[2];
+        GetBoxAxes(rotationA, axesA[0], axesA[1]);
+        GetBoxAxes(rotationB, axesB[0], axesB[1]);
+        const Math::Vec2 axes[] = {
+            axesA[0], axesA[1], axesB[0], axesB[1]};
+        float separation = -std::numeric_limits<float>::infinity();
+        Math::Vec2 normal{};
+        for (const Math::Vec2& axis : axes) {
+            const float projectedA = ProjectionRadius(
+                *a.collider, rotationA, axis);
+            const float projectedB = ProjectionRadius(
+                *b.collider, rotationB, axis);
+            const float signedDistance = centerDelta.Dot(axis);
+            const float axisSeparation = std::fabs(signedDistance) -
+                                         projectedA - projectedB;
+            if (!std::isfinite(projectedA) || !std::isfinite(projectedB) ||
+                !std::isfinite(signedDistance) ||
+                !std::isfinite(axisSeparation)) {
+                return false;
+            }
+            if (axisSeparation > separation) {
+                separation = axisSeparation;
+                normal = axis * (signedDistance < 0.0f ? -1.0f : 1.0f);
+            }
+        }
+
+        if (time > 0.0f && separation <= kSeparationTolerance) {
+            const Math::Vec2 tangent{-normal.y, normal.x};
+            const float tangentRadiusA = ProjectionRadius(
+                *a.collider, rotationA, tangent);
+            const float tangentRadiusB = ProjectionRadius(
+                *b.collider, rotationB, tangent);
+            const float tangentCenterA = positionA.Dot(tangent);
+            const float tangentCenterB = positionB.Dot(tangent);
+            const float tangentMin = std::max(
+                tangentCenterA - tangentRadiusA,
+                tangentCenterB - tangentRadiusB);
+            const float tangentMax = std::min(
+                tangentCenterA + tangentRadiusA,
+                tangentCenterB + tangentRadiusB);
+            if (!std::isfinite(tangentMin) || !std::isfinite(tangentMax) ||
+                tangentMin > tangentMax) {
+                return false;
+            }
+            const float normalSurfaceA = positionA.Dot(normal) +
+                ProjectionRadius(*a.collider, rotationA, normal);
+            const float normalSurfaceB = positionB.Dot(normal) -
+                ProjectionRadius(*b.collider, rotationB, normal);
+            const float tangentCoordinate = 0.5f * (tangentMin + tangentMax);
+            const float normalCoordinate =
+                0.5f * (normalSurfaceA + normalSurfaceB);
+            const Math::Vec2 contact =
+                normal * normalCoordinate + tangent * tangentCoordinate;
+            const Math::Vec2 armA = contact - positionA;
+            const Math::Vec2 armB = contact - positionB;
+            const Math::Vec2 pointVelocityA = velocityA + Math::Vec2{
+                -angularRateA * armA.y, angularRateA * armA.x};
+            const Math::Vec2 pointVelocityB = velocityB + Math::Vec2{
+                -angularRateB * armB.y, angularRateB * armB.x};
+            const float closingSpeed =
+                (pointVelocityB - pointVelocityA).Dot(normal);
+            if (!std::isfinite(closingSpeed)) return false;
+            if (closingSpeed < 0.0f) {
+                hit.fraction = time / deltaTime;
+                hit.normal = normal;
+                return true;
+            }
+            time += std::max(deltaTime / 2048.0f, 1.0e-6f);
+            if (time >= deltaTime) return false;
+            continue;
+        }
+
+        // Initial overlap recovery remains the discrete solver's job.
+        if (time == 0.0f && separation <= 0.0f) return false;
+        const float centerDistance = std::sqrt(centerDelta.Dot(centerDelta));
+        const float angularSpeed =
+            std::fabs(angularRateA) + std::fabs(angularRateB);
+        const float speedBound = linearSpeed + angularSpeed *
+            (centerDistance + radiusA + radiusB);
+        if (!std::isfinite(centerDistance) || !std::isfinite(speedBound) ||
+            speedBound <= 0.0f) {
+            return false;
+        }
+        const float step = std::max(
+            0.8f * std::max(separation, 0.0f) / speedBound,
+            deltaTime * 1.0e-7f);
+        if (!std::isfinite(step) || time + step > deltaTime) return false;
+        time += step;
+    }
+    return false;
+}
+
 bool CalculateContactVelocities(const CollisionBody& a,
                                 const CollisionBody& b,
                                 const Math::Vec2& normal,
@@ -200,8 +359,8 @@ bool CalculateContactVelocities(const CollisionBody& a,
     const float normalArmB = Cross(armB, normal);
     const float inverseMassA = a.body->inverseMass;
     const float inverseMassB = b.body->inverseMass;
-    const float inverseInertiaA = a.body->inverseInertia;
-    const float inverseInertiaB = b.body->inverseInertia;
+    const float inverseInertiaA = GetCollisionInverseInertia(a);
+    const float inverseInertiaB = GetCollisionInverseInertia(b);
     const float inverseNormalMass = inverseMassA + inverseMassB +
         inverseInertiaA * normalArmA * normalArmA +
         inverseInertiaB * normalArmB * normalArmB;
@@ -428,11 +587,6 @@ BuildCandidates(const std::vector<CollisionBody>& bodies,
     return candidates;
 }
 
-struct SweepHit {
-    float fraction = 0.0f;
-    Math::Vec2 normal{};
-};
-
 bool FindSweptBoxHit(const CollisionBody& a, const CollisionBody& b,
                      const Math::Vec2& startA, const Math::Vec2& endA,
                      const Math::Vec2& startB, const Math::Vec2& endB,
@@ -536,16 +690,24 @@ void ResolveContinuousContacts(
         ? 256 : std::max<std::size_t>(4, bodies.size() * 4);
     std::vector<Math::Vec2> segmentStarts(bodies.size());
     std::vector<Math::Vec2> motionVelocities(bodies.size());
+    std::vector<float> segmentStartAngles(bodies.size());
     bool hasMotion = false;
 
     for (std::size_t i = 0; i < bodies.size(); ++i) {
         CollisionBody& body = bodies[i];
         segmentStarts[i] = body.body->inverseMass > 0.0f
             ? body.previousPosition : body.transform->position;
-        if (body.body->inverseMass > 0.0f &&
-            (segmentStarts[i].x != body.transform->position.x ||
-             segmentStarts[i].y != body.transform->position.y)) {
-            motionVelocities[i] = body.body->velocity;
+        motionVelocities[i] = body.body->inverseMass > 0.0f
+            ? body.body->velocity : Math::Vec2{};
+        segmentStartAngles[i] = body.previousRotationRadians;
+        if (body.rotation) {
+            body.rotation->radians = segmentStartAngles[i];
+            body.rotationRadians = segmentStartAngles[i];
+        }
+        if (motionVelocities[i].x != 0.0f ||
+            motionVelocities[i].y != 0.0f ||
+            (body.rotation && body.body->inverseInertia > 0.0f &&
+             body.body->angularVelocity != 0.0f)) {
             hasMotion = true;
         }
         body.previousPosition = segmentStarts[i];
@@ -563,6 +725,9 @@ void ResolveContinuousContacts(
             body.transform->position = body.body->inverseMass > 0.0f
                 ? segmentStarts[i] + motionVelocities[i] * remainingTime
                 : segmentStarts[i];
+            body.rotationRadians = segmentStartAngles[i] +
+                GetRotationRate(body) * remainingTime;
+            if (body.rotation) body.rotation->radians = body.rotationRadians;
         }
 
         const auto candidates = BuildCandidates(bodies, true);
@@ -582,10 +747,21 @@ void ResolveContinuousContacts(
                 continue;
             }
             SweepHit hit;
-            if (FindSweptBoxHit(a, b, segmentStarts[candidate.first],
-                                a.transform->position,
-                                segmentStarts[candidate.second],
-                                b.transform->position, hit) &&
+            const float angularRateA = GetRotationRate(a);
+            const float angularRateB = GetRotationRate(b);
+            const bool hitFound = angularRateA != 0.0f || angularRateB != 0.0f
+                ? FindSweptRotatingBoxHit(
+                      a, b, segmentStarts[candidate.first],
+                      motionVelocities[candidate.first],
+                      segmentStartAngles[candidate.first],
+                      segmentStarts[candidate.second],
+                      motionVelocities[candidate.second],
+                      segmentStartAngles[candidate.second], remainingTime, hit)
+                : FindSweptBoxHit(a, b, segmentStarts[candidate.first],
+                                  a.transform->position,
+                                  segmentStarts[candidate.second],
+                                  b.transform->position, hit);
+            if (hitFound &&
                 (!foundHit || hit.fraction < earliestFraction)) {
                 foundHit = true;
                 earliestFraction = hit.fraction;
@@ -602,6 +778,13 @@ void ResolveContinuousContacts(
             if (bodies[i].body->inverseMass > 0.0f) {
                 segmentStarts[i] += motionVelocities[i] * elapsedTime;
                 bodies[i].transform->position = segmentStarts[i];
+            }
+            if (GetRotationRate(bodies[i]) != 0.0f) {
+                segmentStartAngles[i] +=
+                    GetRotationRate(bodies[i]) * elapsedTime;
+                bodies[i].rotationRadians = segmentStartAngles[i];
+                if (bodies[i].rotation)
+                    bodies[i].rotation->radians = segmentStartAngles[i];
             }
         }
 
@@ -647,14 +830,15 @@ struct ContactSolveStats {
 ContactSolveStats ResolveContacts(
     ECS::World& world,
     const std::map<ECS::EntityID, Math::Vec2>& previousPositions,
+    const std::map<ECS::EntityID, float>& previousRotations,
     float deltaTime) {
     std::vector<CollisionBody> bodies;
     world.ForEach<Transform2D, RigidBody2D, BoxCollider2D>(
-        [&world, &bodies, &previousPositions](ECS::Entity entity,
+        [&world, &bodies, &previousPositions, &previousRotations](ECS::Entity entity,
                                               Transform2D& transform,
                                               RigidBody2D& body,
                                               BoxCollider2D& collider) {
-            const Rotation2D* rotation =
+            Rotation2D* rotation =
                 world.GetComponent<Rotation2D>(entity);
             const float rotationRadians = rotation ? rotation->radians : 0.0f;
             const Restitution2D* material =
@@ -666,10 +850,14 @@ ContactSolveStats ResolveContacts(
                 const Math::Vec2 previousPosition =
                     previous == previousPositions.end()
                         ? transform.position : previous->second;
-                bodies.push_back(
-                    {entity, &transform, &body, &collider, restitution,
-                     rotationRadians,
-                     previousPosition});
+                const auto previousRotation =
+                    previousRotations.find(entity.id);
+                const float previousRotationRadians =
+                    previousRotation == previousRotations.end()
+                        ? rotationRadians : previousRotation->second;
+                bodies.push_back({entity, &transform, rotation, &body,
+                                  &collider, restitution, rotationRadians,
+                                  previousPosition, previousRotationRadians});
             }
         });
 
@@ -682,9 +870,11 @@ ContactSolveStats ResolveContacts(
     std::vector<std::pair<std::size_t, std::size_t>> allCandidates;
     const bool hasMovingPath = std::any_of(
         bodies.begin(), bodies.end(), [](const CollisionBody& body) {
-            return body.body->inverseMass > 0.0f &&
-                   (body.previousPosition.x != body.transform->position.x ||
-                    body.previousPosition.y != body.transform->position.y);
+            return (body.body->inverseMass > 0.0f &&
+                    (body.previousPosition.x != body.transform->position.x ||
+                     body.previousPosition.y != body.transform->position.y)) ||
+                   (body.rotation && body.body->inverseInertia > 0.0f &&
+                    body.previousRotationRadians != body.rotationRadians);
         });
     if (bodies.size() > 1 && hasMovingPath) {
         ResolveContinuousContacts(bodies, deltaTime, allCandidates);
@@ -760,11 +950,16 @@ void Physics2DSystem::Update(ECS::World* world, float deltaTime) {
     }
 
     std::map<ECS::EntityID, Math::Vec2> previousPositions;
+    std::map<ECS::EntityID, float> previousRotations;
     world->ForEach<Transform2D, RigidBody2D>(
-        [this, world, deltaTime, &previousPositions](ECS::Entity entity,
+        [this, world, deltaTime, &previousPositions, &previousRotations](ECS::Entity entity,
                                               Transform2D& transform,
                                               RigidBody2D& body) {
             previousPositions[entity.id] = transform.position;
+            const Rotation2D* initialRotation =
+                world->GetComponent<Rotation2D>(entity);
+            previousRotations[entity.id] = initialRotation
+                ? initialRotation->radians : 0.0f;
             if (!std::isfinite(body.inverseMass) || body.inverseMass < 0.0f ||
                 !IsFinite(transform.position) || !IsFinite(body.velocity) ||
                 !IsFinite(body.accumulatedForce) ||
@@ -814,7 +1009,8 @@ void Physics2DSystem::Update(ECS::World* world, float deltaTime) {
         });
 
     const ContactSolveStats stats =
-        ResolveContacts(*world, previousPositions, deltaTime);
+        ResolveContacts(*world, previousPositions, previousRotations,
+                        deltaTime);
     m_LastBroadPhasePairCount = stats.uniqueCandidatePairs;
     m_LastContactIterationCount = stats.iterations;
     m_LastContactSolveConverged = stats.converged;

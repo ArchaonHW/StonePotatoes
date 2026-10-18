@@ -21,7 +21,8 @@ Entities that also have a `BoxCollider2D` participate in collision handling;
 the collider is centered on the transform with positive half-extents. An
 optional `Rotation2D` component supplies its orientation in radians. Without
 it, the box is axis-aligned; angular velocity can still be integrated on the
-body, but no orientation component is updated.
+body, but no orientation component is updated and box contacts remain linear.
+Contact angular response requires `Rotation2D` on the collider entity.
 
 After integration, the system sorts valid collider bodies by `Entity::id` and
 places each box's world-space AABB into a deterministic 2D grid with 2-unit
@@ -65,24 +66,26 @@ greater than static friction. Invalid or non-finite body, collider, or material
 state is skipped by collision handling.
 
 Before the discrete solver, an event-driven swept SAT pass uses each
-collider's previous and integrated positions to find the earliest impact among
-static-dynamic and dynamic-dynamic pairs during the remaining tick. The four
-OBB axes remain fixed during the tick; their projected intervals yield the
-continuous contact time for axis-aligned and rotated boxes. Bodies
+collider's previous and integrated positions and orientations to find the
+earliest impact among static-dynamic and dynamic-dynamic pairs during the
+remaining tick. For fixed-orientation pairs, projected intervals on the four
+OBB axes yield the continuous contact time. If either collider rotates, a
+bounded conservative-advancement pass recomputes the four axes at each time
+sample and advances according to the current separation and a bound on linear
+and angular surface speed. Rotating colliders use their circumscribed radius
+for swept broad-phase bounds. The per-pair advancement is capped at 128 steps.
+Bodies
 advance to that time of impact in entity-ID pair order, then receive the same
 restitution-aware normal and Coulomb friction impulses as discrete contacts,
 including angular velocity changes at the estimated contact point; linear
 motion is distributed by inverse mass and angular motion by inverse inertia.
-The event loop advances remaining linear motion with the updated linear
-velocities. Orientation has already been integrated for this tick, so angular
-velocity changes from a swept impact affect orientation starting on the next
-tick. A bounded event budget prevents
+The event loop advances remaining translation and orientation with the updated
+linear and angular velocities. A bounded event budget prevents
 unbounded work; if it is exhausted, bodies stay at the last resolved impact
 and the unprocessed time is discarded to avoid tunneling. Initial overlaps
-remain the discrete solver's responsibility. Rotated boxes use the same OBB
-axes for continuous time-of-impact. Orientation is updated once before
-collision solving; contact impulses currently affect linear velocity only,
-and swept SAT does not model rotation occurring within a tick.
+remain the discrete solver's responsibility. If conservative advancement
+reaches its per-pair limit without convergence, that candidate produces no
+swept hit and the discrete solver remains the fallback.
 
 `Game::SetFixedStep` owns the simulation clock and catch-up limit. Register the
 physics system in the ECS world and let `Game::Update` call the world once per
@@ -132,6 +135,11 @@ canonicalization are not promised.
   axis.
 - Fast rotated boxes with a fixed orientation stop at their first swept SAT
   contact instead of crossing the other box.
+- A rotating long box that would sweep through an obstacle is stopped at its
+  first rotational SAT impact, and the post-impact angular speed controls the
+  rest of the tick. The unit and installed-consumer cases also cover an angular
+  speed of eight revolutions per second within one tick, exercising the
+  conservative-advancement budget of 128 steps.
 - The same collision setup produces equal results across different render-frame
   partitions.
 - A 256-body separated scene sends substantially fewer pairs to narrow phase
@@ -143,7 +151,8 @@ canonicalization are not promised.
 - Non-finite forces and invalid physics deltas do not contaminate body state.
 
 The discrete solver separates coincident initial boxes using entity-ID order.
-Angular velocity and torque integration, plus single-point angular contact
-impulses, are implemented. Multi-point manifolds, rotation-aware continuous
-collision detection, more advanced initial-overlap recovery beyond the bounded
-solver, joints, and cross-platform replay serialization remain future work.
+Angular velocity and torque integration, single-point angular contact
+impulses, and bounded rotation-aware continuous collision detection are
+implemented. Multi-point manifolds, more advanced initial-overlap recovery
+beyond the bounded solver, joints, and cross-platform replay serialization
+remain future work.

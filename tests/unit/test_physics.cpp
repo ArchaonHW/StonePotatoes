@@ -283,6 +283,80 @@ int TestOffCenterContactGeneratesAngularVelocity() {
     return 0;
 }
 
+int TestRotationalSweepStopsAtObstacle() {
+    ECS::World world;
+    RegisterPhysicsComponents(world);
+    world.GetSystemScheduler().RegisterSystem(
+        std::make_unique<Physics2DSystem>(Math::Vec2{}));
+    world.Initialize();
+
+    const ECS::Entity rotating = world.CreateEntity();
+    world.AddComponent(rotating, Transform2D{});
+    world.AddComponent(rotating, Rotation2D{-1.57079632679f});
+    RigidBody2D rotatingBody;
+    rotatingBody.inverseMass = 0.0f;
+    rotatingBody.inverseInertia = 1.0f;
+    rotatingBody.angularVelocity = 3.14159265359f;
+    world.AddComponent(rotating, rotatingBody);
+    world.AddComponent(rotating, BoxCollider2D{{2.0f, 0.1f}});
+
+    const ECS::Entity obstacle = world.CreateEntity();
+    world.AddComponent(obstacle, Transform2D{{1.5f, 0.0f}});
+    RigidBody2D obstacleBody;
+    obstacleBody.inverseMass = 0.0f;
+    world.AddComponent(obstacle, obstacleBody);
+    world.AddComponent(obstacle, BoxCollider2D{{0.1f, 0.1f}});
+
+    world.Update(1.0f);
+    const auto* rotation = world.GetComponent<Rotation2D>(rotating);
+    const auto* result = world.GetComponent<RigidBody2D>(rotating);
+    CHECK(rotation && result);
+    CHECK(std::fabs(rotation->radians - 1.57079632679f) > 0.05f);
+    CHECK(std::fabs(result->angularVelocity) < 3.0f);
+
+    world.Shutdown();
+    return 0;
+}
+
+int TestHighAngularSpeedSweepStopsAtObstacle() {
+    ECS::World world;
+    RegisterPhysicsComponents(world);
+    world.GetSystemScheduler().RegisterSystem(
+        std::make_unique<Physics2DSystem>(Math::Vec2{}));
+    world.Initialize();
+
+    const ECS::Entity rotating = world.CreateEntity();
+    world.AddComponent(rotating, Transform2D{});
+    world.AddComponent(rotating, Rotation2D{-1.57079632679f});
+    RigidBody2D rotatingBody;
+    rotatingBody.inverseMass = 0.0f;
+    rotatingBody.inverseInertia = 1.0f;
+    rotatingBody.angularVelocity = 16.0f * 3.14159265359f;
+    world.AddComponent(rotating, rotatingBody);
+    world.AddComponent(rotating, BoxCollider2D{{2.0f, 0.1f}});
+
+    const ECS::Entity obstacle = world.CreateEntity();
+    world.AddComponent(obstacle, Transform2D{{1.5f, 0.0f}});
+    RigidBody2D obstacleBody;
+    obstacleBody.inverseMass = 0.0f;
+    world.AddComponent(obstacle, obstacleBody);
+    world.AddComponent(obstacle, BoxCollider2D{{0.1f, 0.1f}});
+
+    world.Update(1.0f);
+    const auto* rotation = world.GetComponent<Rotation2D>(rotating);
+    const auto* result = world.GetComponent<RigidBody2D>(rotating);
+    CHECK(rotation && result);
+    CHECK(std::isfinite(rotation->radians));
+    CHECK(std::isfinite(result->angularVelocity));
+    CHECK(std::fabs(result->angularVelocity) <
+          std::fabs(rotatingBody.angularVelocity));
+    CHECK(std::fabs(rotation->radians -
+                    (-1.57079632679f + rotatingBody.angularVelocity)) > 1.0f);
+
+    world.Shutdown();
+    return 0;
+}
+
 int TestCoulombContactFriction() {
     ECS::World world;
     RegisterPhysicsComponents(world);
@@ -858,6 +932,9 @@ int main() {
         return result;
     if (const int result = TestDynamicHeadOnContact()) return result;
     if (const int result = TestOffCenterContactGeneratesAngularVelocity())
+        return result;
+    if (const int result = TestRotationalSweepStopsAtObstacle()) return result;
+    if (const int result = TestHighAngularSpeedSweepStopsAtObstacle())
         return result;
     if (const int result = TestCoulombContactFriction()) return result;
     if (const int result = TestRestitutionForDiscreteAndSweptContacts())
