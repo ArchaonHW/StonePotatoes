@@ -1,8 +1,8 @@
 # Physics vertical slice: deterministic 2D fixed-tick bodies and box contacts
 
 Status: fixed-tick 2D body integration, discrete oriented-box contacts,
-Coulomb friction, configurable restitution, and event-driven swept-AABB
-contacts between static and dynamic axis-aligned boxes are implemented.
+Coulomb friction, configurable restitution, and event-driven swept SAT
+contacts between boxes with fixed orientations are implemented.
 This is a deliberately small collision slice, not a general-purpose rigid-body
 solver.
 
@@ -10,13 +10,18 @@ solver.
 
 `Physics2DSystem` is an ECS system that integrates `Transform2D` and
 `RigidBody2D` using semi-implicit Euler. Each tick applies gravity and the
-body's accumulated force to velocity, advances position using the new velocity,
-then clears the accumulated force. A body with `inverseMass == 0` is immovable.
+body's accumulated force to linear velocity, advances position using the new
+velocity, then clears the accumulated force. It applies accumulated torque to
+angular velocity using `inverseInertia`, then advances an optional
+`Rotation2D::radians` using that new angular velocity. Both force and torque
+accumulators are cleared each valid tick. `inverseMass == 0` disables linear
+motion; `inverseInertia == 0` disables angular motion. Both inverse properties
+default to zero for inertia, preserving existing fixed-orientation behavior.
 Entities that also have a `BoxCollider2D` participate in collision handling;
 the collider is centered on the transform with positive half-extents. An
-optional `Rotation2D` component supplies a finite, fixed orientation in
-radians. Without it, the box is axis-aligned. Rotation has no angular velocity
-or integration.
+optional `Rotation2D` component supplies its orientation in radians. Without
+it, the box is axis-aligned; angular velocity can still be integrated on the
+body, but no orientation component is updated.
 
 After integration, the system sorts valid collider bodies by `Entity::id` and
 places each box's world-space AABB into a deterministic 2D grid with 2-unit
@@ -52,17 +57,21 @@ default to zero, preserving frictionless contacts; dynamic friction must be no
 greater than static friction. Invalid or non-finite body, collider, or material
 state is skipped by collision handling.
 
-Before the discrete solver, an event-driven swept-AABB pass uses each
-axis-aligned collider's previous and integrated positions to find the earliest
-impact among static-dynamic and dynamic-dynamic pairs during the remaining tick. Bodies
+Before the discrete solver, an event-driven swept SAT pass uses each
+collider's previous and integrated positions to find the earliest impact among
+static-dynamic and dynamic-dynamic pairs during the remaining tick. The four
+OBB axes remain fixed during the tick; their projected intervals yield the
+continuous contact time for axis-aligned and rotated boxes. Bodies
 advance to that time of impact in entity-ID pair order, then receive the same
 restitution-aware normal and Coulomb friction impulses as discrete contacts;
 dynamic motion is distributed by inverse mass. The remaining tick is
 simulated again with the updated velocities. A bounded event budget prevents
 unbounded work; if it is exhausted, bodies stay at the last resolved impact
 and the unprocessed time is discarded to avoid tunneling. Initial overlaps
-remain the discrete solver's responsibility. Rotated boxes use the discrete
-OBB solver; rotated swept time-of-impact and angular dynamics are not included.
+remain the discrete solver's responsibility. Rotated boxes use the same OBB
+axes for continuous time-of-impact. Orientation is updated once before
+collision solving; contact impulses currently affect linear velocity only,
+and swept SAT does not model rotation occurring within a tick.
 
 `Game::SetFixedStep` owns the simulation clock and catch-up limit. Register the
 physics system in the ECS world and let `Game::Update` call the world once per
@@ -110,6 +119,8 @@ canonicalization are not promised.
 - Rotated thin boxes whose world AABBs overlap but whose OBBs are separated do
   not collide; overlapping OBBs separate along their SAT minimum-penetration
   axis.
+- Fast rotated boxes with a fixed orientation stop at their first swept SAT
+  contact instead of crossing the other box.
 - The same collision setup produces equal results across different render-frame
   partitions.
 - A 256-body separated scene sends substantially fewer pairs to narrow phase
@@ -121,6 +132,6 @@ canonicalization are not promised.
 - Non-finite forces and invalid physics deltas do not contaminate body state.
 
 The discrete solver separates coincident initial boxes using entity-ID order.
-Rotated swept time-of-impact, angular dynamics, more advanced initial-overlap
-recovery beyond the bounded solver, joints, and cross-platform replay
-serialization remain future work.
+Angular velocity and torque integration are implemented, but angular contact
+impulses, more advanced initial-overlap recovery beyond the bounded solver,
+joints, and cross-platform replay serialization remain future work.
