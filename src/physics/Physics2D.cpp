@@ -352,92 +352,98 @@ struct SweepHit {
     Math::Vec2 normal{};
 };
 
-bool FindSweptAabbHit(const CollisionBody& a, const CollisionBody& b,
-                      const Math::Vec2& startA, const Math::Vec2& endA,
-                      const Math::Vec2& startB, const Math::Vec2& endB,
-                      SweepHit& hit) {
-    const double relativeX = static_cast<double>(startB.x) - startA.x;
-    const double relativeY = static_cast<double>(startB.y) - startA.y;
-    const double displacementX =
-        (static_cast<double>(endB.x) - startB.x) -
-        (static_cast<double>(endA.x) - startA.x);
-    const double displacementY =
-        (static_cast<double>(endB.y) - startB.y) -
-        (static_cast<double>(endA.y) - startA.y);
-    const double halfWidth =
-        static_cast<double>(a.collider->halfExtents.x) +
-        b.collider->halfExtents.x;
-    const double halfHeight =
-        static_cast<double>(a.collider->halfExtents.y) +
-        b.collider->halfExtents.y;
-    if (!std::isfinite(relativeX) || !std::isfinite(relativeY) ||
-        !std::isfinite(displacementX) || !std::isfinite(displacementY) ||
-        !std::isfinite(halfWidth) || !std::isfinite(halfHeight)) {
+bool FindSweptBoxHit(const CollisionBody& a, const CollisionBody& b,
+                     const Math::Vec2& startA, const Math::Vec2& endA,
+                     const Math::Vec2& startB, const Math::Vec2& endB,
+                     SweepHit& hit) {
+    const Math::Vec2 relativeStart = startB - startA;
+    const Math::Vec2 relativeDisplacement = (endB - startB) - (endA - startA);
+    if (!IsFinite(relativeStart) || !IsFinite(relativeDisplacement))
         return false;
-    }
 
-    // Resolve tiny event-time overlap caused by float rounding when another
-    // pair collides at the same time. Deeper initial overlaps stay discrete.
+    Math::Vec2 axesA[2];
+    Math::Vec2 axesB[2];
+    GetBoxAxes(a.rotationRadians, axesA[0], axesA[1]);
+    GetBoxAxes(b.rotationRadians, axesB[0], axesB[1]);
+    const Math::Vec2 axes[] = {axesA[0], axesA[1], axesB[0], axesB[1]};
+
+    double entry = -std::numeric_limits<double>::infinity();
+    double exit = std::numeric_limits<double>::infinity();
+    double minimumInitialPenetration =
+        std::numeric_limits<double>::infinity();
+    Math::Vec2 initialNormal{};
+    Math::Vec2 entryNormal{};
+    double entryMotion = 0.0;
     constexpr double kContactTolerance = 1.0e-5;
-    const double penetrationX = halfWidth - std::fabs(relativeX);
-    const double penetrationY = halfHeight - std::fabs(relativeY);
-    if (penetrationX >= -kContactTolerance &&
-        penetrationY >= -kContactTolerance &&
-        std::min(penetrationX, penetrationY) <= kContactTolerance) {
-        const bool useX = penetrationX <= penetrationY;
-        const double normalMotion = useX
-            ? displacementX * (relativeX < 0.0 ? -1.0 : 1.0)
-            : displacementY * (relativeY < 0.0 ? -1.0 : 1.0);
-        if (normalMotion >= 0.0) return false;
-        hit.fraction = 0.0f;
-        hit.normal = useX
-            ? Math::Vec2{relativeX < 0.0 ? -1.0f : 1.0f, 0.0f}
-            : Math::Vec2{0.0f, relativeY < 0.0 ? -1.0f : 1.0f};
-        return true;
-    }
-    if (penetrationX > 0.0 && penetrationY > 0.0) {
-        return false;
-    }
 
-    const auto axisInterval = [](double origin, double displacement,
-                                 double extent, double& entry, double& exit) {
-        if (displacement == 0.0) {
-            if (origin < -extent || origin > extent) return false;
-            entry = -std::numeric_limits<double>::infinity();
-            exit = std::numeric_limits<double>::infinity();
-            return true;
+    for (const Math::Vec2& axis : axes) {
+        const double radiusA =
+            static_cast<double>(a.collider->halfExtents.x) *
+                std::fabs(static_cast<double>(axesA[0].Dot(axis))) +
+            static_cast<double>(a.collider->halfExtents.y) *
+                std::fabs(static_cast<double>(axesA[1].Dot(axis)));
+        const double radiusB =
+            static_cast<double>(b.collider->halfExtents.x) *
+                std::fabs(static_cast<double>(axesB[0].Dot(axis))) +
+            static_cast<double>(b.collider->halfExtents.y) *
+                std::fabs(static_cast<double>(axesB[1].Dot(axis)));
+        const double extent = radiusA + radiusB;
+        const double origin =
+            static_cast<double>(relativeStart.x) * axis.x +
+            static_cast<double>(relativeStart.y) * axis.y;
+        const double displacement =
+            static_cast<double>(relativeDisplacement.x) * axis.x +
+            static_cast<double>(relativeDisplacement.y) * axis.y;
+        const double penetration = extent - std::fabs(origin);
+        if (!std::isfinite(extent) || !std::isfinite(origin) ||
+            !std::isfinite(displacement) || !std::isfinite(penetration)) {
+            return false;
         }
+        if (penetration < minimumInitialPenetration) {
+            minimumInitialPenetration = penetration;
+            initialNormal = axis * (origin < 0.0 ? -1.0f : 1.0f);
+        }
+
+        if (displacement == 0.0) {
+            if (std::fabs(origin) > extent) return false;
+            continue;
+        }
+
         const double first = (-extent - origin) / displacement;
         const double second = (extent - origin) / displacement;
-        entry = std::min(first, second);
-        exit = std::max(first, second);
-        return std::isfinite(entry) && std::isfinite(exit);
-    };
+        const double axisEntry = std::min(first, second);
+        const double axisExit = std::max(first, second);
+        if (axisEntry > entry) {
+            entry = axisEntry;
+            entryMotion = displacement;
+            entryNormal = axis * (origin + displacement * entry < 0.0
+                                      ? -1.0f : 1.0f);
+        }
+        exit = std::min(exit, axisExit);
+        if (entry > exit) return false;
+    }
 
-    double entryX = 0.0;
-    double exitX = 0.0;
-    double entryY = 0.0;
-    double exitY = 0.0;
-    if (!axisInterval(relativeX, displacementX, halfWidth, entryX, exitX) ||
-        !axisInterval(relativeY, displacementY, halfHeight, entryY, exitY)) {
+    // Existing/tiny event-time overlap is handled at t=0 only when closing;
+    // deeper initial overlaps remain the discrete solver's responsibility.
+    if (minimumInitialPenetration >= -kContactTolerance &&
+        minimumInitialPenetration <= kContactTolerance) {
+        const float closingSpeed = relativeDisplacement.Dot(initialNormal);
+        if (closingSpeed < 0.0f) {
+            hit.fraction = 0.0f;
+            hit.normal = initialNormal;
+            return true;
+        }
+        return false;
+    }
+    if (minimumInitialPenetration > kContactTolerance) return false;
+    if (!std::isfinite(entry) || !std::isfinite(exit) || entry > exit ||
+        exit < 0.0 || entry < 0.0 || entry > 1.0 ||
+        entryMotion == 0.0) {
         return false;
     }
 
-    const double entry = std::max(entryX, entryY);
-    const double exit = std::min(exitX, exitY);
-    if (!std::isfinite(entry) || entry > exit || exit < 0.0 ||
-        entry < 0.0 || entry > 1.0) {
-        return false;
-    }
-
-    // Ties use X, matching the discrete solver's deterministic axis choice.
-    const bool useX = entryX >= entryY;
-    const double normalMotion = useX ? displacementX : displacementY;
-    if (normalMotion == 0.0) return false;
     hit.fraction = static_cast<float>(entry);
-    hit.normal = useX
-        ? Math::Vec2{normalMotion > 0.0 ? -1.0f : 1.0f, 0.0f}
-        : Math::Vec2{0.0f, normalMotion > 0.0 ? -1.0f : 1.0f};
+    hit.normal = entryNormal;
     return true;
 }
 
@@ -491,16 +497,11 @@ void ResolveContinuousContacts(
             const CollisionBody& a = bodies[candidate.first];
             const CollisionBody& b = bodies[candidate.second];
             if (a.body->inverseMass + b.body->inverseMass <= 0.0f) continue;
-            // Swept-AABB time of impact is exact only for axis-aligned boxes.
-            // Rotated boxes are handled by the discrete OBB solver below.
-            if (a.rotationRadians != 0.0f || b.rotationRadians != 0.0f)
-                continue;
-
             SweepHit hit;
-            if (FindSweptAabbHit(a, b, segmentStarts[candidate.first],
-                                 a.transform->position,
-                                 segmentStarts[candidate.second],
-                                 b.transform->position, hit) &&
+            if (FindSweptBoxHit(a, b, segmentStarts[candidate.first],
+                                a.transform->position,
+                                segmentStarts[candidate.second],
+                                b.transform->position, hit) &&
                 (!foundHit || hit.fraction < earliestFraction)) {
                 foundHit = true;
                 earliestFraction = hit.fraction;

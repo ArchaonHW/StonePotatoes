@@ -431,6 +431,44 @@ int main(int argc, char** argv) {
         world.Shutdown();
     }
 
+    // Verify swept SAT stops a fast rotated box at its first OBB contact.
+    {
+        using namespace StonePotatoes::Physics;
+        constexpr float diagonal = 0.70710678118f;
+        constexpr float rotation = 0.78539816339f;
+        const StonePotatoes::Math::Vec2 normal{-diagonal, diagonal};
+        StonePotatoes::ECS::World world;
+        world.GetSystemScheduler().RegisterSystem(
+            std::make_unique<Physics2DSystem>(StonePotatoes::Math::Vec2{}));
+        world.Initialize();
+
+        const auto wall = world.CreateEntity();
+        world.AddComponent(wall, Transform2D{{0.0f, 0.0f}});
+        world.AddComponent(wall, Rotation2D{rotation});
+        RigidBody2D wallBody;
+        wallBody.inverseMass = 0.0f;
+        world.AddComponent(wall, wallBody);
+        world.AddComponent(wall, BoxCollider2D{{2.0f, 0.1f}});
+
+        const auto moving = world.CreateEntity();
+        world.AddComponent(moving, Transform2D{normal * 5.0f});
+        world.AddComponent(moving, Rotation2D{rotation});
+        RigidBody2D movingBody;
+        movingBody.velocity = normal * -100.0f;
+        world.AddComponent(moving, movingBody);
+        world.AddComponent(moving, BoxCollider2D{{2.0f, 0.1f}});
+
+        world.Update(0.1f);
+        const auto* transform = world.GetComponent<Transform2D>(moving);
+        const auto* body = world.GetComponent<RigidBody2D>(moving);
+        if (!transform || !body ||
+            std::fabs(transform->position.Dot(normal) - 0.2f) > 0.001f ||
+            std::fabs(body->velocity.Dot(normal)) > 0.0001f) {
+            return 60;
+        }
+        world.Shutdown();
+    }
+
     // The installed Physics target exposes optional restitution independently
     // of BoxCollider2D's persisted layout.
     {

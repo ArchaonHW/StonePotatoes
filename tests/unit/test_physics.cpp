@@ -720,6 +720,44 @@ int TestRotatedBoxesUseOrientedContactAxes() {
         world.Shutdown();
     }
 
+    // A fast rotated box must stop at first contact rather than cross the
+    // static OBB during the tick.
+    {
+        ECS::World world;
+        auto physics =
+            std::make_unique<Physics2DSystem>(Math::Vec2{0.0f, 0.0f});
+        Physics2DSystem* physicsView = physics.get();
+        world.GetSystemScheduler().RegisterSystem(std::move(physics));
+        world.Initialize();
+
+        const Math::Vec2 normal{-diagonal, diagonal};
+        const ECS::Entity wall = world.CreateEntity();
+        world.AddComponent(wall, Transform2D{{0.0f, 0.0f}});
+        world.AddComponent(wall, Rotation2D{rotation});
+        RigidBody2D wallBody;
+        wallBody.inverseMass = 0.0f;
+        world.AddComponent(wall, wallBody);
+        world.AddComponent(wall, BoxCollider2D{{2.0f, 0.1f}});
+
+        const ECS::Entity moving = world.CreateEntity();
+        world.AddComponent(moving, Transform2D{normal * 5.0f});
+        world.AddComponent(moving, Rotation2D{rotation});
+        RigidBody2D movingBody;
+        movingBody.velocity = normal * -100.0f;
+        world.AddComponent(moving, movingBody);
+        world.AddComponent(moving, BoxCollider2D{{2.0f, 0.1f}});
+
+        world.Update(0.1f);
+        const Math::Vec2 position =
+            world.GetComponent<Transform2D>(moving)->position;
+        const Math::Vec2 velocity =
+            world.GetComponent<RigidBody2D>(moving)->velocity;
+        CHECK(std::fabs(position.Dot(normal) - 0.2f) < 0.001f);
+        CHECK(std::fabs(velocity.Dot(normal)) < 0.0001f);
+        CHECK(physicsView->DidLastContactSolveConverge());
+        world.Shutdown();
+    }
+
     return 0;
 }
 

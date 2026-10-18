@@ -61,15 +61,15 @@ void RegisterPhysicsComponents(ECS::World& world);
 
 // Integrates bodies with semi-implicit Euler, then performs bounded,
 // entity-ID ordered iterations over discrete oriented-box contacts with
-// optional restitution and Coulomb friction, plus event-driven swept-AABB
-// contacts for axis-aligned static and dynamic boxes.
+// optional restitution and Coulomb friction, plus event-driven swept SAT
+// contacts for boxes whose orientations remain fixed during a tick.
 // Use Game::SetFixedStep to feed this system a stable tick; inverseMass == 0
 // marks an immovable body. Rotation2D adds fixed-angle OBB contacts only;
 // angular dynamics and rotated swept time-of-impact are outside this slice.
 // 以半隱式 Euler 積分剛體，再依 entity ID 順序有限輪解析離散 OBB SAT 接觸、
-// 可選恢復係數與庫侖摩擦，並以事件推進方式處理軸對齊靜態／動態方盒的 swept-AABB
+// 可選恢復係數與庫侖摩擦，並以事件推進方式處理固定朝向方盒的 swept SAT
 // 碰撞。透過 Game::SetFixedStep 提供固定 tick；inverseMass == 0 代表不可移動的剛體。
-// Rotation2D 僅指定固定朝向，不包含角速度或旋轉 swept CCD。
+// Rotation2D 僅指定固定朝向，不包含角速度。
 class Physics2DSystem final : public ECS::System {
 public:
     explicit Physics2DSystem(Math::Vec2 gravity = {0.0f, -9.81f});

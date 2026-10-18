@@ -835,14 +835,13 @@ pipeline、depth buffer 與以下進階功能仍在規劃中：
 
 ## Physics | 物理
 
-The engine includes fixed-tick 2D rigid bodies, discrete rotated-box contacts,
-and swept contacts for axis-aligned boxes. It is available to external CMake projects as the installed
+The engine includes fixed-tick 2D rigid bodies, discrete and swept contacts
+for fixed-orientation rotated boxes. It is available to external CMake projects as the installed
 `StonePotatoes::Physics` target; the installed-package consumer verifies
-gravity/force integration, high-speed wall and dynamic-body contacts, and
-friction plus discrete rotated-box contacts through the public API. Rotated
-swept contacts and angular dynamics remain planned:
+gravity/force integration, high-speed axis-aligned and rotated-box contacts,
+and friction through the public API. Angular dynamics remain planned:
 
-引擎已有固定 tick 的 2D 剛體與旋轉方盒離散接觸；安裝後 consumer 亦透過公開 API 驗收高速軸對齊方盒碰撞、旋轉方盒接觸與摩擦。旋轉 swept 碰撞及角動力學仍在規劃中：
+引擎已有固定 tick 的 2D 剛體與固定朝向旋轉方盒的離散／連續碰撞；安裝後 consumer 亦透過公開 API 驗收高速軸對齊及旋轉方盒碰撞與摩擦。角動力學仍在規劃中：
 
 - Advanced Rigid Body (joints and richer dynamics)
   進階剛體（關節與更完整的動力學）
