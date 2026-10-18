@@ -469,6 +469,35 @@ int main(int argc, char** argv) {
         world.Shutdown();
     }
 
+    // The installed Physics target exposes torque-driven orientation updates.
+    {
+        using namespace StonePotatoes::Physics;
+        StonePotatoes::ECS::World world;
+        world.GetSystemScheduler().RegisterSystem(
+            std::make_unique<Physics2DSystem>(StonePotatoes::Math::Vec2{}));
+        world.Initialize();
+
+        const auto entity = world.CreateEntity();
+        world.AddComponent(entity, Transform2D{});
+        world.AddComponent(entity, Rotation2D{0.25f});
+        RigidBody2D body;
+        body.angularVelocity = 0.5f;
+        body.inverseInertia = 0.25f;
+        if (!body.ApplyTorque(4.0f)) return 61;
+        world.AddComponent(entity, body);
+        world.Update(0.5f);
+
+        const auto* rotation = world.GetComponent<Rotation2D>(entity);
+        const auto* result = world.GetComponent<RigidBody2D>(entity);
+        if (!rotation || !result ||
+            std::fabs(rotation->radians - 0.75f) > 0.00001f ||
+            std::fabs(result->angularVelocity - 1.0f) > 0.00001f ||
+            result->accumulatedTorque != 0.0f) {
+            return 62;
+        }
+        world.Shutdown();
+    }
+
     // The installed Physics target exposes optional restitution independently
     // of BoxCollider2D's persisted layout.
     {

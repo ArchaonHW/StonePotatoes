@@ -151,6 +151,44 @@ int TestSemiImplicitIntegrationAndStaticBodies() {
     return 0;
 }
 
+int TestAngularTorqueIntegration() {
+    ECS::World world;
+    RegisterPhysicsComponents(world);
+    world.GetSystemScheduler().RegisterSystem(
+        std::make_unique<Physics2DSystem>(Math::Vec2{}));
+    world.Initialize();
+
+    const ECS::Entity rotating = world.CreateEntity();
+    world.AddComponent(rotating, Transform2D{});
+    world.AddComponent(rotating, Rotation2D{0.25f});
+    RigidBody2D body;
+    body.angularVelocity = 0.5f;
+    body.inverseInertia = 0.25f;
+    CHECK(body.ApplyTorque(4.0f));
+    world.AddComponent(rotating, body);
+
+    const ECS::Entity fixed = world.CreateEntity();
+    world.AddComponent(fixed, Transform2D{});
+    world.AddComponent(fixed, Rotation2D{1.0f});
+    RigidBody2D fixedBody;
+    fixedBody.angularVelocity = 2.0f;
+    fixedBody.accumulatedTorque = 3.0f;
+    world.AddComponent(fixed, fixedBody);
+
+    world.Update(0.5f);
+    const auto* rotated = world.GetComponent<Rotation2D>(rotating);
+    const auto* rotatedBody = world.GetComponent<RigidBody2D>(rotating);
+    CHECK(rotated && std::fabs(rotated->radians - 0.75f) < 0.00001f);
+    CHECK(rotatedBody &&
+          std::fabs(rotatedBody->angularVelocity - 1.0f) < 0.00001f &&
+          rotatedBody->accumulatedTorque == 0.0f);
+    CHECK(world.GetComponent<Rotation2D>(fixed)->radians == 1.0f);
+    CHECK(world.GetComponent<RigidBody2D>(fixed)->accumulatedTorque == 0.0f);
+
+    world.Shutdown();
+    return 0;
+}
+
 int TestFramePartitionDeterminism() {
     const Snapshot byLargeFrames = Simulate(std::vector<float>(8, 0.125f));
     const Snapshot bySmallFrames = Simulate(std::vector<float>(16, 0.0625f));
@@ -770,6 +808,11 @@ int TestInvalidInputsAreIgnored() {
     CHECK(!body.ApplyForce(
         {std::numeric_limits<float>::infinity(), 0.0f}));
     CHECK(body.accumulatedForce.x == 1.0f && body.accumulatedForce.y == -2.0f);
+    CHECK(!body.ApplyTorque(std::numeric_limits<float>::quiet_NaN()));
+    CHECK(body.accumulatedTorque == 0.0f);
+    CHECK(body.ApplyTorque(2.0f));
+    CHECK(!body.ApplyTorque(std::numeric_limits<float>::infinity()));
+    CHECK(body.accumulatedTorque == 2.0f);
     return 0;
 }
 
@@ -778,6 +821,7 @@ int TestInvalidInputsAreIgnored() {
 int main() {
     if (const int result = TestSemiImplicitIntegrationAndStaticBodies())
         return result;
+    if (const int result = TestAngularTorqueIntegration()) return result;
     if (const int result = TestFramePartitionDeterminism()) return result;
     if (const int result = TestStaticAabbContactAndFramePartitionDeterminism())
         return result;

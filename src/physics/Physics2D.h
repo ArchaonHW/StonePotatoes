@@ -18,8 +18,8 @@ struct Transform2D {
     Math::Vec2 position{};
 };
 
-// Optional fixed orientation for a box collider, expressed in radians.
-// This does not add angular velocity or rotational integration.
+// Optional box orientation, expressed in radians. Physics2D integrates it
+// when an entity also has a RigidBody2D with nonzero inverse inertia.
 struct Rotation2D {
     float radians = 0.0f;
 };
@@ -28,10 +28,15 @@ struct RigidBody2D {
     Math::Vec2 velocity{};
     Math::Vec2 accumulatedForce{};
     float inverseMass = 1.0f;
+    float angularVelocity = 0.0f;
+    float accumulatedTorque = 0.0f;
+    float inverseInertia = 0.0f;
 
     // Accumulate a finite force for the next physics tick.
     // 累積有限值的力，供下一個物理 tick 使用。
     bool ApplyForce(const Math::Vec2& force);
+    // Accumulate a finite torque for the next physics tick.
+    bool ApplyTorque(float torque);
 };
 
 // Box collider centered on Transform2D::position. An optional Rotation2D
@@ -64,12 +69,14 @@ void RegisterPhysicsComponents(ECS::World& world);
 // optional restitution and Coulomb friction, plus event-driven swept SAT
 // contacts for boxes whose orientations remain fixed during a tick.
 // Use Game::SetFixedStep to feed this system a stable tick; inverseMass == 0
-// marks an immovable body. Rotation2D adds fixed-angle OBB contacts only;
-// angular dynamics and rotated swept time-of-impact are outside this slice.
+// marks an immovable body. Rotation2D is integrated from angular velocity;
+// collision impulses remain linear and swept SAT assumes fixed orientation
+// during the tick.
 // 以半隱式 Euler 積分剛體，再依 entity ID 順序有限輪解析離散 OBB SAT 接觸、
 // 可選恢復係數與庫侖摩擦，並以事件推進方式處理固定朝向方盒的 swept SAT
 // 碰撞。透過 Game::SetFixedStep 提供固定 tick；inverseMass == 0 代表不可移動的剛體。
-// Rotation2D 僅指定固定朝向，不包含角速度。
+// Rotation2D 可由角速度積分更新；碰撞衝量目前仍只影響線速度，且 swept SAT
+// 假設單一 tick 內朝向固定。
 class Physics2DSystem final : public ECS::System {
 public:
     explicit Physics2DSystem(Math::Vec2 gravity = {0.0f, -9.81f});

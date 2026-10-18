@@ -73,6 +73,9 @@ bool IsValidCollisionBody(const Transform2D& transform,
            IsFinite(body.accumulatedForce) &&
            std::isfinite(rotationRadians) &&
            std::isfinite(body.inverseMass) && body.inverseMass >= 0.0f &&
+           std::isfinite(body.angularVelocity) &&
+           std::isfinite(body.accumulatedTorque) &&
+           std::isfinite(body.inverseInertia) && body.inverseInertia >= 0.0f &&
            IsFinite(collider.halfExtents) && collider.halfExtents.x > 0.0f &&
            collider.halfExtents.y > 0.0f &&
            std::isfinite(collider.staticFriction) &&
@@ -636,6 +639,14 @@ bool RigidBody2D::ApplyForce(const Math::Vec2& force) {
     return true;
 }
 
+bool RigidBody2D::ApplyTorque(float torque) {
+    if (!std::isfinite(torque)) return false;
+    const float accumulated = accumulatedTorque + torque;
+    if (!std::isfinite(accumulated)) return false;
+    accumulatedTorque = accumulated;
+    return true;
+}
+
 void RegisterPhysicsComponents(ECS::World& world) {
     world.RegisterComponent<Transform2D>("PhysicsTransform2D");
     world.RegisterComponent<Rotation2D>("PhysicsRotation2D");
@@ -661,35 +672,56 @@ void Physics2DSystem::Update(ECS::World* world, float deltaTime) {
 
     std::map<ECS::EntityID, Math::Vec2> previousPositions;
     world->ForEach<Transform2D, RigidBody2D>(
-        [this, deltaTime, &previousPositions](ECS::Entity entity,
+        [this, world, deltaTime, &previousPositions](ECS::Entity entity,
                                               Transform2D& transform,
                                               RigidBody2D& body) {
             previousPositions[entity.id] = transform.position;
             if (!std::isfinite(body.inverseMass) || body.inverseMass < 0.0f ||
                 !IsFinite(transform.position) || !IsFinite(body.velocity) ||
-                !IsFinite(body.accumulatedForce)) {
+                !IsFinite(body.accumulatedForce) ||
+                !std::isfinite(body.angularVelocity) ||
+                !std::isfinite(body.accumulatedTorque) ||
+                !std::isfinite(body.inverseInertia) ||
+                body.inverseInertia < 0.0f) {
                 return;
             }
 
-            if (body.inverseMass == 0.0f) {
+            if (body.inverseMass > 0.0f) {
+                const Math::Vec2 acceleration =
+                    m_Gravity + body.accumulatedForce * body.inverseMass;
+                const Math::Vec2 velocity =
+                    body.velocity + acceleration * deltaTime;
+                const Math::Vec2 position =
+                    transform.position + velocity * deltaTime;
+                if (IsFinite(acceleration) && IsFinite(velocity) &&
+                    IsFinite(position)) {
+                    body.velocity = velocity;
+                    transform.position = position;
+                    body.accumulatedForce = {};
+                }
+            } else {
                 body.accumulatedForce = {};
-                return;
             }
 
-            const Math::Vec2 acceleration =
-                m_Gravity + body.accumulatedForce * body.inverseMass;
-            const Math::Vec2 velocity =
-                body.velocity + acceleration * deltaTime;
-            const Math::Vec2 position =
-                transform.position + velocity * deltaTime;
-            if (!IsFinite(acceleration) || !IsFinite(velocity) ||
-                !IsFinite(position)) {
-                return;
+            if (body.inverseInertia > 0.0f) {
+                const float angularAcceleration =
+                    body.accumulatedTorque * body.inverseInertia;
+                const float angularVelocity = body.angularVelocity +
+                    angularAcceleration * deltaTime;
+                Rotation2D* rotation = world->GetComponent<Rotation2D>(entity);
+                const float radians = rotation
+                    ? rotation->radians + angularVelocity * deltaTime
+                    : 0.0f;
+                if (std::isfinite(angularAcceleration) &&
+                    std::isfinite(angularVelocity) &&
+                    (!rotation || std::isfinite(radians))) {
+                    body.angularVelocity = angularVelocity;
+                    if (rotation) rotation->radians = radians;
+                    body.accumulatedTorque = 0.0f;
+                }
+            } else {
+                body.accumulatedTorque = 0.0f;
             }
-
-            body.velocity = velocity;
-            transform.position = position;
-            body.accumulatedForce = {};
         });
 
     const ContactSolveStats stats =
@@ -703,7 +735,7 @@ void Physics2DSystem::DescribeAccess(ECS::AccessSpec& access) const {
     access.Write<Transform2D>();
     access.Write<RigidBody2D>();
     access.Read<BoxCollider2D>();
-    access.Read<Rotation2D>();
+    access.Write<Rotation2D>();
     access.Read<Restitution2D>();
 }
 
