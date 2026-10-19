@@ -4,6 +4,10 @@
 
 #include "civilization/economic/SystemDynamics.h"
 
+#include <cstddef>
+#include <string>
+#include <vector>
+
 namespace StonePotatoes {
 namespace Civilization {
 namespace Population {
@@ -31,6 +35,18 @@ struct DemographicPopulationConfig {
 };
 
 /**
+ * One-year age-cohort projection configuration. Rates are annual; each model
+ * step advances one age group. The final group is open-ended. Birth rates are
+ * births per person in the group and include any fertility-share adjustment.
+ */
+struct AgeStructuredPopulationConfig {
+    std::vector<float> initialPopulationByAgeGroup;
+    std::vector<float> annualSurvivalRateByAgeGroup;
+    std::vector<float> annualBirthsPerPersonByAgeGroup;
+    float carryingCapacity = 1000000.0f;
+};
+
+/**
  * Build a reusable stock-flow model with one `population` stock.
  * The net flow is r * P * (1 - P / K) + net migration, bounded to [0, K].
  * The returned model uses monthly steps by default and exposes its growth rate
@@ -45,6 +61,19 @@ Economic::SDModel BuildPopulationModel(const PopulationConfig& config);
  */
 Economic::SDModel BuildDemographicPopulationModel(
     const DemographicPopulationConfig& config);
+
+/**
+ * Build a deterministic Leslie-style cohort model. Every step represents a
+ * year: surviving members move to the next group, the final group stays open,
+ * and births enter group zero. Births are capped by the remaining total
+ * carrying capacity. Cohort stock and runtime parameter names are available
+ * from the helpers below.
+ */
+Economic::SDModel BuildAgeStructuredPopulationModel(
+    const AgeStructuredPopulationConfig& config);
+std::string AgeGroupStockName(std::size_t index);
+std::string AgeGroupSurvivalParameterName(std::size_t index);
+std::string AgeGroupBirthRateParameterName(std::size_t index);
 
 } // namespace Population
 } // namespace Civilization

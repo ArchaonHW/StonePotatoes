@@ -200,6 +200,42 @@ static void TestPopulationDynamics() {
         rejectedNegativeBirthRate = true;
     }
     CHECK(rejectedNegativeBirthRate);
+
+    AgeStructuredPopulationConfig ageConfig;
+    ageConfig.initialPopulationByAgeGroup = {100.0f, 50.0f, 10.0f};
+    ageConfig.annualSurvivalRateByAgeGroup = {0.9f, 0.8f, 0.5f};
+    ageConfig.annualBirthsPerPersonByAgeGroup = {0.0f, 0.2f, 0.1f};
+    ageConfig.carryingCapacity = 1000.0f;
+    auto ageStructured = BuildAgeStructuredPopulationModel(ageConfig);
+    ageStructured.Step();
+    CHECK(std::abs(ageStructured.Stock(AgeGroupStockName(0)) - 11.0f) < 1e-3f);
+    CHECK(std::abs(ageStructured.Stock(AgeGroupStockName(1)) - 90.0f) < 1e-3f);
+    CHECK(std::abs(ageStructured.Stock(AgeGroupStockName(2)) - 45.0f) < 1e-3f);
+    ageStructured.SetParam(AgeGroupSurvivalParameterName(0), 0.0f);
+    ageStructured.SetParam(AgeGroupBirthRateParameterName(1), 0.0f);
+    ageStructured.Step();
+    CHECK(std::abs(ageStructured.Stock(AgeGroupStockName(0)) - 4.5f) < 1e-3f);
+    CHECK(ageStructured.Stock(AgeGroupStockName(1)) == 0.0f);
+    CHECK(std::abs(ageStructured.Stock(AgeGroupStockName(2)) - 94.5f) < 1e-3f);
+
+    ageConfig.initialPopulationByAgeGroup = {100.0f, 0.0f};
+    ageConfig.annualSurvivalRateByAgeGroup = {1.0f, 1.0f};
+    ageConfig.annualBirthsPerPersonByAgeGroup = {2.0f, 0.0f};
+    ageConfig.carryingCapacity = 150.0f;
+    auto capacityBounded = BuildAgeStructuredPopulationModel(ageConfig);
+    capacityBounded.Step();
+    CHECK(capacityBounded.Stock(AgeGroupStockName(0)) == 50.0f);
+    CHECK(capacityBounded.Stock(AgeGroupStockName(1)) == 100.0f);
+
+    bool rejectedMismatchedAgeGroups = false;
+    try {
+        AgeStructuredPopulationConfig invalid = ageConfig;
+        invalid.annualBirthsPerPersonByAgeGroup.pop_back();
+        (void)BuildAgeStructuredPopulationModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedMismatchedAgeGroups = true;
+    }
+    CHECK(rejectedMismatchedAgeGroups);
 }
 
 // ---- LockstepSync tests ----

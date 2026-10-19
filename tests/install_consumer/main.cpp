@@ -680,6 +680,36 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Verify installed age-cohort transitions and global capacity-limited births.
+    {
+        namespace Population = StonePotatoes::Civilization::Population;
+        Population::AgeStructuredPopulationConfig config;
+        config.initialPopulationByAgeGroup = {100.0f, 50.0f, 10.0f};
+        config.annualSurvivalRateByAgeGroup = {0.9f, 0.8f, 0.5f};
+        config.annualBirthsPerPersonByAgeGroup = {0.0f, 0.2f, 0.1f};
+        config.carryingCapacity = 1000.0f;
+        auto population = Population::BuildAgeStructuredPopulationModel(config);
+        population.Step();
+        if (std::fabs(population.Stock(Population::AgeGroupStockName(0)) - 11.0f) >
+                0.001f ||
+            std::fabs(population.Stock(Population::AgeGroupStockName(1)) - 90.0f) >
+                0.001f ||
+            std::fabs(population.Stock(Population::AgeGroupStockName(2)) - 45.0f) >
+                0.001f) {
+            return 74;
+        }
+        config.initialPopulationByAgeGroup = {100.0f, 0.0f};
+        config.annualSurvivalRateByAgeGroup = {1.0f, 1.0f};
+        config.annualBirthsPerPersonByAgeGroup = {2.0f, 0.0f};
+        config.carryingCapacity = 150.0f;
+        population = Population::BuildAgeStructuredPopulationModel(config);
+        population.Step();
+        if (population.Stock(Population::AgeGroupStockName(0)) != 50.0f ||
+            population.Stock(Population::AgeGroupStockName(1)) != 100.0f) {
+            return 75;
+        }
+    }
+
     // Exercise installed deterministic lockstep command and checksum packets.
     {
         using StonePotatoes::Networking::LockstepSync;
