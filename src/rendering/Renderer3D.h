@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include "PBRMaterial.h"
 
 #include <vector>
 
@@ -23,6 +24,11 @@ public:
                    float nearPlane, float farPlane);
     void DrawTriangle(const glm::vec3& a, const glm::vec3& b,
                       const glm::vec3& c, const glm::vec3& color);
+    void DrawPbrTriangle(const glm::vec3& a, const glm::vec3& b,
+                         const glm::vec3& c, const PBRMaterial& material);
+    void SetPbrLighting(const glm::vec3& lightDirection,
+                        const glm::vec3& lightRadiance,
+                        const glm::vec3& ambientRadiance);
 
     std::vector<ProjectedTriangle> ProjectTriangles(
         const glm::vec2& viewport) const;
@@ -35,6 +41,8 @@ private:
         glm::vec3 b{};
         glm::vec3 c{};
         glm::vec3 color{};
+        PBRMaterial material{};
+        bool pbr = false;
     };
 
     glm::vec3 m_Position{0.0f, 0.0f, 5.0f};
@@ -43,6 +51,9 @@ private:
     float m_VerticalFovRadians = 1.04719755f;
     float m_NearPlane = 0.1f;
     float m_FarPlane = 1000.0f;
+    glm::vec3 m_LightDirection{0.4f, 0.8f, 0.5f};
+    glm::vec3 m_LightRadiance{1.0f};
+    glm::vec3 m_AmbientRadiance{0.08f};
     std::vector<Triangle> m_Triangles;
 };
 

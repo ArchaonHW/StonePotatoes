@@ -5,6 +5,7 @@ add_library(StonePotatoesRendering STATIC
     Renderer2D.cpp
     SpriteAnimation2D.cpp
     Renderer3D.cpp
+    PBRLighting.cpp
     VulkanPresentationSmoke.cpp
     stub.cpp
 )

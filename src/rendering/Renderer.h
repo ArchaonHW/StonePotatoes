@@ -7,6 +7,7 @@
 // 有 Vulkan 時使用 Vulkan 呈現；CPU-only 建置使用 OpenGL，兩者都以 ImGui 繪製 UI。
 
 #include <glm/glm.hpp>
+#include "PBRMaterial.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -72,6 +73,15 @@ public:
                      float nearPlane = 0.1f, float farPlane = 1000.0f);
     void DrawTriangle3D(const glm::vec3& a, const glm::vec3& b,
                         const glm::vec3& c, const glm::vec3& color);
+    // Flat-shaded metallic-roughness PBR triangle. lightDirection points from
+    // the surface toward the light; radiance inputs are linear RGB. Uses one
+    // directional light plus constant ambient; there is no z-buffer yet.
+    void SetPbrLighting3D(const glm::vec3& lightDirection,
+                          const glm::vec3& lightRadiance,
+                          const glm::vec3& ambientRadiance);
+    void DrawPbrTriangle3D(const glm::vec3& a, const glm::vec3& b,
+                           const glm::vec3& c,
+                           const PBRMaterial& material);
 
     // Immediate-mode ImGui API | ImGui 即時模式 API
     void BeginImGui();
