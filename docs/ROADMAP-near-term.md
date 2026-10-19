@@ -45,7 +45,7 @@
 ### v0.3 文明、網路、工具（Phase 7–10）
 | Issue | 主題 |
 |---|---|
-| #13 | civilization（含 SystemDynamics 移植） | [進行中；人口模型增量] `StonePotatoes::Civilization` 匯出 stock-flow `SDModel` 與 logistic 人口存量模型，支援可調每月淨遷徙率；單元測試與安裝後 consumer 驗證遷入、遷出、容量邊界及執行期情境調整。年齡結構、出生／死亡分拆、跨區域遷徙、政治、文化等仍為後續工作；SystemDynamics 移植來源已列於 `THIRD_PARTY_NOTICES.md` |
+| #13 | civilization（含 SystemDynamics 移植） | [進行中；人口模型增量] `StonePotatoes::Civilization` 匯出 stock-flow `SDModel`、logistic 人口模型與可選的出生／死亡率分離模型；人口模型支援可調每月淨遷徙率。單元測試與安裝後 consumer 驗證遷入／遷出、出生／死亡參數、容量邊界及執行期情境調整。年齡結構、跨區域遷徙、政治、文化等仍為後續工作；SystemDynamics 移植來源已列於 `THIRD_PARTY_NOTICES.md` |
 | #14 | networking / lockstep | [核心切片完成] `StonePotatoes::Networking` 匯出移植的 `LockstepSync`；安裝後 consumer 驗證 input-delay 封包、tick readiness、peer command 與 checksum mismatch。網路傳輸、可靠重送與斷線復原為後續能力，不阻擋本 issue 關閉；來源已列於 `THIRD_PARTY_NOTICES.md` |
 | #15 | editor（#10 前置條件已完成） | [核心切片完成] 獨立的開發用 `StonePotatoesEditor` 視窗程式，不併入遊戲執行檔或安裝套件；以 Renderer/ImGui 顯示 ECS entity hierarchy，支援建立、選取、刪除與重新命名 entity，Inspector 顯示 entity index/generation。ECS 二進位場景存檔／啟動載入使用 `--save FILE`、`--scene FILE`；`--frames N` 提供 Xvfb 啟動／關閉 smoke 驗收，`editor_session_unit` 驗證狀態與存檔往返。通用 component reflection、資產瀏覽器與更完整編輯功能另列後續工作，不阻擋本 issue 關閉。 |
 

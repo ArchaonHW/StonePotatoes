@@ -13,6 +13,8 @@ namespace {
 constexpr char kPopulationStock[] = "population";
 constexpr char kGrowthRateParameter[] = "intrinsic_growth_rate_per_month";
 constexpr char kNetMigrationParameter[] = "net_migration_per_month";
+constexpr char kBirthRateParameter[] = "birth_rate_per_month";
+constexpr char kDeathRateParameter[] = "death_rate_per_month";
 } // namespace
 
 Economic::SDModel BuildPopulationModel(const PopulationConfig& config) {
@@ -39,6 +41,43 @@ Economic::SDModel BuildPopulationModel(const PopulationConfig& config) {
         return state.P("intrinsic_growth_rate_per_month") * population *
                    densityFactor +
                state.P("net_migration_per_month");
+    });
+    return model;
+}
+
+Economic::SDModel BuildDemographicPopulationModel(
+    const DemographicPopulationConfig& config) {
+    if (!std::isfinite(config.initialPopulation) ||
+        !std::isfinite(config.carryingCapacity) ||
+        !std::isfinite(config.birthRatePerMonth) ||
+        !std::isfinite(config.deathRatePerMonth) ||
+        !std::isfinite(config.netMigrationPerMonth) ||
+        config.carryingCapacity <= 0.0f || config.initialPopulation < 0.0f ||
+        config.initialPopulation > config.carryingCapacity ||
+        config.birthRatePerMonth < 0.0f || config.deathRatePerMonth < 0.0f) {
+        throw std::invalid_argument(
+            "invalid demographic population model configuration");
+    }
+
+    Economic::SDModel model;
+    model.AddStock(kPopulationStock, config.initialPopulation, 0.0f,
+                   config.carryingCapacity);
+    model.SetParam(kBirthRateParameter, config.birthRatePerMonth);
+    model.SetParam(kDeathRateParameter, config.deathRatePerMonth);
+    model.SetParam(kNetMigrationParameter, config.netMigrationPerMonth);
+
+    model.AddFlow(kPopulationStock, [capacity = config.carryingCapacity](
+        const Economic::SDState& state) {
+        const float population = state.S(kPopulationStock);
+        const float densityFactor =
+            std::max(0.0f, 1.0f - population / capacity);
+        return state.P(kBirthRateParameter) * population * densityFactor;
+    });
+    model.AddFlow(kPopulationStock, [](const Economic::SDState& state) {
+        return -state.P(kDeathRateParameter) * state.S(kPopulationStock);
+    });
+    model.AddFlow(kPopulationStock, [](const Economic::SDState& state) {
+        return state.P(kNetMigrationParameter);
     });
     return model;
 }
