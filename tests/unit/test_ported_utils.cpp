@@ -459,6 +459,77 @@ static void TestTradeNetwork() {
         rejectedNegativeTransportCost = true;
     }
     CHECK(rejectedNegativeTransportCost);
+
+    config.initialStockByRegion = {0.0f, 10.0f};
+    config.monthlyTradeFromRegionToRegion = {
+        {0.0f, 0.0f}, {10.0f, 0.0f}};
+    config.initialFundsByRegion = {20.0f, 0.0f};
+    config.monthlyFundsIncomeByRegion = {0.0f, 0.0f};
+    config.monthlyTransportCostPerUnitFromRegionToRegion.clear();
+    config.monthlyTransactionPricePerUnitFromRegionToRegion = {
+        {0.0f, 0.0f}, {3.0f, 0.0f}};
+    auto priceBounded = BuildTradeNetworkModel(config);
+    priceBounded.Step();
+    CHECK(std::abs(priceBounded.Stock(TradeStockName(0)) - (20.0f / 3.0f)) <
+          1e-3f);
+    CHECK(std::abs(priceBounded.Stock(TradeStockName(1)) - (10.0f / 3.0f)) <
+          1e-3f);
+    CHECK(priceBounded.Stock(TradeFundsStockName(0)) == 0.0f);
+    CHECK(std::abs(priceBounded.Stock(TradeFundsStockName(1)) - 20.0f) <
+          1e-3f);
+
+    config.initialStockByRegion = {10.0f, 10.0f};
+    config.monthlyTradeFromRegionToRegion = {
+        {0.0f, 10.0f}, {10.0f, 0.0f}};
+    config.initialFundsByRegion = {20.0f, 0.0f};
+    config.monthlyTransportCostPerUnitFromRegionToRegion = {
+        {0.0f, 1.0f}, {0.0f, 0.0f}};
+    config.monthlyTransactionPricePerUnitFromRegionToRegion = {
+        {0.0f, 0.0f}, {2.0f, 0.0f}};
+    auto combinedSettlement = BuildTradeNetworkModel(config);
+    combinedSettlement.Step();
+    CHECK(std::abs(combinedSettlement.Stock(TradeStockName(0)) - 5.0f) <
+          1e-3f);
+    CHECK(std::abs(combinedSettlement.Stock(TradeStockName(1)) - 15.0f) <
+          1e-3f);
+    CHECK(std::abs(combinedSettlement.Stock(TradeFundsStockName(0)) - 0.0f) <
+          1e-3f);
+    CHECK(std::abs(combinedSettlement.Stock(TradeFundsStockName(1)) - 10.0f) <
+          1e-3f);
+
+    config.initialStockByRegion = {10.0f, 10.0f};
+    config.monthlyTradeFromRegionToRegion = {
+        {0.0f, 10.0f}, {10.0f, 0.0f}};
+    config.initialFundsByRegion = {0.0f, 10.0f};
+    config.monthlyTransportCostPerUnitFromRegionToRegion.clear();
+    config.monthlyTransactionPricePerUnitFromRegionToRegion = {
+        {0.0f, 1.0f}, {1.0f, 0.0f}};
+    auto delayedRevenue = BuildTradeNetworkModel(config);
+    delayedRevenue.Step();
+    CHECK(delayedRevenue.Stock(TradeStockName(0)) == 0.0f);
+    CHECK(delayedRevenue.Stock(TradeStockName(1)) == 20.0f);
+    CHECK(std::abs(delayedRevenue.Stock(TradeFundsStockName(0)) - 10.0f) <
+          1e-3f);
+
+    bool rejectedMismatchedTransactionPriceMatrix = false;
+    try {
+        TradeNetworkConfig invalid = config;
+        invalid.monthlyTransactionPricePerUnitFromRegionToRegion[0].pop_back();
+        (void)BuildTradeNetworkModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedMismatchedTransactionPriceMatrix = true;
+    }
+    CHECK(rejectedMismatchedTransactionPriceMatrix);
+
+    bool rejectedNegativeTransactionPrice = false;
+    try {
+        TradeNetworkConfig invalid = config;
+        invalid.monthlyTransactionPricePerUnitFromRegionToRegion[1][0] = -1.0f;
+        (void)BuildTradeNetworkModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedNegativeTransactionPrice = true;
+    }
+    CHECK(rejectedNegativeTransactionPrice);
 }
 
 static void TestMarketPrice() {

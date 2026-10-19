@@ -43,14 +43,18 @@ auto trade = BuildTradeNetworkModel(config);
 trade.Step(); // advance one month
 ```
 
-The model does not simulate taxes, route delays, or transaction settlement.
+The model does not simulate taxes, route delays, or general currency issuance.
 Price discovery is available separately through
-[`market-price-model.md`](market-price-model.md). Transport costs can be
-enabled by supplying starting funds and a per-unit cost matrix. Each sending
-region pays its own costs; when available funds cannot cover its route requests,
-all its outgoing shipments are scaled proportionally. Monthly fund income can
-replenish the treasury. Leaving the optional cost fields empty preserves
-existing free-trade behavior.
+[`market-price-model.md`](market-price-model.md). Route transaction prices and
+transport costs are optional and can be combined. Buyers pay sellers at each
+route's configured price; if a buyer cannot afford its requested imports after
+reserving funds for its own transport costs, all of its incoming purchases are
+scaled proportionally. Sellers receive accepted payments at the end of the
+step, so sales revenue cannot fund same-step purchases or transport. Sending
+regions pay their own transport costs; when funds cannot cover route requests,
+their outgoing shipments are scaled proportionally. Monthly fund income is
+available for settlement during that step. Leaving both optional matrices
+empty preserves existing free-trade behavior.
 
 For cost-limited routes, configure `initialFundsByRegion` and
 `monthlyTransportCostPerUnitFromRegionToRegion` (rows are sources, columns are
@@ -68,4 +72,21 @@ config.monthlyTransportCostPerUnitFromRegionToRegion = {
 };
 auto fundedTrade = BuildTradeNetworkModel(config);
 fundedTrade.Step();
+```
+
+To enable purchase settlement, also supply `initialFundsByRegion` and a
+`monthlyTransactionPricePerUnitFromRegionToRegion` matrix. Rows identify sellers
+(route sources), columns identify buyers (route destinations). The price matrix
+can be adjusted between steps with
+`TradeRouteTransactionPriceParameterName(seller, buyer)`.
+
+```cpp
+config.initialFundsByRegion = {20.0f, 0.0f};
+config.monthlyFundsIncomeByRegion = {0.0f, 0.0f};
+config.monthlyTransactionPricePerUnitFromRegionToRegion = {
+    {0.0f, 0.0f},
+    {3.0f, 0.0f}, // region 0 pays 3 funds per unit bought from region 1
+};
+auto settledTrade = BuildTradeNetworkModel(config);
+settledTrade.Step();
 ```
