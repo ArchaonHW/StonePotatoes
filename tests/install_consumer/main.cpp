@@ -1,5 +1,6 @@
 #include <ecs/World.h>
 #include <civilization/economic/SystemDynamics.h>
+#include <civilization/economic/MarketPrice.h>
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/population/PopulationDynamics.h>
 #include <networking/core/LockstepSync.h>
@@ -703,6 +704,31 @@ int main(int argc, char** argv) {
                 0.001f ||
             trade.Stock(TradeStockName(1)) != 50.0f) {
             return 81;
+        }
+    }
+
+    // Verify the installed price model responds to inventory scarcity.
+    {
+        using namespace StonePotatoes::Civilization::Economic;
+        MarketPriceConfig config;
+        config.initialPrice = 10.0f;
+        config.targetStock = 100.0f;
+        config.responsePerMonth = 0.2f;
+        config.minimumPrice = 1.0f;
+        config.maximumPrice = 100.0f;
+        auto price = BuildMarketPriceModel(config);
+        price.SetParam(MarketStockParameterName(), 50.0f);
+        price.Step();
+        if (std::fabs(price.Stock(MarketPriceStockName()) - 11.0f) >
+            0.001f) {
+            return 83;
+        }
+
+        price.SetParam(MarketStockParameterName(), 200.0f);
+        price.Step();
+        if (std::fabs(price.Stock(MarketPriceStockName()) - 8.8f) >
+            0.001f) {
+            return 84;
         }
     }
 
