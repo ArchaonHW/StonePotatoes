@@ -443,13 +443,16 @@ The world is a **Living World** that includes:
 
 The current C++ slice provides `StonePotatoes::Civilization::Economic::SDModel`,
 a discrete stock-flow simulator with stocks, parameters, auxiliary values,
-flows, scheduled events, probes, and history. It is available to external CMake
-projects through the installed `StonePotatoes::Civilization` target. Population,
+flows, scheduled events, probes, and history. It also includes a logistic
+single-region population preset, `StonePotatoes::Civilization::Population::BuildPopulationModel`.
+Both are available to external CMake projects through the installed
+`StonePotatoes::Civilization` target. Population structure, migration,
 trade, politics, culture, and other complete civilization systems remain
 long-term goals:
 
 目前 C++ 切片提供 `StonePotatoes::Civilization::Economic::SDModel`，這是離散的
-存量／流量模擬器，支援存量、參數、輔助值、流量、排程事件、探針與歷史記錄。
+存量／流量模擬器，支援存量、參數、輔助值、流量、排程事件、探針與歷史記錄；
+另提供 logistic 單區域人口存量模型。
 人口、貿易、政治、文化等完整文明系統仍屬長期目標：
 
 - Population (demographics, birth/death rates, migration)

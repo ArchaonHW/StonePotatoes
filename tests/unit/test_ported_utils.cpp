@@ -11,10 +11,12 @@
 #include "math/QuasiRandom.h"
 #include "math/CurlNoise.h"
 #include "civilization/economic/SystemDynamics.h"
+#include "civilization/population/PopulationDynamics.h"
 #include "networking/core/LockstepSync.h"
 
 #include <cstdio>
 #include <cmath>
+#include <stdexcept>
 
 using namespace StonePotatoes;
 
@@ -124,6 +126,36 @@ static void TestSystemDynamics() {
     CHECK(std::abs(eventModel.Stock("treasury") - 7.0f) < 1e-3f);
 }
 
+static void TestPopulationDynamics() {
+    using namespace Civilization::Population;
+
+    auto growing = BuildPopulationModel({100.0f, 1000.0f, 0.2f});
+    growing.Step();
+    CHECK(std::abs(growing.Stock("population") - 118.0f) < 1e-3f);
+    CHECK(growing.History("population").size() == 2);
+    growing.SetParam("intrinsic_growth_rate_per_month", -0.2f);
+    growing.Step();
+    CHECK(growing.Stock("population") < 118.0f);
+
+    auto capped = BuildPopulationModel({999.0f, 1000.0f, 1000.0f});
+    capped.Step();
+    CHECK(std::abs(capped.Stock("population") - 1000.0f) < 1e-3f);
+    capped.Step();
+    CHECK(std::abs(capped.Stock("population") - 1000.0f) < 1e-3f);
+
+    auto empty = BuildPopulationModel({0.0f, 1000.0f, 0.2f});
+    empty.Step();
+    CHECK(empty.Stock("population") == 0.0f);
+
+    bool rejectedInvalidCapacity = false;
+    try {
+        (void)BuildPopulationModel({100.0f, 0.0f, 0.2f});
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidCapacity = true;
+    }
+    CHECK(rejectedInvalidCapacity);
+}
+
 // ---- LockstepSync tests ----
 static void TestLockstepSync() {
     using namespace Networking;
@@ -157,6 +189,7 @@ int main() {
     TestQuasiRandom();
     TestCurlNoise();
     TestSystemDynamics();
+    TestPopulationDynamics();
     TestLockstepSync();
 
     std::printf("\n=== Ported Utils Tests ===\n");
