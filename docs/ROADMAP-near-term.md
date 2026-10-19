@@ -45,7 +45,7 @@
 ### v0.3 文明、網路、工具（Phase 7–10）
 | Issue | 主題 |
 |---|---|
-| #13 | civilization（含 SystemDynamics 移植） | [進行中；經濟與人口模型增量] `StonePotatoes::Civilization` 匯出 stock-flow `SDModel`、區域庫存生產／消耗／貿易模型、依庫存相對目標量調整且有價格上下限的月度市場價格模型、單區 logistic 與出生／死亡月模型、年度 age-cohort 模型及多區人口遷徙模型；單元測試與安裝後 consumer 驗證交易守恆、來源庫存、目的地儲量上限與價格對短缺／過剩反應。政治、文化、交易結算／貨幣、運輸成本、年齡分組人口校準等仍為後續工作；模型使用方式見 [`population-models.md`](population-models.md)、[`trade-network-model.md`](trade-network-model.md) 與 [`market-price-model.md`](market-price-model.md)，SystemDynamics 移植來源已列於 `THIRD_PARTY_NOTICES.md` |
+| #13 | civilization（含 SystemDynamics 移植） | [進行中；經濟與人口模型增量] `StonePotatoes::Civilization` 匯出 stock-flow `SDModel`、區域庫存生產／消耗／貿易與由發貨區資金限制的運輸成本模型、依庫存相對目標量調整且有價格上下限的月度市場價格模型、單區 logistic 與出生／死亡月模型、年度 age-cohort 模型及多區人口遷徙模型；單元測試與安裝後 consumer 驗證交易守恆、庫存／儲量上限、價格對短缺／過剩反應及資金不足時按比例縮減出貨。政治、文化、交易結算／一般貨幣系統、年齡分組人口校準等仍為後續工作；模型使用方式見 [`population-models.md`](population-models.md)、[`trade-network-model.md`](trade-network-model.md) 與 [`market-price-model.md`](market-price-model.md)，SystemDynamics 移植來源已列於 `THIRD_PARTY_NOTICES.md` |
 | #14 | networking / lockstep | [核心切片完成] `StonePotatoes::Networking` 匯出移植的 `LockstepSync`；安裝後 consumer 驗證 input-delay 封包、tick readiness、peer command 與 checksum mismatch。網路傳輸、可靠重送與斷線復原為後續能力，不阻擋本 issue 關閉；來源已列於 `THIRD_PARTY_NOTICES.md` |
 | #15 | editor（#10 前置條件已完成） | [核心切片完成] 獨立的開發用 `StonePotatoesEditor` 視窗程式，不併入遊戲執行檔或安裝套件；以 Renderer/ImGui 顯示 ECS entity hierarchy，支援建立、選取、刪除與重新命名 entity，Inspector 顯示 entity index/generation。ECS 二進位場景存檔／啟動載入使用 `--save FILE`、`--scene FILE`；`--frames N` 提供 Xvfb 啟動／關閉 smoke 驗收，`editor_session_unit` 驗證狀態與存檔往返。通用 component reflection、資產瀏覽器與更完整編輯功能另列後續工作，不阻擋本 issue 關閉。 |
 
