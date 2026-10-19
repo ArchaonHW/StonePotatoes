@@ -201,6 +201,69 @@ static void TestPopulationDynamics() {
     }
     CHECK(rejectedNegativeBirthRate);
 
+    RegionalPopulationConfig regionalConfig;
+    regionalConfig.initialPopulationByRegion = {100.0f, 50.0f};
+    regionalConfig.carryingCapacityByRegion = {1000.0f, 1000.0f};
+    regionalConfig.intrinsicGrowthRatePerMonthByRegion = {0.0f, 0.0f};
+    regionalConfig.monthlyMigrationFromRegionToRegion = {
+        {0.0f, 20.0f}, {5.0f, 0.0f}};
+    auto regional = BuildRegionalPopulationModel(regionalConfig);
+    regional.SetParam(RegionMigrationParameterName(0, 0), 500.0f);
+    regional.Step();
+    CHECK(std::abs(regional.Stock(RegionPopulationStockName(0)) - 85.0f) <
+          1e-3f);
+    CHECK(std::abs(regional.Stock(RegionPopulationStockName(1)) - 65.0f) <
+          1e-3f);
+    CHECK(std::abs(regional.Stock(RegionPopulationStockName(0)) +
+                   regional.Stock(RegionPopulationStockName(1)) - 150.0f) <
+          1e-3f);
+    regional.SetParam(RegionMigrationParameterName(0, 1), 0.0f);
+    regional.SetParam(RegionMigrationParameterName(1, 0), 10.0f);
+    regional.Step();
+    CHECK(std::abs(regional.Stock(RegionPopulationStockName(0)) - 75.0f) <
+          1e-3f);
+    CHECK(std::abs(regional.Stock(RegionPopulationStockName(1)) - 75.0f) <
+          1e-3f);
+
+    regionalConfig.initialPopulationByRegion = {100.0f, 90.0f};
+    regionalConfig.carryingCapacityByRegion = {1000.0f, 100.0f};
+    regionalConfig.monthlyMigrationFromRegionToRegion = {
+        {0.0f, 30.0f}, {0.0f, 0.0f}};
+    auto destinationBounded = BuildRegionalPopulationModel(regionalConfig);
+    destinationBounded.Step();
+    CHECK(std::abs(destinationBounded.Stock(RegionPopulationStockName(0)) -
+                   90.0f) < 1e-3f);
+    CHECK(destinationBounded.Stock(RegionPopulationStockName(1)) == 100.0f);
+
+    regionalConfig.initialPopulationByRegion = {100.0f, 0.0f};
+    regionalConfig.monthlyMigrationFromRegionToRegion = {
+        {0.0f, 1000.0f}, {0.0f, 0.0f}};
+    auto sourceBounded = BuildRegionalPopulationModel(regionalConfig);
+    sourceBounded.Step();
+    CHECK(sourceBounded.Stock(RegionPopulationStockName(0)) == 0.0f);
+    CHECK(std::abs(sourceBounded.Stock(RegionPopulationStockName(1)) - 100.0f) <
+          1e-3f);
+
+    bool rejectedInvalidRegionalShape = false;
+    try {
+        RegionalPopulationConfig invalid = regionalConfig;
+        invalid.monthlyMigrationFromRegionToRegion[0].pop_back();
+        (void)BuildRegionalPopulationModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidRegionalShape = true;
+    }
+    CHECK(rejectedInvalidRegionalShape);
+
+    bool rejectedNegativeRegionalMigration = false;
+    try {
+        RegionalPopulationConfig invalid = regionalConfig;
+        invalid.monthlyMigrationFromRegionToRegion[0][1] = -1.0f;
+        (void)BuildRegionalPopulationModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedNegativeRegionalMigration = true;
+    }
+    CHECK(rejectedNegativeRegionalMigration);
+
     AgeStructuredPopulationConfig ageConfig;
     ageConfig.initialPopulationByAgeGroup = {100.0f, 50.0f, 10.0f};
     ageConfig.annualSurvivalRateByAgeGroup = {0.9f, 0.8f, 0.5f};

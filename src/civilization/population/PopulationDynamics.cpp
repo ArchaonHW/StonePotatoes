@@ -55,6 +55,86 @@ std::vector<float> ProjectedAgeGroupPopulations(
              ? std::clamp(state.P(survivalNames.back()), 0.0f, 1.0f) : 0.0f);
     return projected;
 }
+
+struct RegionalStepProjection {
+    std::vector<float> populationAfterGrowth;
+    std::vector<float> migrationDelta;
+};
+
+RegionalStepProjection ProjectRegionalStep(
+    const Economic::SDState& state,
+    const std::vector<std::string>& stockNames,
+    const std::vector<std::string>& growthParameterNames,
+    const std::vector<float>& capacities,
+    const std::vector<std::vector<std::string>>& migrationParameterNames) {
+    const std::size_t regionCount = stockNames.size();
+    RegionalStepProjection result{
+        std::vector<float>(regionCount, 0.0f),
+        std::vector<float>(regionCount, 0.0f)};
+    std::vector<std::vector<float>> requestedTransfers(
+        regionCount, std::vector<float>(regionCount, 0.0f));
+
+    for (std::size_t source = 0; source < regionCount; ++source) {
+        const float population = state.S(stockNames[source]);
+        const float rawGrowthRate = state.P(growthParameterNames[source]);
+        const float growthRate = std::isfinite(rawGrowthRate)
+            ? rawGrowthRate : 0.0f;
+        const float densityFactor =
+            std::max(0.0f, 1.0f - population / capacities[source]);
+        result.populationAfterGrowth[source] = std::clamp(
+            population + growthRate * population * densityFactor,
+            0.0f, capacities[source]);
+    }
+
+    for (std::size_t source = 0; source < regionCount; ++source) {
+        float requestedOutflow = 0.0f;
+        for (std::size_t destination = 0; destination < regionCount;
+             ++destination) {
+            const float rawRequest = state.P(
+                migrationParameterNames[source][destination]);
+            const float request = source != destination &&
+                    std::isfinite(rawRequest)
+                ? std::max(0.0f, rawRequest) : 0.0f;
+            requestedTransfers[source][destination] = request;
+            requestedOutflow += request;
+        }
+        if (requestedOutflow > result.populationAfterGrowth[source] &&
+            requestedOutflow > 0.0f) {
+            const float sourceScale =
+                result.populationAfterGrowth[source] / requestedOutflow;
+            for (float& request : requestedTransfers[source]) {
+                request *= sourceScale;
+            }
+        }
+    }
+
+    std::vector<float> destinationScales(regionCount, 1.0f);
+    for (std::size_t destination = 0; destination < regionCount;
+         ++destination) {
+        float requestedInflow = 0.0f;
+        for (std::size_t source = 0; source < regionCount; ++source) {
+            requestedInflow += requestedTransfers[source][destination];
+        }
+        const float availableCapacity = std::max(
+            0.0f, capacities[destination] -
+                      result.populationAfterGrowth[destination]);
+        if (requestedInflow > availableCapacity && requestedInflow > 0.0f) {
+            destinationScales[destination] =
+                availableCapacity / requestedInflow;
+        }
+    }
+
+    for (std::size_t source = 0; source < regionCount; ++source) {
+        for (std::size_t destination = 0; destination < regionCount;
+             ++destination) {
+            const float transfer = requestedTransfers[source][destination] *
+                destinationScales[destination];
+            result.migrationDelta[source] -= transfer;
+            result.migrationDelta[destination] += transfer;
+        }
+    }
+    return result;
+}
 } // namespace
 
 std::string AgeGroupStockName(std::size_t index) {
@@ -71,6 +151,20 @@ std::string AgeGroupBirthRateParameterName(std::size_t index) {
 
 std::string AgeGroupNetMigrationParameterName(std::size_t index) {
     return IndexedName("net_migration_per_year_age_group_", index);
+}
+
+std::string RegionPopulationStockName(std::size_t regionIndex) {
+    return IndexedName("population_region_", regionIndex);
+}
+
+std::string RegionGrowthParameterName(std::size_t regionIndex) {
+    return IndexedName("intrinsic_growth_rate_per_month_region_", regionIndex);
+}
+
+std::string RegionMigrationParameterName(std::size_t fromRegionIndex,
+                                         std::size_t toRegionIndex) {
+    return IndexedName("migration_per_month_region_", fromRegionIndex) +
+           "_to_" + std::to_string(toRegionIndex);
 }
 
 Economic::SDModel BuildPopulationModel(const PopulationConfig& config) {
@@ -135,6 +229,87 @@ Economic::SDModel BuildDemographicPopulationModel(
     model.AddFlow(kPopulationStock, [](const Economic::SDState& state) {
         return state.P(kNetMigrationParameter);
     });
+    return model;
+}
+
+Economic::SDModel BuildRegionalPopulationModel(
+    const RegionalPopulationConfig& config) {
+    const std::size_t regionCount = config.initialPopulationByRegion.size();
+    if (regionCount == 0 ||
+        config.carryingCapacityByRegion.size() != regionCount ||
+        config.intrinsicGrowthRatePerMonthByRegion.size() != regionCount ||
+        config.monthlyMigrationFromRegionToRegion.size() != regionCount) {
+        throw std::invalid_argument(
+            "regional population vectors must have matching nonzero sizes");
+    }
+
+    for (std::size_t region = 0; region < regionCount; ++region) {
+        const float initial = config.initialPopulationByRegion[region];
+        const float capacity = config.carryingCapacityByRegion[region];
+        const float growthRate =
+            config.intrinsicGrowthRatePerMonthByRegion[region];
+        if (!std::isfinite(initial) || !std::isfinite(capacity) ||
+            !std::isfinite(growthRate) || capacity <= 0.0f || initial < 0.0f ||
+            initial > capacity ||
+            config.monthlyMigrationFromRegionToRegion[region].size() !=
+                regionCount) {
+            throw std::invalid_argument(
+                "invalid regional population configuration");
+        }
+        for (std::size_t destination = 0; destination < regionCount;
+             ++destination) {
+            const float migration =
+                config.monthlyMigrationFromRegionToRegion[region][destination];
+            if (!std::isfinite(migration) || migration < 0.0f ||
+                (region == destination && migration != 0.0f)) {
+                throw std::invalid_argument(
+                    "regional migration must be finite, nonnegative, and "
+                    "exclude self-transfers");
+            }
+        }
+    }
+
+    std::vector<std::string> stockNames;
+    std::vector<std::string> growthParameterNames;
+    std::vector<std::vector<std::string>> migrationParameterNames(
+        regionCount, std::vector<std::string>(regionCount));
+    stockNames.reserve(regionCount);
+    growthParameterNames.reserve(regionCount);
+
+    Economic::SDModel model;
+    for (std::size_t region = 0; region < regionCount; ++region) {
+        const std::string stock = RegionPopulationStockName(region);
+        const std::string growth = RegionGrowthParameterName(region);
+        stockNames.push_back(stock);
+        growthParameterNames.push_back(growth);
+        model.AddStock(stock, config.initialPopulationByRegion[region], 0.0f,
+                       config.carryingCapacityByRegion[region]);
+        model.SetParam(growth,
+                       config.intrinsicGrowthRatePerMonthByRegion[region]);
+        for (std::size_t destination = 0; destination < regionCount;
+             ++destination) {
+            const std::string migration =
+                RegionMigrationParameterName(region, destination);
+            migrationParameterNames[region][destination] = migration;
+            model.SetParam(
+                migration,
+                config.monthlyMigrationFromRegionToRegion[region][destination]);
+        }
+    }
+
+    for (std::size_t region = 0; region < regionCount; ++region) {
+        model.AddFlow(stockNames[region], [region, stockNames,
+            growthParameterNames,
+            capacities = config.carryingCapacityByRegion,
+            migrationParameterNames](const Economic::SDState& state) {
+            const RegionalStepProjection projection = ProjectRegionalStep(
+                state, stockNames, growthParameterNames, capacities,
+                migrationParameterNames);
+            return projection.populationAfterGrowth[region] -
+                       state.S(stockNames[region]) +
+                   projection.migrationDelta[region];
+        });
+    }
     return model;
 }
 

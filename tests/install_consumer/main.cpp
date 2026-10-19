@@ -680,6 +680,42 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Verify installed regional migration conserves transfers and respects capacity.
+    {
+        namespace Population = StonePotatoes::Civilization::Population;
+        Population::RegionalPopulationConfig config;
+        config.initialPopulationByRegion = {100.0f, 50.0f};
+        config.carryingCapacityByRegion = {1000.0f, 1000.0f};
+        config.intrinsicGrowthRatePerMonthByRegion = {0.0f, 0.0f};
+        config.monthlyMigrationFromRegionToRegion = {
+            {0.0f, 20.0f}, {5.0f, 0.0f}};
+        auto population = Population::BuildRegionalPopulationModel(config);
+        population.Step();
+        const float region0 = population.Stock(
+            Population::RegionPopulationStockName(0));
+        const float region1 = population.Stock(
+            Population::RegionPopulationStockName(1));
+        if (std::fabs(region0 - 85.0f) > 0.001f ||
+            std::fabs(region1 - 65.0f) > 0.001f ||
+            std::fabs(region0 + region1 - 150.0f) > 0.001f) {
+            return 78;
+        }
+
+        config.initialPopulationByRegion = {100.0f, 90.0f};
+        config.carryingCapacityByRegion = {1000.0f, 100.0f};
+        config.monthlyMigrationFromRegionToRegion = {
+            {0.0f, 30.0f}, {0.0f, 0.0f}};
+        population = Population::BuildRegionalPopulationModel(config);
+        population.Step();
+        if (std::fabs(population.Stock(
+                Population::RegionPopulationStockName(0)) - 90.0f) >
+                0.001f ||
+            population.Stock(Population::RegionPopulationStockName(1)) !=
+                100.0f) {
+            return 79;
+        }
+    }
+
     // Verify installed age-cohort transitions and global capacity-limited births.
     {
         namespace Population = StonePotatoes::Civilization::Population;

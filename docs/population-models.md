@@ -6,6 +6,8 @@ building blocks in `civilization/population/PopulationDynamics.h`:
 - `BuildPopulationModel`: monthly logistic growth with net migration.
 - `BuildDemographicPopulationModel`: monthly density-limited births, deaths,
   and net migration.
+- `BuildRegionalPopulationModel`: monthly logistic growth with directed
+  migration between regions, source-population and destination-capacity bounds.
 - `BuildAgeStructuredPopulationModel`: annual cohort transitions, cohort-level
   survival, births, age-specific net migration, and a total carrying-capacity
   bound.
@@ -56,3 +58,37 @@ The model is a deterministic, single-region demographic slice. It does not
 currently model sex-separated fertility, multi-region flows, or calibration
 from census data. Use the other monthly model when
 scenario rates are expressed per month.
+
+## Monthly regional model
+
+`RegionalPopulationConfig` provides equally sized per-region vectors for
+initial population, carrying capacity, and intrinsic monthly growth rate. Its
+`monthlyMigrationFromRegionToRegion` matrix is square: row `i`, column `j` is
+the requested number of residents transferred from region `i` to region `j`
+each month. Self-transfers must be zero. Every accepted transfer is removed
+from its source and added to its destination, so migration alone conserves the
+world population. Requests are proportionally reduced when a source lacks
+population or a destination lacks carrying capacity. Growth and migration
+parameters can be adjusted after construction using
+`RegionGrowthParameterName(index)` and
+`RegionMigrationParameterName(from, to)`; read the population using
+`RegionPopulationStockName(index)`.
+
+```cpp
+using namespace StonePotatoes::Civilization::Population;
+
+RegionalPopulationConfig config;
+config.initialPopulationByRegion = {100.0f, 50.0f};
+config.carryingCapacityByRegion = {1000.0f, 1000.0f};
+config.intrinsicGrowthRatePerMonthByRegion = {0.01f, 0.02f};
+config.monthlyMigrationFromRegionToRegion = {
+    {0.0f, 20.0f}, // region 0 sends 20 residents to region 1
+    {5.0f, 0.0f},  // region 1 sends 5 residents to region 0
+};
+
+auto population = BuildRegionalPopulationModel(config);
+population.Step(); // advance one month
+```
+
+This is a deterministic regional population slice; it does not combine
+regional migration with age cohorts or model migration costs and policy.

@@ -34,6 +34,15 @@ struct DemographicPopulationConfig {
     float netMigrationPerMonth = 0.0f;
 };
 
+/** Configuration for a monthly multi-region population model. */
+struct RegionalPopulationConfig {
+    std::vector<float> initialPopulationByRegion;
+    std::vector<float> carryingCapacityByRegion;
+    std::vector<float> intrinsicGrowthRatePerMonthByRegion;
+    // Absolute residents transferred per month; matrix rows are sources.
+    std::vector<std::vector<float>> monthlyMigrationFromRegionToRegion;
+};
+
 /**
  * One-year age-cohort projection configuration. Rates are annual; each model
  * step advances one age group. The final group is open-ended. Birth rates are
@@ -63,6 +72,17 @@ Economic::SDModel BuildPopulationModel(const PopulationConfig& config);
  */
 Economic::SDModel BuildDemographicPopulationModel(
     const DemographicPopulationConfig& config);
+
+/**
+ * Build a monthly logistic model for multiple regions with conserved directed
+ * migration. Transfers are bounded by source population and destination room.
+ */
+Economic::SDModel BuildRegionalPopulationModel(
+    const RegionalPopulationConfig& config);
+std::string RegionPopulationStockName(std::size_t regionIndex);
+std::string RegionGrowthParameterName(std::size_t regionIndex);
+std::string RegionMigrationParameterName(std::size_t fromRegionIndex,
+                                        std::size_t toRegionIndex);
 
 /**
  * Build a deterministic Leslie-style cohort model. Every step represents a
