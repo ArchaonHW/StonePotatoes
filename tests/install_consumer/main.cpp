@@ -2,6 +2,7 @@
 #include <civilization/economic/SystemDynamics.h>
 #include <civilization/economic/MarketPrice.h>
 #include <civilization/economic/TradeNetwork.h>
+#include <civilization/culture/CultureDiffusion.h>
 #include <civilization/population/PopulationDynamics.h>
 #include <networking/core/LockstepSync.h>
 #include <data/AssetCache.h>
@@ -748,6 +749,23 @@ int main(int argc, char** argv) {
             std::fabs(trade.Stock(TradeFundsStockName(1)) - 20.0f) >
                 0.001f) {
             return 87;
+        }
+    }
+
+    // Verify installed culture traits diffuse independently across regions.
+    {
+        using namespace StonePotatoes::Civilization::Culture;
+        CultureDiffusionConfig config;
+        config.initialTraitsByRegion = {{0.0f, 1.0f}, {1.0f, 0.0f}};
+        config.monthlyAssimilationRateFromRegionToRegion = {
+            {0.0f, 0.25f}, {0.25f, 0.0f}};
+        auto culture = BuildCultureDiffusionModel(config);
+        culture.Step();
+        if (std::fabs(culture.Stock(CultureTraitStockName(0, 0)) - 0.25f) >
+                0.001f ||
+            std::fabs(culture.Stock(CultureTraitStockName(1, 1)) - 0.25f) >
+                0.001f) {
+            return 88;
         }
     }
 

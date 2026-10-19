@@ -13,6 +13,7 @@
 #include "civilization/economic/SystemDynamics.h"
 #include "civilization/economic/MarketPrice.h"
 #include "civilization/economic/TradeNetwork.h"
+#include "civilization/culture/CultureDiffusion.h"
 #include "civilization/population/PopulationDynamics.h"
 #include "networking/core/LockstepSync.h"
 
@@ -580,6 +581,50 @@ static void TestMarketPrice() {
     CHECK(rejectedInvalidTarget);
 }
 
+static void TestCultureDiffusion() {
+    using namespace Civilization::Culture;
+
+    CultureDiffusionConfig config;
+    config.initialTraitsByRegion = {
+        {0.0f, 1.0f}, {1.0f, 0.0f}, {0.5f, 0.5f}};
+    config.monthlyAssimilationRateFromRegionToRegion = {
+        {0.0f, 0.25f, 0.0f},
+        {0.25f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 0.0f}};
+    auto culture = BuildCultureDiffusionModel(config);
+    culture.Step();
+    CHECK(std::abs(culture.Stock(CultureTraitStockName(0, 0)) - 0.25f) <
+          1e-3f);
+    CHECK(std::abs(culture.Stock(CultureTraitStockName(0, 1)) - 0.75f) <
+          1e-3f);
+    CHECK(std::abs(culture.Stock(CultureTraitStockName(1, 0)) - 0.75f) <
+          1e-3f);
+    CHECK(std::abs(culture.Stock(CultureTraitStockName(1, 1)) - 0.25f) <
+          1e-3f);
+    CHECK(culture.Stock(CultureTraitStockName(2, 0)) == 0.5f);
+
+    bool rejectedUnboundedIncomingInfluence = false;
+    try {
+        CultureDiffusionConfig invalid = config;
+        invalid.monthlyAssimilationRateFromRegionToRegion[0][2] = 0.75f;
+        invalid.monthlyAssimilationRateFromRegionToRegion[1][2] = 0.5f;
+        (void)BuildCultureDiffusionModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedUnboundedIncomingInfluence = true;
+    }
+    CHECK(rejectedUnboundedIncomingInfluence);
+
+    bool rejectedInvalidTrait = false;
+    try {
+        CultureDiffusionConfig invalid = config;
+        invalid.initialTraitsByRegion[0][0] = 1.1f;
+        (void)BuildCultureDiffusionModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidTrait = true;
+    }
+    CHECK(rejectedInvalidTrait);
+}
+
 // ---- LockstepSync tests ----
 static void TestLockstepSync() {
     using namespace Networking;
@@ -616,6 +661,7 @@ int main() {
     TestPopulationDynamics();
     TestTradeNetwork();
     TestMarketPrice();
+    TestCultureDiffusion();
     TestLockstepSync();
 
     std::printf("\n=== Ported Utils Tests ===\n");

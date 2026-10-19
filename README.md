@@ -442,18 +442,19 @@ The world is a **Living World** that includes:
 ## Civilization Simulation | 文明模擬
 
 The current C++ slice provides `StonePotatoes::Civilization::Economic::SDModel`,
-a discrete stock-flow simulator with stocks, parameters, auxiliary values,
-flows, scheduled events, probes, and history. It also includes a logistic
-single-region population preset, `StonePotatoes::Civilization::Population::BuildPopulationModel`.
-Both are available to external CMake projects through the installed
-`StonePotatoes::Civilization` target. Population structure, migration,
-trade, politics, culture, and other complete civilization systems remain
-long-term goals:
+a discrete stock-flow simulator with events, probes, and history, along with
+installable population, market, regional trade and settlement models. It also
+provides generic normalized cultural-trait diffusion between regions through
+`StonePotatoes::Civilization::Culture::BuildCultureDiffusionModel`. These are
+composable simulation components, not a complete civilization game. Political,
+diplomatic, military, cultural formation, and general currency systems remain
+in progress:
 
-目前 C++ 切片提供 `StonePotatoes::Civilization::Economic::SDModel`，這是離散的
-存量／流量模擬器，支援存量、參數、輔助值、流量、排程事件、探針與歷史記錄；
-另提供 logistic 單區域人口存量模型。
-人口、貿易、政治、文化等完整文明系統仍屬長期目標：
+目前 C++ 切片提供 `StonePotatoes::Civilization::Economic::SDModel` 離散存量／流量
+模擬器，以及可安裝的人口、市場、區域貿易與交易結算模型；另有
+`StonePotatoes::Civilization::Culture::BuildCultureDiffusionModel`，提供通用且正規化
+的區域文化特徵擴散。這些是可組合的模擬元件，尚非完整文明遊戲；政治、外交、軍事、
+文化形成及一般貨幣系統仍在開發中：
 
 - Population (demographics, birth/death rates, migration)
   人口（人口統計、出生/死亡率、遷移）
@@ -461,8 +462,8 @@ long-term goals:
   經濟（貿易、市場、生產、稅收、貨幣）
 - Technology (research, innovation, tech trees)
   科技（研究、創新、科技樹）
-- Culture (religion, art, values, language, influence)
-  文化（宗教、藝術、價值觀、語言、影響力）
+- Culture (trait diffusion is implemented; religion, art, values, language, and cultural formation remain future work)
+  文化（已實作特徵擴散；宗教、藝術、價值觀、語言與文化形成仍為後續工作）
 - Politics (government types, factions, policies, laws)
   政治（政府類型、派系、政策、法律）
 - Military (armies, units, logistics, warfare)
@@ -1168,8 +1169,8 @@ See [ROADMAP.md](ROADMAP.md) for the complete technical roadmap.
   **第 5 階段 — AI 代理** 📋（計畫中）
 - **Phase 6 — World Simulation** 📋 (Planned)
   **第 6 階段 — 世界模擬** 📋（計畫中）
-- **Phase 7 — Civilization Simulation** 📋 (Planned)
-  **第 7 階段 — 文明模擬** 📋（計畫中）
+- **Phase 7 — Civilization Simulation** 🚧 (In progress: economic, demographic, and regional cultural-diffusion slices)
+  **第 7 階段 — 文明模擬** 🚧（進行中：經濟、人口與區域文化擴散切片）
 - **Phase 8 — GPU Massive Simulation** 📋 (Planned)
   **第 8 階段 — GPU 大規模模擬** 📋（計畫中）
 - **Phase 9 — Networking** 📋 (Planned)
