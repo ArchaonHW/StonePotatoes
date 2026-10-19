@@ -16,6 +16,7 @@
 
 #include <cstdio>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 
 using namespace StonePotatoes;
@@ -147,6 +148,18 @@ static void TestPopulationDynamics() {
     empty.Step();
     CHECK(empty.Stock("population") == 0.0f);
 
+    auto immigration = BuildPopulationModel({100.0f, 1000.0f, 0.0f, 25.0f});
+    immigration.Step();
+    CHECK(std::abs(immigration.Stock("population") - 125.0f) < 1e-3f);
+    immigration.SetParam("net_migration_per_month", -10.0f);
+    immigration.Step();
+    CHECK(std::abs(immigration.Stock("population") - 115.0f) < 1e-3f);
+
+    auto boundedMigration =
+        BuildPopulationModel({990.0f, 1000.0f, 0.0f, 25.0f});
+    boundedMigration.Step();
+    CHECK(boundedMigration.Stock("population") == 1000.0f);
+
     bool rejectedInvalidCapacity = false;
     try {
         (void)BuildPopulationModel({100.0f, 0.0f, 0.2f});
@@ -154,6 +167,16 @@ static void TestPopulationDynamics() {
         rejectedInvalidCapacity = true;
     }
     CHECK(rejectedInvalidCapacity);
+
+    bool rejectedNonFiniteMigration = false;
+    try {
+        (void)BuildPopulationModel(
+            {100.0f, 1000.0f, 0.2f,
+             std::numeric_limits<float>::infinity()});
+    } catch (const std::invalid_argument&) {
+        rejectedNonFiniteMigration = true;
+    }
+    CHECK(rejectedNonFiniteMigration);
 }
 
 // ---- LockstepSync tests ----
