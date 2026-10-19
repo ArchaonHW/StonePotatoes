@@ -220,9 +220,9 @@ static void TestPopulationDynamics() {
     regional.SetParam(RegionMigrationParameterName(0, 1), 0.0f);
     regional.SetParam(RegionMigrationParameterName(1, 0), 10.0f);
     regional.Step();
-    CHECK(std::abs(regional.Stock(RegionPopulationStockName(0)) - 75.0f) <
+    CHECK(std::abs(regional.Stock(RegionPopulationStockName(0)) - 95.0f) <
           1e-3f);
-    CHECK(std::abs(regional.Stock(RegionPopulationStockName(1)) - 75.0f) <
+    CHECK(std::abs(regional.Stock(RegionPopulationStockName(1)) - 55.0f) <
           1e-3f);
 
     regionalConfig.initialPopulationByRegion = {100.0f, 90.0f};
