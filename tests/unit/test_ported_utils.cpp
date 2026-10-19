@@ -11,6 +11,7 @@
 #include "math/QuasiRandom.h"
 #include "math/CurlNoise.h"
 #include "civilization/economic/SystemDynamics.h"
+#include "civilization/economic/TradeNetwork.h"
 #include "civilization/population/PopulationDynamics.h"
 #include "networking/core/LockstepSync.h"
 
@@ -341,6 +342,81 @@ static void TestPopulationDynamics() {
     CHECK(rejectedNonFiniteAgeMigration);
 }
 
+static void TestTradeNetwork() {
+    using namespace Civilization::Economic;
+
+    TradeNetworkConfig config;
+    config.initialStockByRegion = {100.0f, 20.0f};
+    config.storageCapacityByRegion = {500.0f, 500.0f};
+    config.monthlyProductionByRegion = {10.0f, 0.0f};
+    config.monthlyConsumptionByRegion = {5.0f, 0.0f};
+    config.monthlyTradeFromRegionToRegion = {
+        {0.0f, 30.0f}, {0.0f, 0.0f}};
+    auto trade = BuildTradeNetworkModel(config);
+    trade.Step();
+    CHECK(std::abs(trade.Stock(TradeStockName(0)) - 75.0f) < 1e-3f);
+    CHECK(std::abs(trade.Stock(TradeStockName(1)) - 50.0f) < 1e-3f);
+    CHECK(std::abs(trade.Stock(TradeStockName(0)) +
+                   trade.Stock(TradeStockName(1)) - 125.0f) < 1e-3f);
+
+    trade.SetParam(TradeRouteParameterName(0, 1), 0.0f);
+    trade.SetParam(TradeRouteParameterName(1, 0), 10.0f);
+    trade.SetParam(TradeProductionParameterName(1), 5.0f);
+    trade.Step();
+    CHECK(std::abs(trade.Stock(TradeStockName(0)) - 90.0f) < 1e-3f);
+    CHECK(std::abs(trade.Stock(TradeStockName(1)) - 45.0f) < 1e-3f);
+
+    config.initialStockByRegion = {10.0f, 0.0f};
+    config.storageCapacityByRegion = {100.0f, 100.0f};
+    config.monthlyProductionByRegion = {0.0f, 0.0f};
+    config.monthlyConsumptionByRegion = {0.0f, 0.0f};
+    config.monthlyTradeFromRegionToRegion = {
+        {0.0f, 100.0f}, {0.0f, 0.0f}};
+    auto sourceBounded = BuildTradeNetworkModel(config);
+    sourceBounded.Step();
+    CHECK(sourceBounded.Stock(TradeStockName(0)) == 0.0f);
+    CHECK(sourceBounded.Stock(TradeStockName(1)) == 10.0f);
+
+    config.initialStockByRegion = {100.0f, 45.0f};
+    config.storageCapacityByRegion = {1000.0f, 50.0f};
+    config.monthlyTradeFromRegionToRegion = {
+        {0.0f, 25.0f}, {0.0f, 0.0f}};
+    auto destinationBounded = BuildTradeNetworkModel(config);
+    destinationBounded.Step();
+    CHECK(std::abs(destinationBounded.Stock(TradeStockName(0)) - 95.0f) <
+          1e-3f);
+    CHECK(destinationBounded.Stock(TradeStockName(1)) == 50.0f);
+
+    config.initialStockByRegion = {0.0f, 5.0f};
+    config.monthlyTradeFromRegionToRegion = {
+        {0.0f, 0.0f}, {0.0f, 0.0f}};
+    config.monthlyConsumptionByRegion = {100.0f, 100.0f};
+    auto consumptionBounded = BuildTradeNetworkModel(config);
+    consumptionBounded.Step();
+    CHECK(consumptionBounded.Stock(TradeStockName(0)) == 0.0f);
+    CHECK(consumptionBounded.Stock(TradeStockName(1)) == 0.0f);
+
+    bool rejectedInvalidTradeMatrix = false;
+    try {
+        TradeNetworkConfig invalid = config;
+        invalid.monthlyTradeFromRegionToRegion[0].pop_back();
+        (void)BuildTradeNetworkModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidTradeMatrix = true;
+    }
+    CHECK(rejectedInvalidTradeMatrix);
+
+    bool rejectedSelfTrade = false;
+    try {
+        TradeNetworkConfig invalid = config;
+        invalid.monthlyTradeFromRegionToRegion[0][0] = 1.0f;
+        (void)BuildTradeNetworkModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedSelfTrade = true;
+    }
+    CHECK(rejectedSelfTrade);
+}
+
 // ---- LockstepSync tests ----
 static void TestLockstepSync() {
     using namespace Networking;
@@ -375,6 +451,7 @@ int main() {
     TestCurlNoise();
     TestSystemDynamics();
     TestPopulationDynamics();
+    TestTradeNetwork();
     TestLockstepSync();
 
     std::printf("\n=== Ported Utils Tests ===\n");

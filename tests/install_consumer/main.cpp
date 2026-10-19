@@ -1,5 +1,6 @@
 #include <ecs/World.h>
 #include <civilization/economic/SystemDynamics.h>
+#include <civilization/economic/TradeNetwork.h>
 #include <civilization/population/PopulationDynamics.h>
 #include <networking/core/LockstepSync.h>
 #include <data/AssetCache.h>
@@ -658,6 +659,50 @@ int main(int argc, char** argv) {
         population.Step();
         if (std::fabs(population.Stock("population") - 134.5742f) > 0.01f) {
             return 71;
+        }
+    }
+
+    // Verify installed trade transfers conserve commodity and respect storage.
+    {
+        using namespace StonePotatoes::Civilization::Economic;
+        TradeNetworkConfig config;
+        config.initialStockByRegion = {100.0f, 20.0f};
+        config.storageCapacityByRegion = {500.0f, 500.0f};
+        config.monthlyProductionByRegion = {10.0f, 0.0f};
+        config.monthlyConsumptionByRegion = {5.0f, 0.0f};
+        config.monthlyTradeFromRegionToRegion = {
+            {0.0f, 30.0f}, {0.0f, 0.0f}};
+        auto trade = BuildTradeNetworkModel(config);
+        trade.Step();
+        const float sourceStock = trade.Stock(TradeStockName(0));
+        const float destinationStock = trade.Stock(TradeStockName(1));
+        if (std::fabs(sourceStock - 75.0f) > 0.001f ||
+            std::fabs(destinationStock - 50.0f) > 0.001f ||
+            std::fabs(sourceStock + destinationStock - 125.0f) > 0.001f) {
+            return 80;
+        }
+
+        trade.SetParam(TradeRouteParameterName(0, 1), 0.0f);
+        trade.SetParam(TradeRouteParameterName(1, 0), 10.0f);
+        trade.SetParam(TradeProductionParameterName(1), 5.0f);
+        trade.Step();
+        if (std::fabs(trade.Stock(TradeStockName(0)) - 90.0f) > 0.001f ||
+            std::fabs(trade.Stock(TradeStockName(1)) - 45.0f) > 0.001f) {
+            return 82;
+        }
+
+        config.initialStockByRegion = {100.0f, 45.0f};
+        config.storageCapacityByRegion = {1000.0f, 50.0f};
+        config.monthlyProductionByRegion = {0.0f, 0.0f};
+        config.monthlyConsumptionByRegion = {0.0f, 0.0f};
+        config.monthlyTradeFromRegionToRegion = {
+            {0.0f, 25.0f}, {0.0f, 0.0f}};
+        trade = BuildTradeNetworkModel(config);
+        trade.Step();
+        if (std::fabs(trade.Stock(TradeStockName(0)) - 95.0f) >
+                0.001f ||
+            trade.Stock(TradeStockName(1)) != 50.0f) {
+            return 81;
         }
     }
 

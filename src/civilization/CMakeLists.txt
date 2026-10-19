@@ -2,6 +2,7 @@
 # 文明函式庫 — 經濟與人口模型切片（Phase 7 進行中）
 add_library(StonePotatoesCivilization STATIC
     economic/SystemDynamics.cpp
+    economic/TradeNetwork.cpp
     population/PopulationDynamics.cpp
 )
 target_include_directories(StonePotatoesCivilization
