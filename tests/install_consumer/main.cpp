@@ -708,6 +708,31 @@ int main(int argc, char** argv) {
             population.Stock(Population::AgeGroupStockName(1)) != 100.0f) {
             return 75;
         }
+
+        config.initialPopulationByAgeGroup = {100.0f, 50.0f};
+        config.annualSurvivalRateByAgeGroup = {1.0f, 1.0f};
+        config.annualBirthsPerPersonByAgeGroup = {0.0f, 0.0f};
+        config.annualNetMigrationByAgeGroup = {10.0f, -1000.0f};
+        config.carryingCapacity = 1000.0f;
+        population = Population::BuildAgeStructuredPopulationModel(config);
+        population.Step();
+        if (std::fabs(population.Stock(
+                Population::AgeGroupStockName(0)) - 10.0f) > 0.001f ||
+            std::fabs(population.Stock(
+                Population::AgeGroupStockName(1))) > 0.001f) {
+            return 76;
+        }
+
+        config.annualNetMigrationByAgeGroup = {1000.0f, 1000.0f};
+        config.carryingCapacity = 160.0f;
+        population = Population::BuildAgeStructuredPopulationModel(config);
+        population.Step();
+        if (std::fabs(population.Stock(
+                Population::AgeGroupStockName(0)) - 5.0f) > 0.001f ||
+            std::fabs(population.Stock(
+                Population::AgeGroupStockName(1)) - 155.0f) > 0.001f) {
+            return 77;
+        }
     }
 
     // Exercise installed deterministic lockstep command and checksum packets.

@@ -218,6 +218,25 @@ static void TestPopulationDynamics() {
     CHECK(ageStructured.Stock(AgeGroupStockName(1)) == 0.0f);
     CHECK(std::abs(ageStructured.Stock(AgeGroupStockName(2)) - 94.5f) < 1e-3f);
 
+    ageConfig.initialPopulationByAgeGroup = {100.0f, 50.0f};
+    ageConfig.annualSurvivalRateByAgeGroup = {1.0f, 1.0f};
+    ageConfig.annualBirthsPerPersonByAgeGroup = {0.0f, 0.0f};
+    ageConfig.annualNetMigrationByAgeGroup = {10.0f, -1000.0f};
+    ageConfig.carryingCapacity = 1000.0f;
+    auto migrating = BuildAgeStructuredPopulationModel(ageConfig);
+    migrating.Step();
+    CHECK(std::abs(migrating.Stock(AgeGroupStockName(0)) - 10.0f) < 1e-3f);
+    CHECK(std::abs(migrating.Stock(AgeGroupStockName(1))) < 1e-3f);
+
+    ageConfig.annualNetMigrationByAgeGroup = {1000.0f, 1000.0f};
+    ageConfig.carryingCapacity = 160.0f;
+    auto migrationCapacityBounded = BuildAgeStructuredPopulationModel(ageConfig);
+    migrationCapacityBounded.Step();
+    CHECK(std::abs(migrationCapacityBounded.Stock(AgeGroupStockName(0)) -
+                   5.0f) < 1e-3f);
+    CHECK(std::abs(migrationCapacityBounded.Stock(AgeGroupStockName(1)) -
+                   155.0f) < 1e-3f);
+
     ageConfig.initialPopulationByAgeGroup = {100.0f, 0.0f};
     ageConfig.annualSurvivalRateByAgeGroup = {1.0f, 1.0f};
     ageConfig.annualBirthsPerPersonByAgeGroup = {2.0f, 0.0f};
@@ -236,6 +255,27 @@ static void TestPopulationDynamics() {
         rejectedMismatchedAgeGroups = true;
     }
     CHECK(rejectedMismatchedAgeGroups);
+
+    bool rejectedMismatchedMigration = false;
+    try {
+        AgeStructuredPopulationConfig invalid = ageConfig;
+        invalid.annualNetMigrationByAgeGroup.pop_back();
+        (void)BuildAgeStructuredPopulationModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedMismatchedMigration = true;
+    }
+    CHECK(rejectedMismatchedMigration);
+
+    bool rejectedNonFiniteAgeMigration = false;
+    try {
+        AgeStructuredPopulationConfig invalid = ageConfig;
+        invalid.annualNetMigrationByAgeGroup[0] =
+            std::numeric_limits<float>::infinity();
+        (void)BuildAgeStructuredPopulationModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedNonFiniteAgeMigration = true;
+    }
+    CHECK(rejectedNonFiniteAgeMigration);
 }
 
 // ---- LockstepSync tests ----
