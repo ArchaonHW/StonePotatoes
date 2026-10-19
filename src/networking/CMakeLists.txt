@@ -1,5 +1,6 @@
-# Networking library - deterministic lockstep command synchronization (partial)
-# 網路函式庫 — 決定性 lockstep 指令同步（部分）
+# Networking library - deterministic lockstep command-synchronization core;
+# transport, reliability, and reconnect policy are provided by the host.
+# 網路函式庫 — 決定性 lockstep 指令同步核心；傳輸、可靠性與重連策略由宿主提供。
 add_library(StonePotatoesNetworking STATIC
     core/LockstepSync.cpp
 )
