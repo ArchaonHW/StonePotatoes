@@ -645,14 +645,19 @@ int main(int argc, char** argv) {
     // Exercise the installed first-pass demographic model.
     {
         const StonePotatoes::Civilization::Population::PopulationConfig config{
-            100.0f, 1000.0f, 0.2f};
+            100.0f, 1000.0f, 0.2f, 5.0f};
         auto population =
             StonePotatoes::Civilization::Population::BuildPopulationModel(
                 config);
         population.Step();
-        if (std::fabs(population.Stock("population") - 118.0f) > 0.001f ||
+        if (std::fabs(population.Stock("population") - 123.0f) > 0.001f ||
             population.History("population").size() != 2) {
             return 70;
+        }
+        population.SetParam("net_migration_per_month", -10.0f);
+        population.Step();
+        if (std::fabs(population.Stock("population") - 134.5742f) > 0.01f) {
+            return 71;
         }
     }
 
