@@ -160,6 +160,20 @@ static void TestPopulationDynamics() {
     boundedMigration.Step();
     CHECK(boundedMigration.Stock("population") == 1000.0f);
 
+    auto demographic = BuildDemographicPopulationModel(
+        {100.0f, 1000.0f, 0.02f, 0.005f, 0.0f});
+    demographic.Step();
+    CHECK(std::abs(demographic.Stock("population") - 101.3f) < 1e-3f);
+    demographic.SetParam("birth_rate_per_month", 0.0f);
+    demographic.SetParam("death_rate_per_month", 0.01f);
+    demographic.Step();
+    CHECK(std::abs(demographic.Stock("population") - 100.287f) < 1e-3f);
+
+    auto fullDemographic = BuildDemographicPopulationModel(
+        {999.0f, 1000.0f, 10.0f, 0.0f, 0.0f});
+    fullDemographic.Step();
+    CHECK(fullDemographic.Stock("population") == 1000.0f);
+
     bool rejectedInvalidCapacity = false;
     try {
         (void)BuildPopulationModel({100.0f, 0.0f, 0.2f});
@@ -177,6 +191,15 @@ static void TestPopulationDynamics() {
         rejectedNonFiniteMigration = true;
     }
     CHECK(rejectedNonFiniteMigration);
+
+    bool rejectedNegativeBirthRate = false;
+    try {
+        (void)BuildDemographicPopulationModel(
+            {100.0f, 1000.0f, -0.01f, 0.005f, 0.0f});
+    } catch (const std::invalid_argument&) {
+        rejectedNegativeBirthRate = true;
+    }
+    CHECK(rejectedNegativeBirthRate);
 }
 
 // ---- LockstepSync tests ----

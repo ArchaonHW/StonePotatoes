@@ -661,6 +661,25 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Verify installed explicit demographic rates and scenario adjustment.
+    {
+        namespace Population = StonePotatoes::Civilization::Population;
+        const Population::DemographicPopulationConfig config{
+            100.0f, 1000.0f, 0.02f, 0.005f, 3.0f};
+        auto population = Population::BuildDemographicPopulationModel(config);
+        population.Step();
+        if (std::fabs(population.Stock("population") - 104.3f) > 0.001f) {
+            return 72;
+        }
+        population.SetParam("birth_rate_per_month", 0.0f);
+        population.SetParam("death_rate_per_month", 0.01f);
+        population.SetParam("net_migration_per_month", 0.0f);
+        population.Step();
+        if (std::fabs(population.Stock("population") - 103.257f) > 0.01f) {
+            return 73;
+        }
+    }
+
     // Exercise installed deterministic lockstep command and checksum packets.
     {
         using StonePotatoes::Networking::LockstepSync;
