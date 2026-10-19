@@ -1,5 +1,6 @@
 #include <ecs/World.h>
 #include <civilization/economic/SystemDynamics.h>
+#include <civilization/population/PopulationDynamics.h>
 #include <networking/core/LockstepSync.h>
 #include <data/AssetCache.h>
 #include <core/plugin/Plugin.h>
@@ -638,6 +639,20 @@ int main(int argc, char** argv) {
             std::fabs(economy.ProbeHistory("stored_food").front() - 100.0f) >
                 0.0001f) {
             return 48;
+        }
+    }
+
+    // Exercise the installed first-pass demographic model.
+    {
+        const StonePotatoes::Civilization::Population::PopulationConfig config{
+            100.0f, 1000.0f, 0.2f};
+        auto population =
+            StonePotatoes::Civilization::Population::BuildPopulationModel(
+                config);
+        population.Step();
+        if (std::fabs(population.Stock("population") - 118.0f) > 0.001f ||
+            population.History("population").size() != 2) {
+            return 70;
         }
     }
 
