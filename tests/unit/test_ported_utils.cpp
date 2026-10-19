@@ -11,6 +11,7 @@
 #include "math/QuasiRandom.h"
 #include "math/CurlNoise.h"
 #include "civilization/economic/SystemDynamics.h"
+#include "civilization/economic/MarketPrice.h"
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/population/PopulationDynamics.h"
 #include "networking/core/LockstepSync.h"
@@ -417,6 +418,54 @@ static void TestTradeNetwork() {
     CHECK(rejectedSelfTrade);
 }
 
+static void TestMarketPrice() {
+    using namespace Civilization::Economic;
+
+    MarketPriceConfig config;
+    config.initialPrice = 10.0f;
+    config.targetStock = 100.0f;
+    config.responsePerMonth = 0.2f;
+    config.minimumPrice = 1.0f;
+    config.maximumPrice = 100.0f;
+
+    auto scarce = BuildMarketPriceModel(config);
+    scarce.SetParam(MarketStockParameterName(), 50.0f);
+    scarce.Step();
+    CHECK(std::abs(scarce.Stock(MarketPriceStockName()) - 11.0f) < 1e-3f);
+
+    auto abundant = BuildMarketPriceModel(config);
+    abundant.SetParam(MarketStockParameterName(), 200.0f);
+    abundant.Step();
+    CHECK(std::abs(abundant.Stock(MarketPriceStockName()) - 8.0f) < 1e-3f);
+
+    auto balanced = BuildMarketPriceModel(config);
+    balanced.Step();
+    CHECK(balanced.Stock(MarketPriceStockName()) == 10.0f);
+
+    config.initialPrice = config.minimumPrice;
+    config.responsePerMonth = 1.0f;
+    auto boundedLow = BuildMarketPriceModel(config);
+    boundedLow.SetParam(MarketStockParameterName(), 200.0f);
+    boundedLow.Step();
+    CHECK(boundedLow.Stock(MarketPriceStockName()) == config.minimumPrice);
+
+    config.initialPrice = config.maximumPrice;
+    auto boundedHigh = BuildMarketPriceModel(config);
+    boundedHigh.SetParam(MarketStockParameterName(), 0.0f);
+    boundedHigh.Step();
+    CHECK(boundedHigh.Stock(MarketPriceStockName()) == config.maximumPrice);
+
+    bool rejectedInvalidTarget = false;
+    try {
+        MarketPriceConfig invalid = config;
+        invalid.targetStock = 0.0f;
+        (void)BuildMarketPriceModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidTarget = true;
+    }
+    CHECK(rejectedInvalidTarget);
+}
+
 // ---- LockstepSync tests ----
 static void TestLockstepSync() {
     using namespace Networking;
@@ -452,6 +501,7 @@ int main() {
     TestSystemDynamics();
     TestPopulationDynamics();
     TestTradeNetwork();
+    TestMarketPrice();
     TestLockstepSync();
 
     std::printf("\n=== Ported Utils Tests ===\n");
