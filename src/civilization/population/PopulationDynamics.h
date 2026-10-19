@@ -43,6 +43,8 @@ struct AgeStructuredPopulationConfig {
     std::vector<float> initialPopulationByAgeGroup;
     std::vector<float> annualSurvivalRateByAgeGroup;
     std::vector<float> annualBirthsPerPersonByAgeGroup;
+    // Net arrivals per year by age group; positive is immigration. Empty means zero.
+    std::vector<float> annualNetMigrationByAgeGroup;
     float carryingCapacity = 1000000.0f;
 };
 
@@ -74,6 +76,7 @@ Economic::SDModel BuildAgeStructuredPopulationModel(
 std::string AgeGroupStockName(std::size_t index);
 std::string AgeGroupSurvivalParameterName(std::size_t index);
 std::string AgeGroupBirthRateParameterName(std::size_t index);
+std::string AgeGroupNetMigrationParameterName(std::size_t index);
 
 } // namespace Population
 } // namespace Civilization
