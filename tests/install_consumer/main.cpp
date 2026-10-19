@@ -705,6 +705,30 @@ int main(int argc, char** argv) {
             trade.Stock(TradeStockName(1)) != 50.0f) {
             return 81;
         }
+
+        config.initialStockByRegion = {100.0f, 0.0f};
+        config.storageCapacityByRegion = {500.0f, 500.0f};
+        config.monthlyTradeFromRegionToRegion = {
+            {0.0f, 20.0f}, {0.0f, 0.0f}};
+        config.initialFundsByRegion = {3.0f, 0.0f};
+        config.monthlyFundsIncomeByRegion = {0.0f, 0.0f};
+        config.monthlyTransportCostPerUnitFromRegionToRegion = {
+            {0.0f, 0.5f}, {0.0f, 0.0f}};
+        trade = BuildTradeNetworkModel(config);
+        trade.Step();
+        if (std::fabs(trade.Stock(TradeStockName(0)) - 94.0f) > 0.001f ||
+            std::fabs(trade.Stock(TradeStockName(1)) - 6.0f) > 0.001f ||
+            trade.Stock(TradeFundsStockName(0)) != 0.0f) {
+            return 85;
+        }
+
+        trade.SetParam(TradeFundsIncomeParameterName(0), 1.0f);
+        trade.Step();
+        if (std::fabs(trade.Stock(TradeStockName(0)) - 92.0f) > 0.001f ||
+            std::fabs(trade.Stock(TradeStockName(1)) - 8.0f) > 0.001f ||
+            trade.Stock(TradeFundsStockName(0)) != 0.0f) {
+            return 86;
+        }
     }
 
     // Verify the installed price model responds to inventory scarcity.

@@ -18,6 +18,7 @@ std::string IndexedName(const char* prefix, std::size_t index) {
 struct TradeStepProjection {
     std::vector<float> stockAfterProductionAndConsumption;
     std::vector<float> tradeDelta;
+    std::vector<float> fundsAfterTrade;
 };
 
 TradeStepProjection ProjectTradeStep(
@@ -26,11 +27,17 @@ TradeStepProjection ProjectTradeStep(
     const std::vector<std::string>& productionParameterNames,
     const std::vector<std::string>& consumptionParameterNames,
     const std::vector<float>& capacities,
-    const std::vector<std::vector<std::string>>& routeParameterNames) {
+    const std::vector<std::vector<std::string>>& routeParameterNames,
+    const std::vector<std::string>& fundsStockNames,
+    const std::vector<std::string>& fundsIncomeParameterNames,
+    const std::vector<std::vector<std::string>>&
+        routeTransportCostParameterNames) {
     const std::size_t regionCount = stockNames.size();
     TradeStepProjection result{
         std::vector<float>(regionCount, 0.0f),
-        std::vector<float>(regionCount, 0.0f)};
+        std::vector<float>(regionCount, 0.0f),
+        fundsStockNames.empty() ? std::vector<float>{}
+                                : std::vector<float>(regionCount, 0.0f)};
     std::vector<std::vector<float>> requestedTransfers(
         regionCount, std::vector<float>(regionCount, 0.0f));
 
@@ -87,12 +94,51 @@ TradeStepProjection ProjectTradeStep(
     }
 
     for (std::size_t source = 0; source < regionCount; ++source) {
+        float fundsScale = 1.0f;
+        float availableFunds = 0.0f;
+        if (!fundsStockNames.empty()) {
+            const float rawIncome =
+                state.P(fundsIncomeParameterNames[source]);
+            const float income = std::isfinite(rawIncome)
+                ? std::max(0.0f, rawIncome) : 0.0f;
+            availableFunds = std::max(
+                0.0f, state.S(fundsStockNames[source])) + income;
+
+            float requestedTransportCost = 0.0f;
+            for (std::size_t destination = 0; destination < regionCount;
+                 ++destination) {
+                const float rawCost = state.P(
+                    routeTransportCostParameterNames[source][destination]);
+                const float unitCost = std::isfinite(rawCost)
+                    ? std::max(0.0f, rawCost) : 0.0f;
+                requestedTransportCost +=
+                    requestedTransfers[source][destination] *
+                    destinationScales[destination] * unitCost;
+            }
+            if (requestedTransportCost > availableFunds &&
+                requestedTransportCost > 0.0f) {
+                fundsScale = availableFunds / requestedTransportCost;
+            }
+        }
+
+        float acceptedTransportCost = 0.0f;
         for (std::size_t destination = 0; destination < regionCount;
              ++destination) {
-            const float transfer = requestedTransfers[source][destination] *
-                destinationScales[destination];
+            float transfer = requestedTransfers[source][destination] *
+                destinationScales[destination] * fundsScale;
+            if (!fundsStockNames.empty()) {
+                const float rawCost = state.P(
+                    routeTransportCostParameterNames[source][destination]);
+                const float unitCost = std::isfinite(rawCost)
+                    ? std::max(0.0f, rawCost) : 0.0f;
+                acceptedTransportCost += transfer * unitCost;
+            }
             result.tradeDelta[source] -= transfer;
             result.tradeDelta[destination] += transfer;
+        }
+        if (!fundsStockNames.empty()) {
+            result.fundsAfterTrade[source] = std::max(
+                0.0f, availableFunds - acceptedTransportCost);
         }
     }
     return result;
@@ -118,6 +164,21 @@ std::string TradeRouteParameterName(std::size_t fromRegionIndex,
            "_to_" + std::to_string(toRegionIndex);
 }
 
+std::string TradeFundsStockName(std::size_t regionIndex) {
+    return IndexedName("trade_funds_region_", regionIndex);
+}
+
+std::string TradeFundsIncomeParameterName(std::size_t regionIndex) {
+    return IndexedName("trade_funds_income_per_month_region_", regionIndex);
+}
+
+std::string TradeRouteTransportCostParameterName(
+    std::size_t fromRegionIndex, std::size_t toRegionIndex) {
+    return IndexedName("trade_transport_cost_per_unit_region_",
+                       fromRegionIndex) + "_to_" +
+           std::to_string(toRegionIndex);
+}
+
 SDModel BuildTradeNetworkModel(const TradeNetworkConfig& config) {
     const std::size_t regionCount = config.initialStockByRegion.size();
     if (regionCount == 0 ||
@@ -127,6 +188,48 @@ SDModel BuildTradeNetworkModel(const TradeNetworkConfig& config) {
         config.monthlyTradeFromRegionToRegion.size() != regionCount) {
         throw std::invalid_argument(
             "trade network vectors must have matching nonzero sizes");
+    }
+
+    const bool hasTransportCosts =
+        !config.monthlyTransportCostPerUnitFromRegionToRegion.empty();
+    if ((!hasTransportCosts && !config.initialFundsByRegion.empty()) ||
+        (!hasTransportCosts && !config.monthlyFundsIncomeByRegion.empty()) ||
+        (hasTransportCosts &&
+         config.initialFundsByRegion.size() != regionCount) ||
+        (!config.monthlyFundsIncomeByRegion.empty() &&
+         config.monthlyFundsIncomeByRegion.size() != regionCount) ||
+        (hasTransportCosts &&
+         config.monthlyTransportCostPerUnitFromRegionToRegion.size() !=
+             regionCount)) {
+        throw std::invalid_argument(
+            "trade funds and transport cost vectors must match regions");
+    }
+
+    for (std::size_t region = 0; region < regionCount; ++region) {
+        if (hasTransportCosts) {
+            const float funds = config.initialFundsByRegion[region];
+            const float income = config.monthlyFundsIncomeByRegion.empty()
+                ? 0.0f : config.monthlyFundsIncomeByRegion[region];
+            if (!std::isfinite(funds) || funds < 0.0f ||
+                !std::isfinite(income) || income < 0.0f ||
+                config.monthlyTransportCostPerUnitFromRegionToRegion[region]
+                        .size() != regionCount) {
+                throw std::invalid_argument(
+                    "invalid trade funds or transport costs");
+            }
+            for (std::size_t destination = 0; destination < regionCount;
+                 ++destination) {
+                const float cost =
+                    config.monthlyTransportCostPerUnitFromRegionToRegion
+                        [region][destination];
+                if (!std::isfinite(cost) || cost < 0.0f ||
+                    (region == destination && cost != 0.0f)) {
+                    throw std::invalid_argument(
+                        "transport costs must be finite, nonnegative, and "
+                        "exclude self-routes");
+                }
+            }
+        }
     }
 
     for (std::size_t region = 0; region < regionCount; ++region) {
@@ -160,6 +263,15 @@ SDModel BuildTradeNetworkModel(const TradeNetworkConfig& config) {
     std::vector<std::string> consumptionParameterNames;
     std::vector<std::vector<std::string>> routeParameterNames(
         regionCount, std::vector<std::string>(regionCount));
+    std::vector<std::string> fundsStockNames;
+    std::vector<std::string> fundsIncomeParameterNames;
+    std::vector<std::vector<std::string>> routeTransportCostParameterNames;
+    if (hasTransportCosts) {
+        routeTransportCostParameterNames.assign(
+            regionCount, std::vector<std::string>(regionCount));
+        fundsStockNames.reserve(regionCount);
+        fundsIncomeParameterNames.reserve(regionCount);
+    }
     stockNames.reserve(regionCount);
     productionParameterNames.reserve(regionCount);
     consumptionParameterNames.reserve(regionCount);
@@ -176,6 +288,17 @@ SDModel BuildTradeNetworkModel(const TradeNetworkConfig& config) {
                        config.storageCapacityByRegion[region]);
         model.SetParam(production, config.monthlyProductionByRegion[region]);
         model.SetParam(consumption, config.monthlyConsumptionByRegion[region]);
+        if (hasTransportCosts) {
+            const std::string fundsStock = TradeFundsStockName(region);
+            const std::string fundsIncome =
+                TradeFundsIncomeParameterName(region);
+            fundsStockNames.push_back(fundsStock);
+            fundsIncomeParameterNames.push_back(fundsIncome);
+            model.AddStock(fundsStock, config.initialFundsByRegion[region]);
+            model.SetParam(fundsIncome,
+                config.monthlyFundsIncomeByRegion.empty()
+                    ? 0.0f : config.monthlyFundsIncomeByRegion[region]);
+        }
         for (std::size_t destination = 0; destination < regionCount;
              ++destination) {
             const std::string route =
@@ -184,6 +307,14 @@ SDModel BuildTradeNetworkModel(const TradeNetworkConfig& config) {
             model.SetParam(
                 route,
                 config.monthlyTradeFromRegionToRegion[region][destination]);
+            if (hasTransportCosts) {
+                const std::string cost =
+                    TradeRouteTransportCostParameterName(region, destination);
+                routeTransportCostParameterNames[region][destination] = cost;
+                model.SetParam(cost,
+                    config.monthlyTransportCostPerUnitFromRegionToRegion
+                        [region][destination]);
+            }
         }
     }
 
@@ -191,13 +322,34 @@ SDModel BuildTradeNetworkModel(const TradeNetworkConfig& config) {
         model.AddFlow(stockNames[region], [region, stockNames,
             productionParameterNames, consumptionParameterNames,
             capacities = config.storageCapacityByRegion,
-            routeParameterNames](const SDState& state) {
+            routeParameterNames, fundsStockNames,
+            fundsIncomeParameterNames,
+            routeTransportCostParameterNames](const SDState& state) {
             const TradeStepProjection projection = ProjectTradeStep(
                 state, stockNames, productionParameterNames,
-                consumptionParameterNames, capacities, routeParameterNames);
+                consumptionParameterNames, capacities, routeParameterNames,
+                fundsStockNames, fundsIncomeParameterNames,
+                routeTransportCostParameterNames);
             return projection.stockAfterProductionAndConsumption[region] -
                        state.S(stockNames[region]) +
                    projection.tradeDelta[region];
+        });
+    }
+
+    for (std::size_t region = 0; region < fundsStockNames.size(); ++region) {
+        model.AddFlow(fundsStockNames[region], [region, stockNames,
+            productionParameterNames, consumptionParameterNames,
+            capacities = config.storageCapacityByRegion,
+            routeParameterNames, fundsStockNames,
+            fundsIncomeParameterNames,
+            routeTransportCostParameterNames](const SDState& state) {
+            const TradeStepProjection projection = ProjectTradeStep(
+                state, stockNames, productionParameterNames,
+                consumptionParameterNames, capacities, routeParameterNames,
+                fundsStockNames, fundsIncomeParameterNames,
+                routeTransportCostParameterNames);
+            return projection.fundsAfterTrade[region] -
+                   state.S(fundsStockNames[region]);
         });
     }
     return model;

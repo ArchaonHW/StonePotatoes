@@ -416,6 +416,49 @@ static void TestTradeNetwork() {
         rejectedSelfTrade = true;
     }
     CHECK(rejectedSelfTrade);
+
+    config.initialStockByRegion = {100.0f, 0.0f};
+    config.storageCapacityByRegion = {500.0f, 500.0f};
+    config.monthlyProductionByRegion = {0.0f, 0.0f};
+    config.monthlyConsumptionByRegion = {0.0f, 0.0f};
+    config.monthlyTradeFromRegionToRegion = {
+        {0.0f, 20.0f}, {0.0f, 0.0f}};
+    config.initialFundsByRegion = {5.0f, 0.0f};
+    config.monthlyFundsIncomeByRegion = {0.0f, 0.0f};
+    config.monthlyTransportCostPerUnitFromRegionToRegion = {
+        {0.0f, 0.5f}, {0.0f, 0.0f}};
+    auto costBounded = BuildTradeNetworkModel(config);
+    costBounded.Step();
+    CHECK(std::abs(costBounded.Stock(TradeStockName(0)) - 90.0f) < 1e-3f);
+    CHECK(std::abs(costBounded.Stock(TradeStockName(1)) - 10.0f) < 1e-3f);
+    CHECK(costBounded.Stock(TradeFundsStockName(0)) == 0.0f);
+    CHECK(costBounded.Stock(TradeFundsStockName(1)) == 0.0f);
+
+    costBounded.SetParam(TradeFundsIncomeParameterName(0), 2.0f);
+    costBounded.Step();
+    CHECK(std::abs(costBounded.Stock(TradeStockName(0)) - 86.0f) < 1e-3f);
+    CHECK(std::abs(costBounded.Stock(TradeStockName(1)) - 14.0f) < 1e-3f);
+    CHECK(costBounded.Stock(TradeFundsStockName(0)) == 0.0f);
+
+    bool rejectedMismatchedTradeFunds = false;
+    try {
+        TradeNetworkConfig invalid = config;
+        invalid.initialFundsByRegion.pop_back();
+        (void)BuildTradeNetworkModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedMismatchedTradeFunds = true;
+    }
+    CHECK(rejectedMismatchedTradeFunds);
+
+    bool rejectedNegativeTransportCost = false;
+    try {
+        TradeNetworkConfig invalid = config;
+        invalid.monthlyTransportCostPerUnitFromRegionToRegion[0][1] = -1.0f;
+        (void)BuildTradeNetworkModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedNegativeTransportCost = true;
+    }
+    CHECK(rejectedNegativeTransportCost);
 }
 
 static void TestMarketPrice() {

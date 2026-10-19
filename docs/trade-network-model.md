@@ -43,5 +43,29 @@ auto trade = BuildTradeNetworkModel(config);
 trade.Step(); // advance one month
 ```
 
-The model covers inventory and route quantities only; it does not simulate
-prices, transport costs, taxes, or route delays.
+The model does not simulate taxes, route delays, or transaction settlement.
+Price discovery is available separately through
+[`market-price-model.md`](market-price-model.md). Transport costs can be
+enabled by supplying starting funds and a per-unit cost matrix. Each sending
+region pays its own costs; when available funds cannot cover its route requests,
+all its outgoing shipments are scaled proportionally. Monthly fund income can
+replenish the treasury. Leaving the optional cost fields empty preserves
+existing free-trade behavior.
+
+For cost-limited routes, configure `initialFundsByRegion` and
+`monthlyTransportCostPerUnitFromRegionToRegion` (rows are sources, columns are
+destinations). `monthlyFundsIncomeByRegion` is optional and defaults to zero.
+Query a region's treasury with `TradeFundsStockName(region)` and adjust income
+or route costs between steps with `TradeFundsIncomeParameterName(region)` and
+`TradeRouteTransportCostParameterName(from, to)`.
+
+```cpp
+config.initialFundsByRegion = {5.0f, 0.0f};
+config.monthlyFundsIncomeByRegion = {0.0f, 0.0f};
+config.monthlyTransportCostPerUnitFromRegionToRegion = {
+    {0.0f, 0.5f}, // region 0 pays 0.5 funds per unit sent to region 1
+    {0.0f, 0.0f},
+};
+auto fundedTrade = BuildTradeNetworkModel(config);
+fundedTrade.Step();
+```
