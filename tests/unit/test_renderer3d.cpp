@@ -1,4 +1,5 @@
 #include "Renderer3D.h"
+#include "rendering/PBRLighting.h"
 
 #include <cmath>
 #include <cstdio>
@@ -6,6 +7,23 @@
 using StonePotatoes::Rendering::Detail::Renderer3D;
 
 int main() {
+    using StonePotatoes::Rendering::Detail::ShadeMetallicRoughness;
+    const glm::vec3 matte = ShadeMetallicRoughness(
+        {0.8f, 0.2f, 0.1f}, 0.0f, 0.8f, {0, 0, 1}, {0, 0, 1},
+        {0, 0, 1}, {1, 1, 1}, {0.02f, 0.02f, 0.02f});
+    const glm::vec3 metal = ShadeMetallicRoughness(
+        {0.8f, 0.2f, 0.1f}, 1.0f, 0.15f, {0, 0, 1}, {0, 0, 1},
+        {0, 0, 1}, {1, 1, 1}, {0.02f, 0.02f, 0.02f});
+    if (!std::isfinite(matte.r) || !std::isfinite(metal.g) ||
+        matte.r < 0.0f || matte.r > 1.0f || metal.b < 0.0f || metal.b > 1.0f ||
+        matte == metal ||
+        ShadeMetallicRoughness({1, 1, 1}, 0.5f, 0.5f, {0, 0, 0},
+                               {0, 0, 1}, {0, 0, 1}, {1, 1, 1}, {}) !=
+            glm::vec3(0.0f)) {
+        std::fprintf(stderr, "PBR shading output validation failed\n");
+        return 9;
+    }
+
     Renderer3D renderer;
     if (!renderer.SetCamera({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f},
                             {0.0f, 1.0f, 0.0f}, 1.57079632679f, 1.0f,
@@ -104,6 +122,14 @@ int main() {
     if (!renderer.ProjectTriangles({800.0f, 400.0f}).empty()) {
         std::fprintf(stderr, "clear retained queued triangles\n");
         return 8;
+    }
+    renderer.SetPbrLighting({0, 0, 1}, {1, 1, 1}, {0.02f, 0.02f, 0.02f});
+    renderer.DrawPbrTriangle({-1, -1, -3}, {1, -1, -3}, {0, 1, -3},
+                             {{0.8f, 0.2f, 0.1f}, 0.0f, 0.8f});
+    const auto pbrTriangles = renderer.ProjectTriangles({800, 400});
+    if (pbrTriangles.size() != 1 || pbrTriangles.front().color == glm::vec3{}) {
+        std::fprintf(stderr, "PBR triangle was not shaded and projected\n");
+        return 10;
     }
     return 0;
 }

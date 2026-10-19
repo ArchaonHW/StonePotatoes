@@ -130,16 +130,18 @@ int RunDemo(uint32_t maxFrames) {
 
     std::printf("Shared VkDevice verified; SAXPY validated %u values (%.3f ms GPU, %.3f ms wall).\n",
                 kElementCount, dispatch.gpuMs, dispatch.wallMs);
+    renderer.SetPbrLighting3D({-0.4f, 0.8f, 1.0f}, {1.2f, 1.2f, 1.2f},
+                              {0.04f, 0.04f, 0.04f});
     uint32_t renderedFrames = 0;
     while (!renderer.ShouldClose() &&
            (maxFrames == 0 || renderedFrames < maxFrames)) {
         renderer.BeginFrame();
-        // A small tetrahedral object exercises perspective projection and
-        // per-frame back-to-front ordering in the 3D renderer slice.
-        renderer.DrawTriangle3D({-0.8f, -0.6f, 0.5f},
-                                {0.8f, -0.6f, 0.5f},
-                                {0.0f, 0.8f, 0.5f},
-                                {0.95f, 0.25f, 0.12f});
+        // A small tetrahedron exercises painter sorting; its front face uses
+        // the opt-in metallic-roughness PBR material path.
+        renderer.DrawPbrTriangle3D({-0.8f, -0.6f, 0.5f},
+                                   {0.8f, -0.6f, 0.5f},
+                                   {0.0f, 0.8f, 0.5f},
+                                   {{0.95f, 0.25f, 0.12f}, 0.55f, 0.28f});
         renderer.DrawTriangle3D({-0.8f, -0.6f, 0.5f},
                                 {0.0f, 0.0f, -0.8f},
                                 {0.0f, 0.8f, 0.5f},

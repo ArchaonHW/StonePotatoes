@@ -1,4 +1,5 @@
 #include "Renderer3D.h"
+#include "PBRLighting.h"
 
 #include <imgui.h>
 #include <glm/ext/matrix_clip_space.hpp>
@@ -133,7 +134,28 @@ void Renderer3D::DrawTriangle(const glm::vec3& a, const glm::vec3& b,
         return;
     m_Triangles.push_back({a, b, c,
                            glm::clamp(color, glm::vec3(0.0f),
-                                      glm::vec3(1.0f))});
+                                      glm::vec3(1.0f)), {}, false});
+}
+
+void Renderer3D::DrawPbrTriangle(const glm::vec3& a, const glm::vec3& b,
+                                 const glm::vec3& c,
+                                 const PBRMaterial& material) {
+    if (!IsFinite(a) || !IsFinite(b) || !IsFinite(c) ||
+        !IsFinite(material.baseColor) || !std::isfinite(material.metallic) ||
+        !std::isfinite(material.roughness)) return;
+    m_Triangles.push_back({a, b, c, {}, material, true});
+}
+
+void Renderer3D::SetPbrLighting(const glm::vec3& lightDirection,
+                                const glm::vec3& lightRadiance,
+                                const glm::vec3& ambientRadiance) {
+    if (!IsFinite(lightDirection) || !IsFinite(lightRadiance) ||
+        !IsFinite(ambientRadiance) ||
+        glm::dot(lightDirection, lightDirection) <= 1.0e-12f)
+        return;
+    m_LightDirection = glm::normalize(lightDirection);
+    m_LightRadiance = glm::max(lightRadiance, glm::vec3(0.0f));
+    m_AmbientRadiance = glm::max(ambientRadiance, glm::vec3(0.0f));
 }
 
 std::vector<ProjectedTriangle> Renderer3D::ProjectTriangles(
@@ -190,6 +212,17 @@ std::vector<ProjectedTriangle> Renderer3D::ProjectTriangles(
                                    (result.c.x - result.a.x);
             if (!std::isfinite(area) || std::abs(area) <= 1.0e-4f) continue;
             result.color = triangle.color;
+            if (triangle.pbr) {
+                const glm::vec3 edgeA = triangle.b - triangle.a;
+                const glm::vec3 edgeB = triangle.c - triangle.a;
+                const glm::vec3 normal = glm::cross(edgeA, edgeB);
+                const glm::vec3 center =
+                    (triangle.a + triangle.b + triangle.c) / 3.0f;
+                result.color = ShadeMetallicRoughness(
+                    triangle.material.baseColor, triangle.material.metallic,
+                    triangle.material.roughness, normal, m_Position - center,
+                    m_LightDirection, m_LightRadiance, m_AmbientRadiance);
+            }
             result.depth = ((-a.z) + (-b.z) + (-c.z)) / 3.0f;
             projected.push_back(result);
         }

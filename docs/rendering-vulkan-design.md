@@ -41,13 +41,24 @@ outside and degenerate geometry is rejected. This keeps the API available in
 both Vulkan and CPU-only OpenGL builds and does not add Vulkan types to the
 public interface.
 
-This is a bootstrap for 3D visualization, not a general mesh renderer. Painter
-sorting works for separated or non-intersecting opaque surfaces; intersecting
-surfaces, order-independent transparency, lighting, materials, GPU mesh
-buffers, and depth-buffer testing require the next renderer phase. The
+The renderer also exposes an opt-in flat-shaded metallic-roughness PBR slice:
+`PBRMaterial` provides base color, metallic, and roughness, while
+`SetPbrLighting3D` supplies one directional light and constant ambient
+radiance. It evaluates a project-authored Cook-Torrance BRDF (GGX normal
+distribution, Smith masking, and Schlick Fresnel) per triangle and shades the
+existing clipped/painter-sorted output. Existing `DrawTriangle3D` behavior is
+unchanged. This slice has no material textures, normal maps, IBL, tone mapping,
+GPU mesh buffers, or depth attachment, so it is not a complete glTF material
+renderer and does not resolve intersecting geometry. The metallic-roughness
+parameter model follows the [glTF 2.0 material convention](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#metallic-roughness-material). The implementation is original project code; it adds no runtime dependency and copies no Khronos specification prose or sample source, so no third-party notice is required for this slice. Khronos publishes separate terms for its specification materials in its [license notice](https://github.com/KhronosGroup/glTF/blob/main/COPYING.adoc).
+
+This remains a bootstrap for 3D visualization, not a general mesh renderer.
+Painter sorting works for separated or non-intersecting opaque surfaces;
+intersecting surfaces, order-independent transparency, GPU mesh buffers, and
+depth-buffer testing require the next renderer phase. The
 `renderer3d_geometry_unit` test covers camera validation, perspective
 projection, near/far and viewport-side clipping, depth order, and per-frame
-geometry reset. The Vulkan
+geometry reset plus bounded finite PBR shading. The Vulkan
 compute/renderer demo includes a tetrahedron so the Linux Xvfb runtime check
 exercises this path.
 

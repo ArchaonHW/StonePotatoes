@@ -277,6 +277,19 @@ void Renderer::DrawTriangle3D(const glm::vec3& a, const glm::vec3& b,
     m_Impl->geometry3D.DrawTriangle(a, b, c, color);
 }
 
+void Renderer::SetPbrLighting3D(const glm::vec3& lightDirection,
+                                const glm::vec3& lightRadiance,
+                                const glm::vec3& ambientRadiance) {
+    m_Impl->geometry3D.SetPbrLighting(lightDirection, lightRadiance,
+                                      ambientRadiance);
+}
+
+void Renderer::DrawPbrTriangle3D(const glm::vec3& a, const glm::vec3& b,
+                                 const glm::vec3& c,
+                                 const PBRMaterial& material) {
+    m_Impl->geometry3D.DrawPbrTriangle(a, b, c, material);
+}
+
 void Renderer::BeginImGui() {
     if (m_Impl->initialized) ImGui::Begin("StonePotatoes Stats");
 }
@@ -470,6 +483,19 @@ bool Renderer::SetCamera3D(const glm::vec3& position,
 void Renderer::DrawTriangle3D(const glm::vec3& a, const glm::vec3& b,
                               const glm::vec3& c, const glm::vec3& color) {
     m_Impl->geometry3D.DrawTriangle(a, b, c, color);
+}
+
+void Renderer::SetPbrLighting3D(const glm::vec3& lightDirection,
+                                const glm::vec3& lightRadiance,
+                                const glm::vec3& ambientRadiance) {
+    m_Impl->geometry3D.SetPbrLighting(lightDirection, lightRadiance,
+                                      ambientRadiance);
+}
+
+void Renderer::DrawPbrTriangle3D(const glm::vec3& a, const glm::vec3& b,
+                                 const glm::vec3& c,
+                                 const PBRMaterial& material) {
+    m_Impl->geometry3D.DrawPbrTriangle(a, b, c, material);
 }
 
 void Renderer::BeginImGui() {
