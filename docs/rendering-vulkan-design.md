@@ -1,6 +1,6 @@
 # Rendering backend decision: shared Vulkan context
 
-Status: shared-context Vulkan Renderer complete; perspective 3D triangles use CPU projection, near/far plane clipping, and painter sorting; Linux CI runs Xvfb checks for shared-device presentation and resize-driven swapchain recreation
+Status: shared-context Vulkan Renderer and flat-shaded metallic-roughness PBR slice complete; 3D still uses CPU projection and painter sorting; Linux CI runs Xvfb checks for shared-device presentation and resize-driven swapchain recreation
 
 ## Decision
 
@@ -77,6 +77,14 @@ playback; it stays presentation-side so simulation timing remains independent.
 Image-file decoding, atlas packing, and a dedicated GPU instancing pipeline
 remain later work. The compute/renderer demo animates a sprite from a
 procedural 2x2 atlas through the integrated runtime path.
+
+The next 2D/3D technology proposal is documented in
+[`rendering-technology-review.md`](rendering-technology-review.md) and discussed
+in [GitHub Discussion #81](https://github.com/ArchaonHW/StonePotatoes/discussions/81).
+Its recommended order is a Vulkan depth-tested indexed mesh pass, followed by
+GPU PBR shading and then a measured instanced atlas-sprite path. This is a
+roadmap decision proposal; those GPU scene/sprite pipelines are not implemented
+by the existing CPU triangle and ImGui sprite paths.
 
 ## Why an extraction is required
 
