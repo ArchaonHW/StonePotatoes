@@ -110,6 +110,9 @@ Economic::SDModel BuildCultureDiffusionModel(
                     float totalRate = 0.0f;
                     for (std::size_t source = 0; source < regionCount;
                          ++source) {
+                        if (source == destination) {
+                            continue;
+                        }
                         const float rawRate = state.P(
                             assimilationParameterNames[source][destination]);
                         if (!std::isfinite(rawRate)) {
