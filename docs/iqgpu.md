@@ -145,6 +145,23 @@ Gram/Rosser `VerifyCriticalLine`，以及 `RunAudit` — 11 項 RH 有限驗證�
 Parallel scan to t≈2000 samples ~100k HardyZ points on 16 workers in ~111 ms.
 平行掃描至 t≈2000 在 16 worker 上取樣約十萬點，約 111 ms。
 
+### Interactive engine view · 引擎互動視覺化
+
+Build `StonePotatoesRiemannExplorer` with `STONEPOTATOES_BUILD_EXAMPLES=ON`
+and run the executable from `build/examples/<Config>/`. It plots Hardy
+Z(t) on the critical line and marks zeros found by a configurable
+double-precision sign-change scan. The upper height, scan step, and plot
+sample count are adjustable in the ImGui panel. The markers are candidates,
+not a completeness certificate; this view does not establish the Riemann
+Hypothesis. Use `StonePotatoesRHVerify` for the separate finite-verification
+workflow, with the precision caveats below.
+
+啟用 `STONEPOTATOES_BUILD_EXAMPLES=ON` 後建置 `StonePotatoesRiemannExplorer`，
+再執行 `build/examples/<Config>/` 下的程式。它繪出臨界線上的 Hardy Z(t)，並標示
+可調雙精度變號掃描找到的零點候選；ImGui 面板可調整上界、掃描步長和繪圖取樣數。
+標記不代表零點清單完整，也不構成黎曼猜想的證明。有限範圍驗證請使用獨立的
+`StonePotatoesRHVerify`，並留意下方列出的精度限制。
+
 ## What RH Finite Verification Means · RH 有限驗證的意義
 
 - **Every check can falsify, never prove.** The winding-number count of ξ
