@@ -2,6 +2,8 @@
 // proof: the scan uses ordinary double precision and sign changes only.
 
 #include "core/platform/Platform.h"
+#include "iqgpu/IQGPURuntime.h"
+#include "iqgpu/ZetaCompute.h"
 #include "math/RiemannZeta.h"
 #include "math/ZetaSpectral.h"
 #include "rendering/Renderer.h"
@@ -124,10 +126,16 @@ int main() {
         return 1;
     }
 
+    IQGPU::IQGPURuntime runtime;
+    runtime.Initialize();
+    IQGPU::ZetaCompute zeta(runtime);
+
     float maxT = 80.0f;
     float scanStep = 0.01f;
     int sampleCount = 1800;
     PlotData plot;
+    IQGPU::ZetaCompute::GramReport verification;
+    bool hasVerification = false;
     Recompute(plot, maxT, sampleCount, scanStep);
 
     while (!renderer.ShouldClose()) {
@@ -145,21 +153,46 @@ int main() {
         ImGui::SliderInt("Plot samples", &sampleCount, 500, 5000);
         if (ImGui::Button("Recompute samples and sign-change zeros")) {
             Recompute(plot, maxT, sampleCount, scanStep);
+            hasVerification = false;
         }
         ImGui::SameLine();
         ImGui::Text("Sign-change candidates: %zu", plot.zeros.size());
         ImGui::Text("Showing T=%.1f, step=%.3f, samples=%d",
                     plot.maxT, plot.scanStep, plot.sampleCount);
+        if (ImGui::Button("Run finite Gram/Turing count check")) {
+            int64_t gramLast = -1;
+            while (gramLast < 100000 &&
+                   Math::Zeta::GramPoint(gramLast + 1) <= maxT) {
+                ++gramLast;
+            }
+            verification = zeta.VerifyCriticalLine(-1, gramLast, 8);
+            hasVerification = true;
+        }
+        if (hasVerification) {
+            ImGui::Text("Finite count: found %llu / expected %llu; "
+                        "uncertain signs: %llu",
+                static_cast<unsigned long long>(verification.zerosFound),
+                static_cast<unsigned long long>(verification.zerosExpected),
+                static_cast<unsigned long long>(verification.uncertainSigns));
+            ImGui::Text("Internal checks: verified=%s, Turing-count=%s, "
+                        "height=%.3f (g_%lld)",
+                verification.verified ? "yes" : "no",
+                verification.turingCertified ? "passed" : "not certified",
+                verification.certifiedHeight,
+                static_cast<long long>(verification.certifiedGram));
+        }
         DrawPlot(plot);
         ImGui::TextWrapped(
-            "Exploratory only: ordinary double precision and sign-change "
-            "search can miss zeros. A plot or finite scan is not a proof "
-            "of the Riemann Hypothesis.");
+            "Exploratory only: the plot uses ordinary double precision and "
+            "sign-change search can miss zeros. The finite Gram/Turing "
+            "status is the engine's numerical report, not an interval-"
+            "arithmetic machine-checked proof or a proof of RH.");
         ImGui::End();
         renderer.EndImGui();
         renderer.EndFrame();
     }
 
+    runtime.Shutdown();
     renderer.Shutdown();
     Platform::Shutdown();
     return 0;

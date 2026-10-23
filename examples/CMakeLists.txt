@@ -35,4 +35,5 @@ target_link_libraries(StonePotatoesRiemannExplorer
         StonePotatoesPlatform
         StonePotatoesRendering
         StonePotatoesMath
+        StonePotatoesIQGPU
 )
