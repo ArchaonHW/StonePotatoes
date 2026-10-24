@@ -3,6 +3,7 @@
 add_library(StonePotatoesCivilization STATIC
     economic/SystemDynamics.cpp
     economic/MarketPrice.cpp
+    economic/FiscalBudget.cpp
     economic/TradeNetwork.cpp
     population/PopulationDynamics.cpp
     culture/CultureDiffusion.cpp

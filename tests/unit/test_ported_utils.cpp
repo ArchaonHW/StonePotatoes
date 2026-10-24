@@ -12,6 +12,7 @@
 #include "math/CurlNoise.h"
 #include "civilization/economic/SystemDynamics.h"
 #include "civilization/economic/MarketPrice.h"
+#include "civilization/economic/FiscalBudget.h"
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/culture/CultureDiffusion.h"
 #include "civilization/population/PopulationDynamics.h"
@@ -581,6 +582,41 @@ static void TestMarketPrice() {
     CHECK(rejectedInvalidTarget);
 }
 
+static void TestFiscalBudget() {
+    using namespace Civilization::Economic;
+
+    FiscalBudgetConfig config;
+    config.initialTreasury = 0.0f;
+    config.monthlyTaxBase = 100.0f;
+    config.taxRate = 0.1f;
+    config.monthlyPublicSpending = 8.0f;
+    auto budget = BuildFiscalBudgetModel(config);
+    budget.Step();
+    CHECK(std::abs(budget.Stock(FiscalTreasuryStockName()) - 2.0f) <
+          1e-4f);
+
+    budget.SetParam(FiscalTaxBaseParameterName(), 0.0f);
+    budget.Step();
+    CHECK(budget.Stock(FiscalTreasuryStockName()) == 0.0f);
+
+    config.initialTreasury = 5.0f;
+    config.monthlyTaxBase = 0.0f;
+    config.taxRate = 0.5f;
+    config.monthlyPublicSpending = 9.0f;
+    auto capped = BuildFiscalBudgetModel(config);
+    capped.Step();
+    CHECK(capped.Stock(FiscalTreasuryStockName()) == 0.0f);
+
+    config.taxRate = 1.1f;
+    bool rejectedInvalidRate = false;
+    try {
+        (void)BuildFiscalBudgetModel(config);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidRate = true;
+    }
+    CHECK(rejectedInvalidRate);
+}
+
 static void TestCultureDiffusion() {
     using namespace Civilization::Culture;
 
@@ -674,6 +710,7 @@ int main() {
     TestPopulationDynamics();
     TestTradeNetwork();
     TestMarketPrice();
+    TestFiscalBudget();
     TestCultureDiffusion();
     TestLockstepSync();
 
