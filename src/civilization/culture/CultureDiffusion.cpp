@@ -2,7 +2,9 @@
 // Copyright (c) 2026 ArchaonHW
 #include "CultureDiffusion.h"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 
 namespace StonePotatoes {
@@ -20,6 +22,74 @@ std::string CultureAssimilationParameterName(std::size_t fromRegionIndex,
     return "culture_assimilation_rate_region_" +
            std::to_string(fromRegionIndex) + "_to_" +
            std::to_string(toRegionIndex);
+}
+
+std::vector<std::size_t> ClusterCultureRegionsBySimilarity(
+    const std::vector<std::vector<float>>& traitsByRegion,
+    float maxDistance) {
+    if (!std::isfinite(maxDistance) || maxDistance < 0.0f) {
+        throw std::invalid_argument(
+            "culture cluster distance must be finite and nonnegative");
+    }
+    if (traitsByRegion.empty()) return {};
+    const std::size_t traitCount = traitsByRegion.front().size();
+    if (traitCount == 0) {
+        throw std::invalid_argument(
+            "culture clustering requires at least one trait");
+    }
+    for (const auto& traits : traitsByRegion) {
+        if (traits.size() != traitCount) {
+            throw std::invalid_argument(
+                "culture clustering requires rectangular trait vectors");
+        }
+        for (float value : traits) {
+            if (!std::isfinite(value) || value < 0.0f || value > 1.0f) {
+                throw std::invalid_argument(
+                    "culture cluster traits must be finite and in [0, 1]");
+            }
+        }
+    }
+
+    const std::size_t regionCount = traitsByRegion.size();
+    std::vector<std::size_t> parent(regionCount);
+    for (std::size_t i = 0; i < regionCount; ++i) parent[i] = i;
+    const auto findRoot = [&](auto&& self, std::size_t region) -> std::size_t {
+        if (parent[region] != region)
+            parent[region] = self(self, parent[region]);
+        return parent[region];
+    };
+    const double distanceSquared =
+        static_cast<double>(maxDistance) * maxDistance;
+    for (std::size_t a = 0; a < regionCount; ++a) {
+        for (std::size_t b = a + 1; b < regionCount; ++b) {
+            double separation = 0.0;
+            for (std::size_t trait = 0; trait < traitCount; ++trait) {
+                const double delta = static_cast<double>(
+                    traitsByRegion[a][trait] - traitsByRegion[b][trait]);
+                separation += delta * delta;
+            }
+            if (separation <= distanceSquared) {
+                std::size_t rootA = findRoot(findRoot, a);
+                std::size_t rootB = findRoot(findRoot, b);
+                if (rootA != rootB) {
+                    const std::size_t root = std::min(rootA, rootB);
+                    parent[std::max(rootA, rootB)] = root;
+                }
+            }
+        }
+    }
+
+    std::vector<std::size_t> groupByRoot(
+        regionCount, std::numeric_limits<std::size_t>::max());
+    std::vector<std::size_t> groups(regionCount);
+    std::size_t nextGroup = 0;
+    for (std::size_t region = 0; region < regionCount; ++region) {
+        const std::size_t root = findRoot(findRoot, region);
+        if (groupByRoot[root] == std::numeric_limits<std::size_t>::max())
+            groupByRoot[root] = nextGroup++;
+        groups[region] = groupByRoot[root];
+    }
+    return groups;
 }
 
 Economic::SDModel BuildCultureDiffusionModel(

@@ -37,3 +37,20 @@ changed between steps with
 previous state synchronously, so region iteration order does not change the
 result. The model represents diffusion only; it does not prescribe cultural
 categories, create traits, or model political institutions.
+
+## Grouping similar regions
+
+After reading current trait stocks, callers can group regions with
+`ClusterCultureRegionsBySimilarity(traitsByRegion, maxDistance)`. The helper
+uses Euclidean distance across normalized traits and returns connected
+components as group ids. Similarity links are undirected and transitive: a
+chain of close regions belongs to the same group even if the chain's endpoints
+are farther apart than `maxDistance`. Group ids follow input region order and
+can be recomputed after each diffusion step. The helper does not assign names
+or cultural meanings to groups.
+
+```cpp
+const auto groups = ClusterCultureRegionsBySimilarity(
+    {{0.2f, 0.7f}, {0.25f, 0.68f}, {0.9f, 0.1f}}, 0.1f);
+// groups: {0, 0, 1}
+```

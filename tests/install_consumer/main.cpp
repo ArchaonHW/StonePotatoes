@@ -767,6 +767,10 @@ int main(int argc, char** argv) {
                 0.001f) {
             return 88;
         }
+        const auto groups = ClusterCultureRegionsBySimilarity(
+            {{0.0f, 0.0f}, {0.1f, 0.0f}, {0.2f, 0.0f}, {0.8f, 0.0f}},
+            0.11f);
+        if (groups != std::vector<std::size_t>{0, 0, 0, 1}) return 89;
     }
 
     // Verify the installed price model responds to inventory scarcity.
