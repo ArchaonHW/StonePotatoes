@@ -57,6 +57,19 @@ struct AgeStructuredPopulationConfig {
     float carryingCapacity = 1000000.0f;
 };
 
+/** Annual age-cohort population model for multiple regions. */
+struct RegionalAgeStructuredPopulationConfig {
+    // Region-major populations: [region][age group].
+    std::vector<std::vector<float>> initialPopulationByRegionAndAgeGroup;
+    std::vector<float> carryingCapacityByRegion;
+    // Shared demographic rates by age group.
+    std::vector<float> annualSurvivalRateByAgeGroup;
+    std::vector<float> annualBirthsPerPersonByAgeGroup;
+    // Annual resident transfers: [source region][destination region][age group].
+    std::vector<std::vector<std::vector<float>>>
+        annualMigrationFromRegionToRegionByAgeGroup;
+};
+
 /**
  * Build a reusable stock-flow model with one `population` stock.
  * The net flow is r * P * (1 - P / K) + net migration, bounded to [0, K].
@@ -83,6 +96,11 @@ std::string RegionPopulationStockName(std::size_t regionIndex);
 std::string RegionGrowthParameterName(std::size_t regionIndex);
 std::string RegionMigrationParameterName(std::size_t fromRegionIndex,
                                         std::size_t toRegionIndex);
+std::string RegionAgeGroupStockName(std::size_t regionIndex,
+                                    std::size_t ageGroupIndex);
+std::string RegionalAgeMigrationParameterName(std::size_t fromRegionIndex,
+                                              std::size_t toRegionIndex,
+                                              std::size_t ageGroupIndex);
 
 /**
  * Build a deterministic Leslie-style cohort model. Every step represents a
@@ -97,6 +115,14 @@ std::string AgeGroupStockName(std::size_t index);
 std::string AgeGroupSurvivalParameterName(std::size_t index);
 std::string AgeGroupBirthRateParameterName(std::size_t index);
 std::string AgeGroupNetMigrationParameterName(std::size_t index);
+
+/**
+ * Build an annual regional cohort model. Cohorts age and generate births
+ * independently in each region, then directed migration is applied by age
+ * group. Source cohorts and destination regional capacity bound transfers.
+ */
+Economic::SDModel BuildRegionalAgeStructuredPopulationModel(
+    const RegionalAgeStructuredPopulationConfig& config);
 
 } // namespace Population
 } // namespace Civilization

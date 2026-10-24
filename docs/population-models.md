@@ -11,6 +11,9 @@ building blocks in `civilization/population/PopulationDynamics.h`:
 - `BuildAgeStructuredPopulationModel`: annual cohort transitions, cohort-level
   survival, births, age-specific net migration, and a total carrying-capacity
   bound.
+- `BuildRegionalAgeStructuredPopulationModel`: annual cohort transitions and
+  births in each region, followed by directed age-specific migration with
+  source-cohort and destination-capacity bounds.
 
 ## Age-structured annual model
 
@@ -58,6 +61,37 @@ The model is a deterministic, single-region demographic slice. It does not
 currently model sex-separated fertility, multi-region flows, or calibration
 from census data. Use the other monthly model when
 scenario rates are expressed per month.
+
+## Regional age-structured model
+
+`RegionalAgeStructuredPopulationConfig` combines regions and age groups.
+Initial cohorts are provided region-major; survival and births-per-person
+rates are shared by age group. `annualMigrationFromRegionToRegionByAgeGroup`
+is indexed `[source][destination][age group]` and represents requested
+residents per year. Transfers are limited by the source cohort after survival,
+aging, and births. Each destination proportionally scales its incoming
+transfers to fit unused regional capacity; rejected transfers remain in their
+source cohort. Migration is evaluated from a shared pre-migration snapshot, so
+region iteration order does not affect allocation. Each model step is one year.
+
+```cpp
+RegionalAgeStructuredPopulationConfig config;
+config.initialPopulationByRegionAndAgeGroup = {{1000.0f, 500.0f}, {300.0f, 200.0f}};
+config.carryingCapacityByRegion = {5000.0f, 2000.0f};
+config.annualSurvivalRateByAgeGroup = {0.98f, 0.8f};
+config.annualBirthsPerPersonByAgeGroup = {0.0f, 0.05f};
+config.annualMigrationFromRegionToRegionByAgeGroup = {
+    {{0.0f, 0.0f}, {40.0f, 10.0f}},
+    {{0.0f, 5.0f}, {0.0f, 0.0f}},
+};
+auto population = BuildRegionalAgeStructuredPopulationModel(config);
+population.Step(); // advance one year
+const float young = population.Stock(RegionAgeGroupStockName(1, 0));
+```
+
+Rates can be adjusted with `AgeGroupSurvivalParameterName`,
+`AgeGroupBirthRateParameterName`, and
+`RegionalAgeMigrationParameterName(source, destination, ageGroup)`.
 
 ## Monthly regional model
 

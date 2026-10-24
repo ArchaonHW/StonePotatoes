@@ -135,6 +135,105 @@ RegionalStepProjection ProjectRegionalStep(
     }
     return result;
 }
+
+std::vector<std::vector<float>> ProjectRegionalAgeStep(
+    const Economic::SDState& state,
+    const std::vector<std::vector<std::string>>& stockNames,
+    const std::vector<std::string>& survivalNames,
+    const std::vector<std::string>& birthNames,
+    const std::vector<float>& capacities,
+    const std::vector<std::vector<std::vector<std::string>>>& migrationNames) {
+    const std::size_t regions = stockNames.size();
+    const std::size_t groups = survivalNames.size();
+    std::vector<std::vector<float>> projected(
+        regions, std::vector<float>(groups, 0.0f));
+
+    // Annual survival and aging happen inside each region. Births enter the
+    // first cohort and are limited by that region's remaining capacity.
+    for (std::size_t region = 0; region < regions; ++region) {
+        float survivors = 0.0f;
+        float births = 0.0f;
+        for (std::size_t age = 0; age < groups; ++age) {
+            const float population = state.S(stockNames[region][age]);
+            const float rawSurvival = state.P(survivalNames[age]);
+            const float rawBirth = state.P(birthNames[age]);
+            const float survival = std::isfinite(rawSurvival)
+                ? std::clamp(rawSurvival, 0.0f, 1.0f) : 0.0f;
+            const float birthRate = std::isfinite(rawBirth)
+                ? std::max(rawBirth, 0.0f) : 0.0f;
+            survivors += population * survival;
+            births += population * birthRate;
+            if (age > 0) {
+                const float priorRawSurvival =
+                    state.P(survivalNames[age - 1]);
+                const float priorSurvival = std::isfinite(priorRawSurvival)
+                    ? std::clamp(priorRawSurvival, 0.0f, 1.0f) : 0.0f;
+                projected[region][age] =
+                    state.S(stockNames[region][age - 1]) * priorSurvival;
+            }
+        }
+        projected[region][0] = std::min(
+            births, std::max(0.0f, capacities[region] - survivors));
+        projected[region].back() +=
+            state.S(stockNames[region].back()) *
+            (std::isfinite(state.P(survivalNames.back()))
+                 ? std::clamp(state.P(survivalNames.back()), 0.0f, 1.0f)
+                 : 0.0f);
+    }
+
+    // Bound each source cohort's requested outflow by its post-aging size.
+    std::vector<std::vector<std::vector<float>>> transfers(
+        regions, std::vector<std::vector<float>>(
+            regions, std::vector<float>(groups, 0.0f)));
+    for (std::size_t source = 0; source < regions; ++source) {
+        for (std::size_t age = 0; age < groups; ++age) {
+            float requested = 0.0f;
+            for (std::size_t destination = 0; destination < regions;
+                 ++destination) {
+                const float value = state.P(migrationNames[source][destination][age]);
+                const float accepted = source != destination &&
+                        std::isfinite(value)
+                    ? std::max(0.0f, value) : 0.0f;
+                transfers[source][destination][age] = accepted;
+                requested += accepted;
+            }
+            if (requested > projected[source][age] && requested > 0.0f) {
+                const float scale = projected[source][age] / requested;
+                for (auto& destinationTransfers : transfers[source])
+                    destinationTransfers[age] *= scale;
+            }
+        }
+    }
+
+    // Destinations share unused capacity proportionally across incoming
+    // regions and cohorts. Compute every scale from the same pre-migration
+    // snapshot so region iteration order cannot affect the result.
+    std::vector<float> destinationScales(regions, 1.0f);
+    for (std::size_t destination = 0; destination < regions; ++destination) {
+        float inflow = 0.0f;
+        for (std::size_t source = 0; source < regions; ++source) {
+            for (std::size_t age = 0; age < groups; ++age) {
+                inflow += transfers[source][destination][age];
+            }
+        }
+        float population = 0.0f;
+        for (float value : projected[destination]) population += value;
+        const float room = std::max(0.0f, capacities[destination] - population);
+        if (inflow > room && inflow > 0.0f)
+            destinationScales[destination] = room / inflow;
+    }
+    for (std::size_t destination = 0; destination < regions; ++destination) {
+        const float scale = destinationScales[destination];
+        for (std::size_t source = 0; source < regions; ++source) {
+            for (std::size_t age = 0; age < groups; ++age) {
+                const float transfer = transfers[source][destination][age] * scale;
+                projected[source][age] -= transfer;
+                projected[destination][age] += transfer;
+            }
+        }
+    }
+    return projected;
+}
 } // namespace
 
 std::string AgeGroupStockName(std::size_t index) {
@@ -165,6 +264,20 @@ std::string RegionMigrationParameterName(std::size_t fromRegionIndex,
                                          std::size_t toRegionIndex) {
     return IndexedName("migration_per_month_region_", fromRegionIndex) +
            "_to_" + std::to_string(toRegionIndex);
+}
+
+std::string RegionAgeGroupStockName(std::size_t regionIndex,
+                                    std::size_t ageGroupIndex) {
+    return "population_region_" + std::to_string(regionIndex) +
+           "_age_group_" + std::to_string(ageGroupIndex);
+}
+
+std::string RegionalAgeMigrationParameterName(std::size_t fromRegionIndex,
+                                              std::size_t toRegionIndex,
+                                              std::size_t ageGroupIndex) {
+    return "migration_per_year_region_" + std::to_string(fromRegionIndex) +
+           "_to_" + std::to_string(toRegionIndex) + "_age_group_" +
+           std::to_string(ageGroupIndex);
 }
 
 Economic::SDModel BuildPopulationModel(const PopulationConfig& config) {
@@ -458,6 +571,110 @@ Economic::SDModel BuildAgeStructuredPopulationModel(
                 std::max(0.0f, capacity - projectedPopulation));
             return acceptedImmigration * requested / requestedImmigration;
         });
+    }
+    return model;
+}
+
+Economic::SDModel BuildRegionalAgeStructuredPopulationModel(
+    const RegionalAgeStructuredPopulationConfig& config) {
+    const std::size_t regions =
+        config.initialPopulationByRegionAndAgeGroup.size();
+    const std::size_t groups = config.annualSurvivalRateByAgeGroup.size();
+    if (regions == 0 || groups == 0 ||
+        config.carryingCapacityByRegion.size() != regions ||
+        config.annualBirthsPerPersonByAgeGroup.size() != groups ||
+        config.annualMigrationFromRegionToRegionByAgeGroup.size() != regions) {
+        throw std::invalid_argument(
+            "regional age-structured population dimensions must be nonzero and match");
+    }
+
+    for (float survival : config.annualSurvivalRateByAgeGroup) {
+        if (!std::isfinite(survival) || survival < 0.0f || survival > 1.0f)
+            throw std::invalid_argument("annual survival rates must be in [0, 1]");
+    }
+    for (float birth : config.annualBirthsPerPersonByAgeGroup) {
+        if (!std::isfinite(birth) || birth < 0.0f)
+            throw std::invalid_argument("annual birth rates must be finite and nonnegative");
+    }
+
+    for (std::size_t region = 0; region < regions; ++region) {
+        const float capacity = config.carryingCapacityByRegion[region];
+        if (!std::isfinite(capacity) || capacity <= 0.0f ||
+            config.initialPopulationByRegionAndAgeGroup[region].size() != groups ||
+            config.annualMigrationFromRegionToRegionByAgeGroup[region].size() != regions) {
+            throw std::invalid_argument("invalid regional age-structured population dimensions");
+        }
+        float initialTotal = 0.0f;
+        for (float initial : config.initialPopulationByRegionAndAgeGroup[region]) {
+            if (!std::isfinite(initial) || initial < 0.0f)
+                throw std::invalid_argument("initial regional cohort populations must be finite and nonnegative");
+            initialTotal += initial;
+        }
+        if (!std::isfinite(initialTotal) || initialTotal > capacity)
+            throw std::invalid_argument("initial regional population exceeds carrying capacity");
+        for (std::size_t destination = 0; destination < regions; ++destination) {
+            const auto& rates = config.annualMigrationFromRegionToRegionByAgeGroup[region][destination];
+            if (rates.size() != groups)
+                throw std::invalid_argument("regional migration must provide one rate per age group");
+            for (float rate : rates) {
+                if (!std::isfinite(rate) || rate < 0.0f ||
+                    (region == destination && rate != 0.0f)) {
+                    throw std::invalid_argument(
+                        "regional migration must be finite, nonnegative, and exclude self-transfers");
+                }
+            }
+        }
+    }
+
+    Economic::SDModel model;
+    model.SetDt(1.0f);
+    std::vector<std::vector<std::string>> stockNames(
+        regions, std::vector<std::string>(groups));
+    std::vector<std::vector<std::vector<std::string>>> migrationNames(
+        regions, std::vector<std::vector<std::string>>(
+            regions, std::vector<std::string>(groups)));
+    std::vector<std::string> survivalNames(groups);
+    std::vector<std::string> birthNames(groups);
+
+    for (std::size_t age = 0; age < groups; ++age) {
+        survivalNames[age] = AgeGroupSurvivalParameterName(age);
+        birthNames[age] = AgeGroupBirthRateParameterName(age);
+        model.SetParam(survivalNames[age], config.annualSurvivalRateByAgeGroup[age]);
+        model.SetParam(birthNames[age], config.annualBirthsPerPersonByAgeGroup[age]);
+    }
+    for (std::size_t region = 0; region < regions; ++region) {
+        for (std::size_t age = 0; age < groups; ++age) {
+            const std::string stock = RegionAgeGroupStockName(region, age);
+            stockNames[region][age] = stock;
+            model.AddStock(stock,
+                config.initialPopulationByRegionAndAgeGroup[region][age],
+                0.0f, config.carryingCapacityByRegion[region]);
+        }
+        for (std::size_t destination = 0; destination < regions; ++destination) {
+            for (std::size_t age = 0; age < groups; ++age) {
+                const std::string parameter = RegionalAgeMigrationParameterName(
+                    region, destination, age);
+                migrationNames[region][destination][age] = parameter;
+                model.SetParam(parameter,
+                    config.annualMigrationFromRegionToRegionByAgeGroup
+                        [region][destination][age]);
+            }
+        }
+    }
+
+    for (std::size_t region = 0; region < regions; ++region) {
+        for (std::size_t age = 0; age < groups; ++age) {
+            model.AddFlow(stockNames[region][age],
+                [region, age, stockNames, survivalNames, birthNames,
+                 capacities = config.carryingCapacityByRegion, migrationNames](
+                    const Economic::SDState& state) {
+                    const auto projected = ProjectRegionalAgeStep(
+                        state, stockNames, survivalNames, birthNames,
+                        capacities, migrationNames);
+                    return projected[region][age] -
+                           state.S(stockNames[region][age]);
+                });
+        }
     }
     return model;
 }
