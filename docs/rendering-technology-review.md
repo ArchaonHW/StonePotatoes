@@ -31,7 +31,8 @@ Start with opaque static meshes and a depth attachment. Add GPU PBR in a
 follow-up after the depth-tested pass is validated. Defer image-based lighting,
 HDR tone mapping, glTF asset loading, mesh shaders, task shaders, and
 device-generated commands until there is a representative scene and measured
-need.
+need. The license-safe MMD-to-GLB path and prerequisites are tracked in
+[`mmd-engine-integration.md`](mmd-engine-integration.md).
 
 ### 2D next: instanced atlas sprites
 
@@ -50,6 +51,7 @@ instanced path is insufficient.
 | Vulkan mesh/task shaders | Flexible GPU geometry generation and meshlet culling | Optional hardware/driver feature; Vulkan guidance warns it is not automatically faster than the traditional vertex pipeline. |
 | GPU-generated indirect commands | Reduce CPU draw submission for large scenes | The project has no measured draw-call pressure or scene size to justify added synchronization and capability paths. |
 | KTX2/Basis Universal | Compressed, transcodable texture distribution and streaming | Useful after image/asset loading is in scope; decoder choice needs a license, platform, and package-size review. |
+| glTF 2.0 asset loader (MMD conversion target) | Standard runtime format for indexed meshes, materials, skinning, animation, and morph targets | Requires the indexed mesh, texture, skinning, and animation runtime first. MMD Tools is GPL-3.0-or-later and stays an optional external authoring tool; see [`mmd-engine-integration.md`](mmd-engine-integration.md). |
 | Ray tracing | Specialized reflections, shadows, or GI | No current scene or performance target warrants an optional hardware path. |
 
 ## Legal and portability constraints
