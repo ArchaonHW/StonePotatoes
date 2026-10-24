@@ -1,5 +1,5 @@
-# Civilization library - economic, population, and culture model slices
-# 文明函式庫 — 經濟、人口與文化模型切片（Phase 7 進行中）
+# Civilization library - economic, population, culture, diplomacy, and military slices
+# 文明函式庫 — 經濟、人口、文化、外交與軍事模型切片（Phase 7 進行中）
 add_library(StonePotatoesCivilization STATIC
     economic/SystemDynamics.cpp
     economic/MarketPrice.cpp
@@ -7,6 +7,7 @@ add_library(StonePotatoesCivilization STATIC
     economic/TradeNetwork.cpp
     population/PopulationDynamics.cpp
     culture/CultureDiffusion.cpp
+    military/MilitaryLogistics.cpp
     diplomacy/Diplomacy.cpp
 )
 target_include_directories(StonePotatoesCivilization
