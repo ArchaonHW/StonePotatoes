@@ -14,6 +14,7 @@
 #include "civilization/economic/MarketPrice.h"
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/culture/CultureDiffusion.h"
+#include "civilization/diplomacy/Diplomacy.h"
 #include "civilization/population/PopulationDynamics.h"
 #include "networking/core/LockstepSync.h"
 
@@ -638,6 +639,43 @@ static void TestCultureDiffusion() {
     CHECK(rejectedInvalidTrait);
 }
 
+static void TestDiplomacy() {
+    using namespace Civilization::Diplomacy;
+
+    DiplomacyConfig config;
+    config.initialRelationByFaction = {{0.0f, 0.5f}, {-0.8f, 0.0f}};
+    config.monthlyRelationChangeByFaction = {{0.0f, 0.3f}, {-0.4f, 0.0f}};
+    auto relations = BuildDiplomacyModel(config);
+    relations.Step();
+    CHECK(std::abs(relations.Stock(RelationStockName(0, 1)) - 0.8f) <
+          1e-4f);
+    CHECK(relations.Stock(RelationStockName(1, 0)) == -1.0f);
+
+    relations.SetParam(MonthlyRelationChangeParameterName(0, 1), 10.0f);
+    relations.Step();
+    CHECK(relations.Stock(RelationStockName(0, 1)) == 1.0f);
+
+    bool rejectedNonSquareMatrix = false;
+    try {
+        DiplomacyConfig invalid = config;
+        invalid.initialRelationByFaction[0].pop_back();
+        (void)BuildDiplomacyModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedNonSquareMatrix = true;
+    }
+    CHECK(rejectedNonSquareMatrix);
+
+    bool rejectedSelfRelation = false;
+    try {
+        DiplomacyConfig invalid = config;
+        invalid.initialRelationByFaction[0][0] = 0.1f;
+        (void)BuildDiplomacyModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedSelfRelation = true;
+    }
+    CHECK(rejectedSelfRelation);
+}
+
 // ---- LockstepSync tests ----
 static void TestLockstepSync() {
     using namespace Networking;
@@ -675,6 +713,7 @@ int main() {
     TestTradeNetwork();
     TestMarketPrice();
     TestCultureDiffusion();
+    TestDiplomacy();
     TestLockstepSync();
 
     std::printf("\n=== Ported Utils Tests ===\n");
