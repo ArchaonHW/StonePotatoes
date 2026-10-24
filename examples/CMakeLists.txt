@@ -24,3 +24,16 @@ target_link_libraries(StonePotatoesVisDemo
         glfw
         imgui
 )
+
+# Game-engine-backed visualization of Hardy Z and sign-change zero candidates.
+# This is an exploratory view; rigorous finite verification remains in
+# StonePotatoesRHVerify and neither tool claims a proof of the Riemann Hypothesis.
+add_executable(StonePotatoesRiemannExplorer riemann_explorer.cpp)
+target_include_directories(StonePotatoesRiemannExplorer PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(StonePotatoesRiemannExplorer
+    PRIVATE
+        StonePotatoesPlatform
+        StonePotatoesRendering
+        StonePotatoesMath
+        StonePotatoesIQGPU
+)
