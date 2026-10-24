@@ -324,7 +324,10 @@ ZetaCompute::GramReport ZetaCompute::VerifyGram(int64_t nFirst, int64_t nLast,
     // pass keeps the nudge-on-uncertain logic (rare CPU evals only).
     // 區間內部取樣：GPU 批次求值網格，CPU 計數趟保留不確定微移邏輯
     // （罕見的 CPU 補算）。
-    if (hp && m_UseGPU && !gpuZ.empty()) {
+    // The batched path divides its chunk capacity by (S - 1). With a single
+    // sample, there are no interior points to batch, so use the CPU counter;
+    // it still checks the two interval endpoints and avoids a zero divisor.
+    if (hp && m_UseGPU && !gpuZ.empty() && samplesPerInterval > 1) {
         const uint32_t S = samplesPerInterval;
         const size_t inner = S - 1;
         const size_t perChunk =
