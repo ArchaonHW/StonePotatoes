@@ -904,6 +904,41 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Verify installed regional age cohorts, age-specific migration, and
+    // destination capacity scaling preserve the world population.
+    {
+        namespace Population = StonePotatoes::Civilization::Population;
+        Population::RegionalAgeStructuredPopulationConfig config;
+        config.initialPopulationByRegionAndAgeGroup = {
+            {100.0f, 50.0f}, {20.0f, 20.0f}};
+        config.carryingCapacityByRegion = {500.0f, 40.0f};
+        config.annualSurvivalRateByAgeGroup = {0.9f, 0.5f};
+        config.annualBirthsPerPersonByAgeGroup = {0.0f, 0.1f};
+        config.annualMigrationFromRegionToRegionByAgeGroup = {
+            {{0.0f, 0.0f}, {5.0f, 20.0f}},
+            {{0.0f, 3.0f}, {0.0f, 0.0f}}};
+        auto population =
+            Population::BuildRegionalAgeStructuredPopulationModel(config);
+        population.Step();
+        const float r0a0 = population.Stock(
+            Population::RegionAgeGroupStockName(0, 0));
+        const float r0a1 = population.Stock(
+            Population::RegionAgeGroupStockName(0, 1));
+        const float r1a0 = population.Stock(
+            Population::RegionAgeGroupStockName(1, 0));
+        const float r1a1 = population.Stock(
+            Population::RegionAgeGroupStockName(1, 1));
+        if (std::fabs(r0a0 - 3.0f) > 0.001f ||
+            std::fabs(r0a1 - 110.0f) > 0.001f ||
+            std::fabs(r1a0 - 4.0f) > 0.001f ||
+            std::fabs(r1a1 - 33.0f) > 0.001f ||
+            std::fabs(r0a0 + r0a1 + r1a0 + r1a1 - 150.0f) > 0.001f) {
+            return 85;
+        }
+        population.SetParam(
+            Population::RegionalAgeMigrationParameterName(0, 1, 0), 10.0f);
+    }
+
     // Exercise installed deterministic lockstep command and checksum packets.
     {
         using StonePotatoes::Networking::LockstepSync;
