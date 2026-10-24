@@ -4,6 +4,7 @@
 #include <civilization/economic/FiscalBudget.h>
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/culture/CultureDiffusion.h>
+#include <civilization/military/MilitaryLogistics.h>
 #include <civilization/population/PopulationDynamics.h>
 #include <networking/core/LockstepSync.h>
 #include <data/AssetCache.h>
@@ -818,6 +819,20 @@ int main(int argc, char** argv) {
         budget.SetParam(FiscalPublicSpendingParameterName(), 100.0f);
         budget.Step();
         if (budget.Stock(FiscalTreasuryStockName()) != 0.0f) return 91;
+    }
+
+    // Verify the installed military model applies shortages to troop stocks.
+    {
+        using namespace StonePotatoes::Civilization::Military;
+        MilitaryLogisticsConfig config;
+        config.initialTroops = 100.0f;
+        config.shortageAttritionRatePerMonth = 0.1f;
+        auto military = BuildMilitaryLogisticsModel(config);
+        military.Step();
+        if (std::fabs(military.Stock(MilitaryTroopStockName()) - 90.0f) >
+            0.001f) {
+            return 94;
+        }
     }
 
     // Verify installed explicit demographic rates and scenario adjustment.

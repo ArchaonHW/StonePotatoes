@@ -15,6 +15,7 @@
 #include "civilization/economic/FiscalBudget.h"
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/culture/CultureDiffusion.h"
+#include "civilization/military/MilitaryLogistics.h"
 #include "civilization/population/PopulationDynamics.h"
 #include "networking/core/LockstepSync.h"
 
@@ -674,6 +675,37 @@ static void TestCultureDiffusion() {
     CHECK(rejectedInvalidTrait);
 }
 
+static void TestMilitaryLogistics() {
+    using namespace Civilization::Military;
+
+    MilitaryLogisticsConfig config;
+    config.initialTroops = 100.0f;
+    config.initialSupplies = 50.0f;
+    config.supplyPerTroopPerMonth = 1.0f;
+    config.shortageAttritionRatePerMonth = 0.2f;
+    auto military = BuildMilitaryLogisticsModel(config);
+    military.Step();
+    CHECK(std::abs(military.Stock(MilitaryTroopStockName()) - 90.0f) <
+          1e-3f);
+    CHECK(military.Stock(MilitarySupplyStockName()) == 0.0f);
+
+    military.SetParam(MonthlySupplyProductionParameterName(), 100.0f);
+    military.Step();
+    CHECK(std::abs(military.Stock(MilitaryTroopStockName()) - 90.0f) <
+          1e-3f);
+    CHECK(std::abs(military.Stock(MilitarySupplyStockName()) - 10.0f) <
+          1e-3f);
+
+    config.shortageAttritionRatePerMonth = 1.1f;
+    bool rejectedInvalidAttrition = false;
+    try {
+        (void)BuildMilitaryLogisticsModel(config);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidAttrition = true;
+    }
+    CHECK(rejectedInvalidAttrition);
+}
+
 // ---- LockstepSync tests ----
 static void TestLockstepSync() {
     using namespace Networking;
@@ -712,6 +744,7 @@ int main() {
     TestMarketPrice();
     TestFiscalBudget();
     TestCultureDiffusion();
+    TestMilitaryLogistics();
     TestLockstepSync();
 
     std::printf("\n=== Ported Utils Tests ===\n");
