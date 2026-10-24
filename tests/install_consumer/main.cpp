@@ -1,6 +1,7 @@
 #include <ecs/World.h>
 #include <civilization/economic/SystemDynamics.h>
 #include <civilization/economic/MarketPrice.h>
+#include <civilization/economic/FiscalBudget.h>
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/culture/CultureDiffusion.h>
 #include <civilization/population/PopulationDynamics.h>
@@ -796,6 +797,27 @@ int main(int argc, char** argv) {
             0.001f) {
             return 84;
         }
+    }
+
+    // Verify the installed fiscal model collects revenue and caps spending.
+    {
+        using namespace StonePotatoes::Civilization::Economic;
+        FiscalBudgetConfig config;
+        config.initialTreasury = 5.0f;
+        config.monthlyTaxBase = 100.0f;
+        config.taxRate = 0.1f;
+        config.monthlyPublicSpending = 12.0f;
+        auto budget = BuildFiscalBudgetModel(config);
+        budget.Step();
+        if (std::fabs(budget.Stock(FiscalTreasuryStockName()) - 3.0f) >
+            0.001f) {
+            return 90;
+        }
+
+        budget.SetParam(FiscalTaxBaseParameterName(), 0.0f);
+        budget.SetParam(FiscalPublicSpendingParameterName(), 100.0f);
+        budget.Step();
+        if (budget.Stock(FiscalTreasuryStockName()) != 0.0f) return 91;
     }
 
     // Verify installed explicit demographic rates and scenario adjustment.
