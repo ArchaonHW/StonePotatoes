@@ -603,6 +603,19 @@ static void TestCultureDiffusion() {
           1e-3f);
     CHECK(culture.Stock(CultureTraitStockName(2, 0)) == 0.5f);
 
+    // Runtime parameter updates must not let a self-link dilute real
+    // incoming influence. Self-links are excluded from the contact matrix,
+    // but callers can still update the exposed parameter after construction.
+    CultureDiffusionConfig runtimeConfig;
+    runtimeConfig.initialTraitsByRegion = {{0.0f}, {1.0f}};
+    runtimeConfig.monthlyAssimilationRateFromRegionToRegion = {
+        {0.0f, 0.0f}, {0.25f, 0.0f}};
+    auto runtimeCulture = BuildCultureDiffusionModel(runtimeConfig);
+    runtimeCulture.SetParam(CultureAssimilationParameterName(0, 0), 1.0f);
+    runtimeCulture.Step();
+    CHECK(std::abs(runtimeCulture.Stock(CultureTraitStockName(0, 0)) -
+                   0.25f) < 1e-3f);
+
     bool rejectedUnboundedIncomingInfluence = false;
     try {
         CultureDiffusionConfig invalid = config;
