@@ -4,6 +4,7 @@
 #include <civilization/economic/FiscalBudget.h>
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/culture/CultureDiffusion.h>
+#include <civilization/diplomacy/Diplomacy.h>
 #include <civilization/population/PopulationDynamics.h>
 #include <networking/core/LockstepSync.h>
 #include <data/AssetCache.h>
@@ -772,6 +773,22 @@ int main(int argc, char** argv) {
             {{0.0f, 0.0f}, {0.1f, 0.0f}, {0.2f, 0.0f}, {0.8f, 0.0f}},
             0.11f);
         if (groups != std::vector<std::size_t>{0, 0, 0, 1}) return 89;
+    }
+
+    // Verify the installed diplomacy model exposes directed relation stocks.
+    {
+        using namespace StonePotatoes::Civilization::Diplomacy;
+        DiplomacyConfig config;
+        config.initialRelationByFaction = {{0.0f, 0.4f}, {-0.2f, 0.0f}};
+        config.monthlyRelationChangeByFaction = {{0.0f, 0.1f}, {0.0f, 0.0f}};
+        auto diplomacy = BuildDiplomacyModel(config);
+        diplomacy.Step();
+        if (std::fabs(diplomacy.Stock(RelationStockName(0, 1)) - 0.5f) >
+                0.001f ||
+            std::fabs(diplomacy.Stock(RelationStockName(1, 0)) + 0.2f) >
+                0.001f) {
+            return 92;
+        }
     }
 
     // Verify the installed price model responds to inventory scarcity.

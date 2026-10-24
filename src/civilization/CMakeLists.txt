@@ -7,6 +7,7 @@ add_library(StonePotatoesCivilization STATIC
     economic/TradeNetwork.cpp
     population/PopulationDynamics.cpp
     culture/CultureDiffusion.cpp
+    diplomacy/Diplomacy.cpp
 )
 target_include_directories(StonePotatoesCivilization
     PUBLIC
