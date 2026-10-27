@@ -23,6 +23,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 struct Position {
@@ -912,6 +913,36 @@ int main(int argc, char** argv) {
         if (std::fabs(fit.intrinsicGrowthRatePerMonth - 0.02f) > 1e-5f ||
             std::fabs(fit.estimatedInitialPopulation - 100.0f) > 1e-3f) {
             return 97;
+        }
+    }
+
+    // Verify installed annual census calibration restores cohort rates.
+    {
+        namespace Population = StonePotatoes::Civilization::Population;
+        Population::AgeStructuredPopulationConfig source;
+        source.initialPopulationByAgeGroup = {120.0f, 90.0f, 45.0f};
+        source.annualSurvivalRateByAgeGroup = {0.91f, 0.82f, 0.73f};
+        source.annualBirthsPerPersonByAgeGroup = {0.0f, 0.12f, 0.0f};
+        source.carryingCapacity = 10000.0f;
+        auto modeled = Population::BuildAgeStructuredPopulationModel(source);
+        std::vector<Population::AgeStructuredCensusObservation> census;
+        for (int year = 0; year <= 5; ++year) {
+            std::vector<float> byAge;
+            for (std::size_t group = 0;
+                 group < source.initialPopulationByAgeGroup.size(); ++group) {
+                byAge.push_back(modeled.Stock(
+                    Population::AgeGroupStockName(group)));
+            }
+            census.push_back({2020 + year, std::move(byAge)});
+            modeled.Step();
+        }
+        const auto fit = Population::CalibrateAgeStructuredPopulation(
+            census, {0.0f, 1.0f, 0.0f}, source.carryingCapacity);
+        if (std::fabs(fit.annualSurvivalRateByAgeGroup[2] - 0.73f) >
+                0.0001f ||
+            std::fabs(fit.annualBirthsPerPersonByAgeGroup[1] - 0.12f) >
+                0.0001f) {
+            return 103;
         }
     }
 

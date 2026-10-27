@@ -27,6 +27,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 using namespace StonePotatoes;
 
@@ -388,6 +389,54 @@ static void TestPopulationCalibration() {
         rejectedUnorderedMonths = true;
     }
     CHECK(rejectedUnorderedMonths);
+}
+
+static void TestAgeStructuredPopulationCalibration() {
+    using namespace Civilization::Population;
+
+    AgeStructuredPopulationConfig source;
+    source.initialPopulationByAgeGroup = {120.0f, 90.0f, 45.0f};
+    source.annualSurvivalRateByAgeGroup = {0.91f, 0.82f, 0.73f};
+    source.annualBirthsPerPersonByAgeGroup = {0.0f, 0.12f, 0.0f};
+    source.carryingCapacity = 10000.0f;
+    auto population = BuildAgeStructuredPopulationModel(source);
+    std::vector<AgeStructuredCensusObservation> observations;
+    for (int year = 0; year <= 5; ++year) {
+        std::vector<float> byAge;
+        for (std::size_t group = 0;
+             group < source.initialPopulationByAgeGroup.size(); ++group) {
+            byAge.push_back(population.Stock(AgeGroupStockName(group)));
+        }
+        observations.push_back({2000 + year, std::move(byAge)});
+        population.Step();
+    }
+
+    const auto fitted = CalibrateAgeStructuredPopulation(
+        observations, {0.0f, 1.0f, 0.0f}, source.carryingCapacity);
+    CHECK(fitted.initialPopulationByAgeGroup ==
+          source.initialPopulationByAgeGroup);
+    for (std::size_t group = 0;
+         group < source.annualSurvivalRateByAgeGroup.size(); ++group) {
+        CHECK(std::abs(fitted.annualSurvivalRateByAgeGroup[group] -
+                       source.annualSurvivalRateByAgeGroup[group]) < 1e-4f);
+        CHECK(std::abs(fitted.annualBirthsPerPersonByAgeGroup[group] -
+                       source.annualBirthsPerPersonByAgeGroup[group]) < 1e-4f);
+    }
+
+    auto reconstructed = BuildAgeStructuredPopulationModel(fitted);
+    bool rejectedYearGap = false;
+    try {
+        auto gapped = observations;
+        gapped[1].year += 1;
+        (void)CalibrateAgeStructuredPopulation(
+            gapped, {0.0f, 1.0f, 0.0f}, source.carryingCapacity);
+    } catch (const std::invalid_argument&) {
+        rejectedYearGap = true;
+    }
+    CHECK(rejectedYearGap);
+    reconstructed.Step();
+    CHECK(std::abs(reconstructed.Stock(AgeGroupStockName(0)) -
+                   observations[1].populationByAgeGroup[0]) < 1e-3f);
 }
 
 static void TestTradeNetwork() {
@@ -934,6 +983,7 @@ int main() {
     TestSystemDynamics();
     TestPopulationDynamics();
     TestPopulationCalibration();
+    TestAgeStructuredPopulationCalibration();
     TestTradeNetwork();
     TestMarketPrice();
     TestFiscalBudget();
