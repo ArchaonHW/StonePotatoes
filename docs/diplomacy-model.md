@@ -26,3 +26,24 @@ The model does not decide what actions improve relations, negotiate treaties,
 or declare war. Game rules should calculate those effects and provide the
 monthly changes. Each step represents one month; retain the model's default
 `dt` of `1`.
+
+## Finite-duration treaties
+
+`TreatyLedger` stores bilateral trade pacts, non-aggression pacts, and
+alliances. Faction order is symmetric: signing a pact as `(A, B)` makes it
+visible as `(B, A)`. Duplicate active treaties are rejected without extending
+their term. `AdvanceMonth()` decrements every active term and removes expired
+entries. The ledger is in-memory; the game remains responsible for saving it.
+
+`CanDeclareWar(A, B)` returns false while the pair has an active
+non-aggression pact or alliance. Trade pacts do not restrict war declarations.
+The battle and game-action code should check this before starting an engagement.
+
+```cpp
+TreatyLedger treaties;
+treaties.Sign(TreatyType::NonAggressionPact, 2, 7, 12);
+if (treaties.CanDeclareWar(7, 2)) {
+    // Start the war and resolve the engagement.
+}
+treaties.AdvanceMonth();
+```
