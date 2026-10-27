@@ -5,6 +5,7 @@
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/culture/CultureDiffusion.h>
 #include <civilization/military/MilitaryLogistics.h>
+#include <civilization/military/BattleResolution.h>
 #include <civilization/diplomacy/Diplomacy.h>
 #include <civilization/population/PopulationDynamics.h>
 #include <networking/core/LockstepSync.h>
@@ -849,6 +850,22 @@ int main(int argc, char** argv) {
         if (std::fabs(military.Stock(MilitaryTroopStockName()) - 90.0f) >
             0.001f) {
             return 94;
+        }
+    }
+
+    // Verify the installed one-volley resolver returns bounded casualties.
+    {
+        using namespace StonePotatoes::Civilization::Military;
+        EngagementConfig config;
+        config.attackerUnits = 5.0f;
+        config.defenderUnits = 20.0f;
+        config.attackerDamagePerUnit = 100.0f;
+        config.defenderDamagePerUnit = 100.0f;
+        const EngagementResult battle = ResolveEngagement(config);
+        if (battle.attackerLosses != 5.0f || battle.defenderLosses != 20.0f ||
+            battle.survivingAttackers != 0.0f ||
+            battle.survivingDefenders != 0.0f) {
+            return 95;
         }
     }
 

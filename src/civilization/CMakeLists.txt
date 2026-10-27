@@ -8,6 +8,7 @@ add_library(StonePotatoesCivilization STATIC
     population/PopulationDynamics.cpp
     culture/CultureDiffusion.cpp
     military/MilitaryLogistics.cpp
+    military/BattleResolution.cpp
     diplomacy/Diplomacy.cpp
 )
 target_include_directories(StonePotatoesCivilization
