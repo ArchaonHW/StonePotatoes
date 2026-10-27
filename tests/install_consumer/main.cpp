@@ -4,6 +4,7 @@
 #include <civilization/economic/FiscalBudget.h>
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/economic/MarketSettlement.h>
+#include <civilization/economic/CurrencySupply.h>
 #include <civilization/culture/CultureDiffusion.h>
 #include <civilization/military/MilitaryLogistics.h>
 #include <civilization/military/BattleResolution.h>
@@ -785,6 +786,23 @@ int main(int argc, char** argv) {
                 0.001f) {
             return 101;
         }
+    }
+
+    // Verify installed currency issuance is capped and burn respects supply.
+    {
+        using namespace StonePotatoes::Civilization::Economic;
+        CurrencySupplyConfig config;
+        config.initialSupply = 80.0f;
+        config.monthlyIssuance = 30.0f;
+        config.monthlyBurn = 10.0f;
+        config.maximumSupply = 100.0f;
+        auto currency = BuildCurrencySupplyModel(config);
+        currency.Step();
+        if (currency.Stock(CurrencySupplyStockName()) != 90.0f) return 102;
+        currency.SetParam(CurrencyIssuanceParameterName(), 0.0f);
+        currency.SetParam(CurrencyBurnParameterName(), 1000.0f);
+        currency.Step();
+        if (currency.Stock(CurrencySupplyStockName()) != 0.0f) return 102;
     }
 
     // Verify installed culture traits diffuse independently across regions.

@@ -59,7 +59,8 @@ empty preserves existing free-trade behavior.
 For atomic settlement of proposed orders across multiple commodity types, use
 the installed `SettleCommodityTrades` API documented in
 [`market-settlement-model.md`](market-settlement-model.md). Currency issuance
-remains a separate policy decision.
+is exposed separately as an aggregate policy primitive in
+[`currency-supply-model.md`](currency-supply-model.md).
 
 For cost-limited routes, configure `initialFundsByRegion` and
 `monthlyTransportCostPerUnitFromRegionToRegion` (rows are sources, columns are

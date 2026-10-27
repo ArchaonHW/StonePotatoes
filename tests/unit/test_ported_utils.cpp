@@ -15,6 +15,7 @@
 #include "civilization/economic/FiscalBudget.h"
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/economic/MarketSettlement.h"
+#include "civilization/economic/CurrencySupply.h"
 #include "civilization/culture/CultureDiffusion.h"
 #include "civilization/military/MilitaryLogistics.h"
 #include "civilization/military/BattleResolution.h"
@@ -677,6 +678,35 @@ static void TestMarketSettlement() {
     CHECK(rejectedInvalidOrder);
 }
 
+static void TestCurrencySupply() {
+    using namespace Civilization::Economic;
+
+    CurrencySupplyConfig config;
+    config.initialSupply = 80.0f;
+    config.monthlyIssuance = 30.0f;
+    config.monthlyBurn = 10.0f;
+    config.maximumSupply = 100.0f;
+    auto supply = BuildCurrencySupplyModel(config);
+    supply.Step();
+    CHECK(supply.Stock(CurrencySupplyStockName()) == 90.0f);
+    supply.SetParam(CurrencyBurnParameterName(), 0.0f);
+    supply.Step();
+    CHECK(supply.Stock(CurrencySupplyStockName()) == 100.0f);
+    supply.SetParam(CurrencyIssuanceParameterName(), 0.0f);
+    supply.SetParam(CurrencyBurnParameterName(), 1000.0f);
+    supply.Step();
+    CHECK(supply.Stock(CurrencySupplyStockName()) == 0.0f);
+
+    bool rejectedInitialAboveCap = false;
+    try {
+        config.initialSupply = 101.0f;
+        (void)BuildCurrencySupplyModel(config);
+    } catch (const std::invalid_argument&) {
+        rejectedInitialAboveCap = true;
+    }
+    CHECK(rejectedInitialAboveCap);
+}
+
 static void TestFiscalBudget() {
     using namespace Civilization::Economic;
 
@@ -986,6 +1016,7 @@ int main() {
     TestPopulationCalibration();
     TestTradeNetwork();
     TestMarketSettlement();
+    TestCurrencySupply();
     TestMarketPrice();
     TestFiscalBudget();
     TestCultureDiffusion();

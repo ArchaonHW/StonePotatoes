@@ -138,6 +138,7 @@ install(TARGETS StonePotatoes
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 install(FILES LICENSE README.md docs/market-settlement-model.md
+    docs/currency-supply-model.md
     DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/StonePotatoes
 )
 
