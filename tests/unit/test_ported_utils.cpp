@@ -16,6 +16,7 @@
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/culture/CultureDiffusion.h"
 #include "civilization/military/MilitaryLogistics.h"
+#include "civilization/military/BattleResolution.h"
 #include "civilization/diplomacy/Diplomacy.h"
 #include "civilization/population/PopulationDynamics.h"
 #include "networking/core/LockstepSync.h"
@@ -707,6 +708,39 @@ static void TestMilitaryLogistics() {
     CHECK(rejectedInvalidAttrition);
 }
 
+static void TestBattleResolution() {
+    using namespace Civilization::Military;
+
+    EngagementConfig config;
+    config.attackerUnits = 100.0f;
+    config.defenderUnits = 80.0f;
+    config.attackerDamagePerUnit = 2.0f;
+    config.defenderDamagePerUnit = 1.0f;
+    config.attackerDurability = 2.0f;
+    config.defenderDurability = 4.0f;
+    const EngagementResult result = ResolveEngagement(config);
+    CHECK(std::abs(result.attackerLosses - 40.0f) < 1e-4f);
+    CHECK(std::abs(result.defenderLosses - 50.0f) < 1e-4f);
+    CHECK(std::abs(result.survivingAttackers - 60.0f) < 1e-4f);
+    CHECK(std::abs(result.survivingDefenders - 30.0f) < 1e-4f);
+
+    config.attackerUnits = 0.0f;
+    const EngagementResult empty = ResolveEngagement(config);
+    CHECK(empty.attackerLosses == 0.0f);
+    CHECK(empty.defenderLosses == 0.0f);
+    CHECK(empty.survivingDefenders == config.defenderUnits);
+
+    config.attackerUnits = 1.0f;
+    config.attackerDurability = 0.0f;
+    bool rejectedInvalidDurability = false;
+    try {
+        (void)ResolveEngagement(config);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidDurability = true;
+    }
+    CHECK(rejectedInvalidDurability);
+}
+
 static void TestDiplomacy() {
     using namespace Civilization::Diplomacy;
 
@@ -783,6 +817,7 @@ int main() {
     TestFiscalBudget();
     TestCultureDiffusion();
     TestMilitaryLogistics();
+    TestBattleResolution();
     TestDiplomacy();
     TestLockstepSync();
 
