@@ -780,6 +780,42 @@ static void TestBattleResolution() {
         rejectedInvalidDurability = true;
     }
     CHECK(rejectedInvalidDurability);
+
+    config = EngagementConfig{};
+    config.attackerUnits = 10.0f;
+    config.defenderUnits = 10.0f;
+    config.attackerDamagePerUnit = 0.2f;
+    config.defenderDamagePerUnit = 0.2f;
+    const BattleResult multiRound = ResolveBattle(config, 3);
+    CHECK(multiRound.roundsCompleted == 3);
+    CHECK(std::abs(multiRound.survivingAttackers - 5.12f) < 1e-4f);
+    CHECK(std::abs(multiRound.survivingDefenders - 5.12f) < 1e-4f);
+
+    config.attackerUnits = 5.0f;
+    config.defenderUnits = 20.0f;
+    config.attackerDamagePerUnit = 100.0f;
+    config.defenderDamagePerUnit = 100.0f;
+    const BattleResult eliminated = ResolveBattle(config, 10);
+    CHECK(eliminated.roundsCompleted == 1);
+    CHECK(eliminated.survivingAttackers == 0.0f);
+    CHECK(eliminated.survivingDefenders == 0.0f);
+
+    config.attackerUnits = 10.0f;
+    config.defenderUnits = 10.0f;
+    config.attackerDamagePerUnit = 0.0f;
+    config.defenderDamagePerUnit = 0.0f;
+    const BattleResult noDamage = ResolveBattle(config, 8);
+    CHECK(noDamage.roundsCompleted == 1);
+    CHECK(noDamage.survivingAttackers == config.attackerUnits);
+    CHECK(noDamage.survivingDefenders == config.defenderUnits);
+
+    bool rejectedExcessiveRoundLimit = false;
+    try {
+        (void)ResolveBattle(config, MaxBattleRounds + 1);
+    } catch (const std::invalid_argument&) {
+        rejectedExcessiveRoundLimit = true;
+    }
+    CHECK(rejectedExcessiveRoundLimit);
 }
 
 static void TestDiplomacy() {

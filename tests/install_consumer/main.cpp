@@ -870,6 +870,22 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Verify the installed battle resolver advances bounded volleys.
+    {
+        using namespace StonePotatoes::Civilization::Military;
+        EngagementConfig config;
+        config.attackerUnits = 10.0f;
+        config.defenderUnits = 10.0f;
+        config.attackerDamagePerUnit = 0.2f;
+        config.defenderDamagePerUnit = 0.2f;
+        const BattleResult battle = ResolveBattle(config, 3);
+        if (battle.roundsCompleted != 3 ||
+            std::fabs(battle.survivingAttackers - 5.12f) > 0.001f ||
+            std::fabs(battle.survivingDefenders - 5.12f) > 0.001f) {
+            return 98;
+        }
+    }
+
     // Verify the installed population calibration utility recovers a curve.
     {
         using namespace StonePotatoes::Civilization::Population;
