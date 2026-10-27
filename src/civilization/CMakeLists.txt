@@ -11,6 +11,7 @@ add_library(StonePotatoesCivilization STATIC
     military/MilitaryLogistics.cpp
     military/BattleResolution.cpp
     diplomacy/Diplomacy.cpp
+    diplomacy/TreatyLedger.cpp
 )
 target_include_directories(StonePotatoesCivilization
     PUBLIC

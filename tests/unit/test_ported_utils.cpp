@@ -18,6 +18,7 @@
 #include "civilization/military/MilitaryLogistics.h"
 #include "civilization/military/BattleResolution.h"
 #include "civilization/diplomacy/Diplomacy.h"
+#include "civilization/diplomacy/TreatyLedger.h"
 #include "civilization/population/PopulationDynamics.h"
 #include "civilization/population/PopulationCalibration.h"
 #include "networking/core/LockstepSync.h"
@@ -855,6 +856,49 @@ static void TestDiplomacy() {
     CHECK(rejectedSelfRelation);
 }
 
+static void TestTreatyLedger() {
+    using namespace Civilization::Diplomacy;
+
+    TreatyLedger ledger;
+    CHECK(ledger.Sign(TreatyType::TradePact, 1, 2, 3));
+    CHECK(ledger.HasTreaty(TreatyType::TradePact, 2, 1));
+    CHECK(ledger.CanDeclareWar(1, 2));
+
+    CHECK(ledger.Sign(TreatyType::NonAggressionPact, 1, 2, 2));
+    CHECK(!ledger.CanDeclareWar(1, 2));
+    CHECK(!ledger.Sign(TreatyType::NonAggressionPact, 2, 1, 5));
+    CHECK(ledger.ActiveTreaties().size() == 2);
+
+    ledger.AdvanceMonth();
+    CHECK(ledger.HasTreaty(TreatyType::NonAggressionPact, 1, 2));
+    CHECK(!ledger.CanDeclareWar(2, 1));
+    ledger.AdvanceMonth();
+    CHECK(!ledger.HasTreaty(TreatyType::NonAggressionPact, 1, 2));
+    CHECK(ledger.CanDeclareWar(2, 1));
+
+    CHECK(ledger.Sign(TreatyType::Alliance, 3, 4, 1));
+    CHECK(!ledger.CanDeclareWar(4, 3));
+    CHECK(ledger.Revoke(TreatyType::Alliance, 4, 3));
+    CHECK(ledger.CanDeclareWar(3, 4));
+    CHECK(!ledger.Revoke(TreatyType::Alliance, 3, 4));
+
+    bool rejectedSelfTreaty = false;
+    try {
+        (void)ledger.Sign(TreatyType::TradePact, 4, 4, 1);
+    } catch (const std::invalid_argument&) {
+        rejectedSelfTreaty = true;
+    }
+    CHECK(rejectedSelfTreaty);
+
+    bool rejectedZeroDuration = false;
+    try {
+        (void)ledger.Sign(TreatyType::TradePact, 1, 4, 0);
+    } catch (const std::invalid_argument&) {
+        rejectedZeroDuration = true;
+    }
+    CHECK(rejectedZeroDuration);
+}
+
 // ---- LockstepSync tests ----
 static void TestLockstepSync() {
     using namespace Networking;
@@ -897,6 +941,7 @@ int main() {
     TestMilitaryLogistics();
     TestBattleResolution();
     TestDiplomacy();
+    TestTreatyLedger();
     TestLockstepSync();
 
     std::printf("\n=== Ported Utils Tests ===\n");

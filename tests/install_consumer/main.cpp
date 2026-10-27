@@ -7,6 +7,7 @@
 #include <civilization/military/MilitaryLogistics.h>
 #include <civilization/military/BattleResolution.h>
 #include <civilization/diplomacy/Diplomacy.h>
+#include <civilization/diplomacy/TreatyLedger.h>
 #include <civilization/population/PopulationDynamics.h>
 #include <civilization/population/PopulationCalibration.h>
 #include <networking/core/LockstepSync.h>
@@ -791,6 +792,21 @@ int main(int argc, char** argv) {
             std::fabs(diplomacy.Stock(RelationStockName(1, 0)) + 0.2f) >
                 0.001f) {
             return 92;
+        }
+    }
+
+    // Verify installed treaties expire and unblock war declarations.
+    {
+        using namespace StonePotatoes::Civilization::Diplomacy;
+        TreatyLedger treaties;
+        if (!treaties.Sign(TreatyType::NonAggressionPact, 0, 1, 1) ||
+            treaties.CanDeclareWar(0, 1)) {
+            return 99;
+        }
+        treaties.AdvanceMonth();
+        if (!treaties.CanDeclareWar(1, 0) ||
+            !treaties.ActiveTreaties().empty()) {
+            return 99;
         }
     }
 
