@@ -19,6 +19,7 @@
 #include "civilization/military/BattleResolution.h"
 #include "civilization/diplomacy/Diplomacy.h"
 #include "civilization/population/PopulationDynamics.h"
+#include "civilization/population/PopulationCalibration.h"
 #include "networking/core/LockstepSync.h"
 
 #include <cstdio>
@@ -346,6 +347,46 @@ static void TestPopulationDynamics() {
         rejectedNonFiniteAgeMigration = true;
     }
     CHECK(rejectedNonFiniteAgeMigration);
+}
+
+static void TestPopulationCalibration() {
+    using namespace Civilization::Population;
+
+    constexpr double capacity = 1000.0;
+    constexpr double initial = 100.0;
+    constexpr double growth = 0.02;
+    std::vector<LogisticPopulationObservation> observations;
+    for (float month : {0.0f, 10.0f, 20.0f, 30.0f}) {
+        const double population = capacity /
+            (1.0 + ((capacity - initial) / initial) *
+                       std::exp(-growth * month));
+        observations.push_back(
+            {month, static_cast<float>(population)});
+    }
+
+    const auto fit = CalibrateLogisticGrowth(observations, 1000.0f);
+    CHECK(std::abs(fit.intrinsicGrowthRatePerMonth - 0.02f) < 1e-5f);
+    CHECK(std::abs(fit.estimatedInitialPopulation - 100.0f) < 1e-3f);
+
+    bool rejectedCapacityObservation = false;
+    try {
+        auto invalid = observations;
+        invalid.back().population = 1000.0f;
+        (void)CalibrateLogisticGrowth(invalid, 1000.0f);
+    } catch (const std::invalid_argument&) {
+        rejectedCapacityObservation = true;
+    }
+    CHECK(rejectedCapacityObservation);
+
+    bool rejectedUnorderedMonths = false;
+    try {
+        auto invalid = observations;
+        invalid[2].month = invalid[1].month;
+        (void)CalibrateLogisticGrowth(invalid, 1000.0f);
+    } catch (const std::invalid_argument&) {
+        rejectedUnorderedMonths = true;
+    }
+    CHECK(rejectedUnorderedMonths);
 }
 
 static void TestTradeNetwork() {
@@ -812,6 +853,7 @@ int main() {
     TestCurlNoise();
     TestSystemDynamics();
     TestPopulationDynamics();
+    TestPopulationCalibration();
     TestTradeNetwork();
     TestMarketPrice();
     TestFiscalBudget();

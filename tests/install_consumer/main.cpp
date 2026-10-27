@@ -8,6 +8,7 @@
 #include <civilization/military/BattleResolution.h>
 #include <civilization/diplomacy/Diplomacy.h>
 #include <civilization/population/PopulationDynamics.h>
+#include <civilization/population/PopulationCalibration.h>
 #include <networking/core/LockstepSync.h>
 #include <data/AssetCache.h>
 #include <core/plugin/Plugin.h>
@@ -866,6 +867,19 @@ int main(int argc, char** argv) {
             battle.survivingAttackers != 0.0f ||
             battle.survivingDefenders != 0.0f) {
             return 95;
+        }
+    }
+
+    // Verify the installed population calibration utility recovers a curve.
+    {
+        using namespace StonePotatoes::Civilization::Population;
+        const float populationAtTen = static_cast<float>(
+            1000.0 / (1.0 + 9.0 * std::exp(-0.2)));
+        const auto fit = CalibrateLogisticGrowth(
+            {{0.0f, 100.0f}, {10.0f, populationAtTen}}, 1000.0f);
+        if (std::fabs(fit.intrinsicGrowthRatePerMonth - 0.02f) > 1e-5f ||
+            std::fabs(fit.estimatedInitialPopulation - 100.0f) > 1e-3f) {
+            return 97;
         }
     }
 

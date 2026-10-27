@@ -6,6 +6,7 @@ add_library(StonePotatoesCivilization STATIC
     economic/FiscalBudget.cpp
     economic/TradeNetwork.cpp
     population/PopulationDynamics.cpp
+    population/PopulationCalibration.cpp
     culture/CultureDiffusion.cpp
     military/MilitaryLogistics.cpp
     military/BattleResolution.cpp
