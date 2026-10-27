@@ -15,6 +15,32 @@ building blocks in `civilization/population/PopulationDynamics.h`:
   births in each region, followed by directed age-specific migration with
   source-cohort and destination-capacity bounds.
 
+## Fitting a logistic growth rate
+
+`CalibrateLogisticGrowth` estimates a single-region logistic model from at
+least two `{month, population}` observations when the carrying capacity is
+known. It applies an ordinary least-squares fit to
+`log(population / (capacity - population))`, which is linear in time for the
+constant-capacity logistic model. The result contains the monthly intrinsic
+growth rate and the estimated population at month zero.
+
+Observations must have strictly increasing, nonnegative month offsets and
+populations strictly between zero and capacity. The model assumes no migration
+or discrete shocks. For noisy observations, the transformed least-squares fit
+minimizes error in log-odds space rather than raw population space; callers
+should inspect the residuals before using a calibrated rate in production.
+
+```cpp
+using namespace StonePotatoes::Civilization::Population;
+
+const auto fit = CalibrateLogisticGrowth(
+    {{0.0f, 100.0f}, {10.0f, 121.0f}, {20.0f, 142.0f}}, 1000.0f);
+PopulationConfig config;
+config.initialPopulation = fit.estimatedInitialPopulation;
+config.carryingCapacity = 1000.0f;
+config.intrinsicGrowthRatePerMonth = fit.intrinsicGrowthRatePerMonth;
+```
+
 ## Age-structured annual model
 
 `AgeStructuredPopulationConfig` takes three equally sized vectors:
