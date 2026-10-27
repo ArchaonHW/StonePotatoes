@@ -56,6 +56,11 @@ their outgoing shipments are scaled proportionally. Monthly fund income is
 available for settlement during that step. Leaving both optional matrices
 empty preserves existing free-trade behavior.
 
+For atomic settlement of proposed orders across multiple commodity types, use
+the installed `SettleCommodityTrades` API documented in
+[`market-settlement-model.md`](market-settlement-model.md). Currency issuance
+remains a separate policy decision.
+
 For cost-limited routes, configure `initialFundsByRegion` and
 `monthlyTransportCostPerUnitFromRegionToRegion` (rows are sources, columns are
 destinations). `monthlyFundsIncomeByRegion` is optional and defaults to zero.

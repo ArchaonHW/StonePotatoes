@@ -14,6 +14,7 @@
 #include "civilization/economic/MarketPrice.h"
 #include "civilization/economic/FiscalBudget.h"
 #include "civilization/economic/TradeNetwork.h"
+#include "civilization/economic/MarketSettlement.h"
 #include "civilization/culture/CultureDiffusion.h"
 #include "civilization/military/MilitaryLogistics.h"
 #include "civilization/military/BattleResolution.h"
@@ -627,6 +628,55 @@ static void TestMarketPrice() {
     CHECK(rejectedInvalidTarget);
 }
 
+static void TestMarketSettlement() {
+    using namespace Civilization::Economic;
+
+    std::vector<MarketAccount> accounts(3);
+    accounts[0].inventory = {{"grain", 10.0f}, {"wood", 4.0f}};
+    accounts[1].funds = 12.0f;
+    accounts[2].inventory = {{"wood", 10.0f}};
+    const std::vector<CommodityTradeOrder> orders = {
+        {0, 1, "grain", 10.0f, 1.0f},
+        {0, 1, "wood", 4.0f, 2.0f},
+        {2, 1, "wood", 4.0f, 1.0f},
+    };
+    const auto settled = SettleCommodityTrades(accounts, orders);
+    CHECK(settled.trades.size() == 3);
+    CHECK(std::abs(settled.trades[0].quantity - (12.0f * 10.0f / 22.0f)) <
+          1e-3f);
+    CHECK(std::abs(settled.accounts[1].funds) < 1e-3f);
+    CHECK(std::abs(settled.accounts[0].funds + settled.accounts[1].funds +
+                   settled.accounts[2].funds - 12.0f) < 1e-3f);
+    CHECK(std::abs(settled.accounts[0].inventory.at("grain") +
+                   settled.accounts[1].inventory.at("grain") - 10.0f) <
+          1e-3f);
+    CHECK(std::abs(settled.accounts[0].inventory.at("wood") +
+                   settled.accounts[1].inventory.at("wood") +
+                   settled.accounts[2].inventory.at("wood") - 14.0f) <
+          1e-3f);
+    CHECK(accounts[0].inventory.at("grain") == 10.0f);
+
+    const auto stockBounded = SettleCommodityTrades(
+        [] {
+            std::vector<MarketAccount> boundedAccounts(2);
+            boundedAccounts[0].inventory = {{"grain", 2.0f}};
+            boundedAccounts[1].funds = 10.0f;
+            return boundedAccounts;
+        }(),
+        {{0, 1, "grain", 5.0f, 1.0f}});
+    CHECK(stockBounded.trades[0].quantity == 2.0f);
+    CHECK(stockBounded.accounts[1].funds == 8.0f);
+
+    bool rejectedInvalidOrder = false;
+    try {
+        (void)SettleCommodityTrades(accounts,
+                                    {{0, 1, "", 1.0f, 1.0f}});
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidOrder = true;
+    }
+    CHECK(rejectedInvalidOrder);
+}
+
 static void TestFiscalBudget() {
     using namespace Civilization::Economic;
 
@@ -935,6 +985,7 @@ int main() {
     TestPopulationDynamics();
     TestPopulationCalibration();
     TestTradeNetwork();
+    TestMarketSettlement();
     TestMarketPrice();
     TestFiscalBudget();
     TestCultureDiffusion();
