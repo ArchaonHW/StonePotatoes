@@ -3,6 +3,8 @@
 #include <civilization/economic/MarketPrice.h>
 #include <civilization/economic/FiscalBudget.h>
 #include <civilization/economic/TradeNetwork.h>
+#include <civilization/economic/MarketSettlement.h>
+#include <civilization/economic/CurrencySupply.h>
 #include <civilization/culture/CultureDiffusion.h>
 #include <civilization/military/MilitaryLogistics.h>
 #include <civilization/military/BattleResolution.h>
@@ -756,6 +758,51 @@ int main(int argc, char** argv) {
                 0.001f) {
             return 87;
         }
+    }
+
+    // Verify installed settlement atomically exchanges several commodities.
+    {
+        using namespace StonePotatoes::Civilization::Economic;
+        std::vector<MarketAccount> accounts(3);
+        accounts[0].inventory = {{"grain", 10.0f}, {"wood", 4.0f}};
+        accounts[1].funds = 12.0f;
+        accounts[2].inventory = {{"wood", 10.0f}};
+        const auto settled = SettleCommodityTrades(accounts, {
+            {0, 1, "grain", 10.0f, 1.0f},
+            {0, 1, "wood", 4.0f, 2.0f},
+            {2, 1, "wood", 4.0f, 1.0f},
+        });
+        if (settled.trades.size() != 3 ||
+            std::fabs(settled.accounts[1].funds) > 0.001f ||
+            std::fabs(settled.accounts[0].funds +
+                      settled.accounts[1].funds +
+                      settled.accounts[2].funds - 12.0f) > 0.001f ||
+            std::fabs(settled.accounts[0].inventory.at("grain") +
+                      settled.accounts[1].inventory.at("grain") - 10.0f) >
+                0.001f ||
+            std::fabs(settled.accounts[0].inventory.at("wood") +
+                      settled.accounts[1].inventory.at("wood") +
+                      settled.accounts[2].inventory.at("wood") - 14.0f) >
+                0.001f) {
+            return 101;
+        }
+    }
+
+    // Verify installed currency issuance is capped and burn respects supply.
+    {
+        using namespace StonePotatoes::Civilization::Economic;
+        CurrencySupplyConfig config;
+        config.initialSupply = 80.0f;
+        config.monthlyIssuance = 30.0f;
+        config.monthlyBurn = 10.0f;
+        config.maximumSupply = 100.0f;
+        auto currency = BuildCurrencySupplyModel(config);
+        currency.Step();
+        if (currency.Stock(CurrencySupplyStockName()) != 90.0f) return 102;
+        currency.SetParam(CurrencyIssuanceParameterName(), 0.0f);
+        currency.SetParam(CurrencyBurnParameterName(), 1000.0f);
+        currency.Step();
+        if (currency.Stock(CurrencySupplyStockName()) != 0.0f) return 102;
     }
 
     // Verify installed culture traits diffuse independently across regions.
