@@ -994,6 +994,15 @@ int main(int argc, char** argv) {
             !election.tiedCandidates.empty()) {
             return 132;
         }
+        const auto ballotElection = TallyPluralityBallots(
+            {"north", "south"}, {"voter-1", "voter-2", "voter-3"},
+            {{"voter-1", "north"}, {"voter-2", "south"},
+             {"voter-3", "north"}});
+        if (!ballotElection.winnerCandidateId.has_value() ||
+            *ballotElection.winnerCandidateId != "north" ||
+            ballotElection.totalVotes != 3) {
+            return 135;
+        }
         LeadershipSuccessionRequest request;
         request.method = SuccessionMethod::Election;
         request.electionResult = election;

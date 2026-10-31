@@ -23,6 +23,21 @@ candidate at that count in lexicographic ID order, so callers can apply an
 explicit game rule such as a runoff or appointment. This primitive does not
 model voter eligibility, ballots, districts, campaigning, or tie-breaking.
 
+## Validated individual ballots
+
+`TallyPluralityBallots` supplies the small voter-to-tally path for callers that
+have already determined eligible voters and declared candidates. It rejects
+duplicate IDs, ineligible or repeated voters, and ballots for undeclared
+candidates, then delegates winner and tie behavior to the deterministic tally.
+It does not define voter eligibility, districts, secret-ballot storage, or
+tie-breaking policy.
+
+```cpp
+const auto result = TallyPluralityBallots(
+    {"candidate-a", "candidate-b"}, {"voter-1", "voter-2"},
+    {{"voter-1", "candidate-a"}, {"voter-2", "candidate-b"}});
+```
+
 ## Leadership succession
 
 `ResolveLeadershipSuccession` applies a succession event after the game has

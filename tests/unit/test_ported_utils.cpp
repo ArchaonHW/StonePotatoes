@@ -981,6 +981,45 @@ static void TestPluralityElection() {
         rejectedNoVotes = true;
     }
     CHECK(rejectedNoVotes);
+
+    const auto ballotResult = TallyPluralityBallots(
+        {"candidate-a", "candidate-b"},
+        {"voter-1", "voter-2", "voter-3"},
+        {{"voter-1", "candidate-a"}, {"voter-2", "candidate-b"},
+         {"voter-3", "candidate-a"}});
+    CHECK(ballotResult.winnerCandidateId ==
+          std::optional<std::string>("candidate-a"));
+    CHECK(ballotResult.totalVotes == 3);
+
+    bool rejectedDuplicateBallot = false;
+    try {
+        (void)TallyPluralityBallots(
+            {"candidate-a", "candidate-b"}, {"voter-1"},
+            {{"voter-1", "candidate-a"}, {"voter-1", "candidate-b"}});
+    } catch (const std::invalid_argument&) {
+        rejectedDuplicateBallot = true;
+    }
+    CHECK(rejectedDuplicateBallot);
+
+    bool rejectedIneligibleVoter = false;
+    try {
+        (void)TallyPluralityBallots(
+            {"candidate-a", "candidate-b"}, {"voter-1"},
+            {{"outsider", "candidate-a"}});
+    } catch (const std::invalid_argument&) {
+        rejectedIneligibleVoter = true;
+    }
+    CHECK(rejectedIneligibleVoter);
+
+    bool rejectedUndeclaredCandidate = false;
+    try {
+        (void)TallyPluralityBallots(
+            {"candidate-a", "candidate-b"}, {"voter-1"},
+            {{"voter-1", "outsider"}});
+    } catch (const std::invalid_argument&) {
+        rejectedUndeclaredCandidate = true;
+    }
+    CHECK(rejectedUndeclaredCandidate);
 }
 
 static void TestLeadershipSuccession() {
