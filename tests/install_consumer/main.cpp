@@ -6,6 +6,7 @@
 #include <civilization/economic/MarketSettlement.h>
 #include <civilization/economic/CurrencySupply.h>
 #include <civilization/culture/CultureDiffusion.h>
+#include <civilization/culture/CultureFormation.h>
 #include <civilization/military/MilitaryLogistics.h>
 #include <civilization/military/BattleResolution.h>
 #include <civilization/diplomacy/Diplomacy.h>
@@ -824,6 +825,23 @@ int main(int argc, char** argv) {
             {{0.0f, 0.0f}, {0.1f, 0.0f}, {0.2f, 0.0f}, {0.8f, 0.0f}},
             0.11f);
         if (groups != std::vector<std::size_t>{0, 0, 0, 1}) return 89;
+    }
+
+    // Verify installed culture formation adopts novelty and fades traits.
+    {
+        using namespace StonePotatoes::Civilization::Culture;
+        CultureFormationConfig config;
+        config.initialTraitsByRegion = {{0.2f, 0.8f}};
+        config.monthlyInnovationRateByRegion = {{0.5f, 0.0f}};
+        config.monthlyDecayRateByRegion = {{0.0f, 0.25f}};
+        auto culture = BuildCultureFormationModel(config);
+        culture.Step();
+        if (std::fabs(culture.Stock(CultureTraitStockName(0, 0)) - 0.6f) >
+                0.001f ||
+            std::fabs(culture.Stock(CultureTraitStockName(0, 1)) - 0.6f) >
+                0.001f) {
+            return 104;
+        }
     }
 
     // Verify the installed diplomacy model exposes directed relation stocks.

@@ -17,6 +17,7 @@
 #include "civilization/economic/MarketSettlement.h"
 #include "civilization/economic/CurrencySupply.h"
 #include "civilization/culture/CultureDiffusion.h"
+#include "civilization/culture/CultureFormation.h"
 #include "civilization/military/MilitaryLogistics.h"
 #include "civilization/military/BattleResolution.h"
 #include "civilization/diplomacy/Diplomacy.h"
@@ -799,6 +800,50 @@ static void TestCultureDiffusion() {
     CHECK(rejectedInvalidTrait);
 }
 
+static void TestCultureFormation() {
+    using namespace Civilization::Culture;
+
+    CultureFormationConfig config;
+    config.initialTraitsByRegion = {{0.2f, 0.8f}, {1.0f, 0.0f}};
+    config.monthlyInnovationRateByRegion = {{0.5f, 0.0f}, {1.0f, 0.0f}};
+    config.monthlyDecayRateByRegion = {{0.0f, 0.25f}, {0.0f, 1.0f}};
+    auto formation = BuildCultureFormationModel(config);
+    formation.Step();
+    CHECK(std::abs(formation.Stock(CultureTraitStockName(0, 0)) - 0.6f) <
+          1e-3f);
+    CHECK(std::abs(formation.Stock(CultureTraitStockName(0, 1)) - 0.6f) <
+          1e-3f);
+    CHECK(formation.Stock(CultureTraitStockName(1, 0)) == 1.0f);
+    CHECK(formation.Stock(CultureTraitStockName(1, 1)) == 0.0f);
+
+    formation.SetParam(CultureInnovationRateParameterName(0, 0), 2.0f);
+    formation.SetParam(CultureDecayRateParameterName(0, 0), 2.0f);
+    formation.Step();
+    CHECK(formation.Stock(CultureTraitStockName(0, 0)) >= 0.0f &&
+          formation.Stock(CultureTraitStockName(0, 0)) <= 1.0f);
+
+    bool rejectedUnstableRates = false;
+    try {
+        CultureFormationConfig invalid = config;
+        invalid.monthlyInnovationRateByRegion[0][0] = 0.75f;
+        invalid.monthlyDecayRateByRegion[0][0] = 0.5f;
+        (void)BuildCultureFormationModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedUnstableRates = true;
+    }
+    CHECK(rejectedUnstableRates);
+
+    bool rejectedRaggedRows = false;
+    try {
+        CultureFormationConfig invalid = config;
+        invalid.monthlyDecayRateByRegion[1].clear();
+        (void)BuildCultureFormationModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedRaggedRows = true;
+    }
+    CHECK(rejectedRaggedRows);
+}
+
 static void TestMilitaryLogistics() {
     using namespace Civilization::Military;
 
@@ -1020,6 +1065,7 @@ int main() {
     TestMarketPrice();
     TestFiscalBudget();
     TestCultureDiffusion();
+    TestCultureFormation();
     TestMilitaryLogistics();
     TestBattleResolution();
     TestDiplomacy();
