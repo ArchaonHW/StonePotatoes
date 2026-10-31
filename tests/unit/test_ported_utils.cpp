@@ -14,6 +14,7 @@
 #include "civilization/economic/MarketPrice.h"
 #include "civilization/economic/FiscalBudget.h"
 #include "civilization/politics/PoliticalLegitimacy.h"
+#include "civilization/politics/PluralityElection.h"
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/economic/MarketSettlement.h"
 #include "civilization/economic/CurrencySupply.h"
@@ -937,6 +938,49 @@ static void TestPoliticalLegitimacy() {
     CHECK(rejectedEmptyWeights);
 }
 
+static void TestPluralityElection() {
+    using namespace Civilization::Politics;
+
+    const auto result = TallyPluralityElection(
+        {{"candidate-a", 52}, {"candidate-b", 31}, {"candidate-c", 17}});
+    CHECK(result.winnerCandidateId == std::optional<std::string>("candidate-a"));
+    CHECK(result.winningVotes == 52);
+    CHECK(result.totalVotes == 100);
+    CHECK(result.tiedCandidates.empty());
+
+    const auto tie = TallyPluralityElection(
+        {{"candidate-z", 50}, {"candidate-a", 50}, {"candidate-b", 0}});
+    CHECK(!tie.winnerCandidateId.has_value());
+    CHECK(tie.tiedCandidates.size() == 2);
+    CHECK(tie.tiedCandidates[0] == "candidate-a");
+    CHECK(tie.tiedCandidates[1] == "candidate-z");
+
+    bool rejectedDuplicate = false;
+    try {
+        (void)TallyPluralityElection({{"same", 1}, {"same", 2}});
+    } catch (const std::invalid_argument&) {
+        rejectedDuplicate = true;
+    }
+    CHECK(rejectedDuplicate);
+
+    bool rejectedOverflow = false;
+    try {
+        (void)TallyPluralityElection(
+            {{"large", std::numeric_limits<std::uint64_t>::max()}, {"other", 1}});
+    } catch (const std::overflow_error&) {
+        rejectedOverflow = true;
+    }
+    CHECK(rejectedOverflow);
+
+    bool rejectedNoVotes = false;
+    try {
+        (void)TallyPluralityElection({{"candidate-a", 0}, {"candidate-b", 0}});
+    } catch (const std::invalid_argument&) {
+        rejectedNoVotes = true;
+    }
+    CHECK(rejectedNoVotes);
+}
+
 static void TestCultureDiffusion() {
     using namespace Civilization::Culture;
 
@@ -1350,6 +1394,7 @@ int main() {
     TestMarketPrice();
     TestFiscalBudget();
     TestPoliticalLegitimacy();
+    TestPluralityElection();
     TestCultureDiffusion();
     TestCultureFormation();
     TestMilitaryLogistics();

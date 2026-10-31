@@ -36,6 +36,9 @@ legitimacy.Step();
 const float score = legitimacy.Stock(GovernmentLegitimacyStockName());
 ```
 
-The model does not choose government types, simulate elections or succession,
-or claim that these three inputs are universal measures of legitimacy. Those
-political systems need explicit game-design rules and remain future work.
+The model does not choose government types or claim that these three inputs
+are universal measures of legitimacy. A separate
+[`plurality-election-model.md`](plurality-election-model.md) tallies supplied
+vote totals, but it does not collect ballots or simulate election procedures.
+Government types, election rules, and leadership succession still need
+explicit game-design rules and remain future work.

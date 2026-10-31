@@ -3,6 +3,7 @@
 #include <civilization/economic/MarketPrice.h>
 #include <civilization/economic/FiscalBudget.h>
 #include <civilization/politics/PoliticalLegitimacy.h>
+#include <civilization/politics/PluralityElection.h>
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/economic/MarketSettlement.h>
 #include <civilization/economic/CurrencySupply.h>
@@ -977,6 +978,19 @@ int main(int argc, char** argv) {
         if (government.Stock(GovernmentLegitimacyStockName()) >= 0.625f ||
             government.Stock(GovernmentLegitimacyStockName()) < 0.0f) {
             return 131;
+        }
+    }
+
+    // Verify the installed plurality tally returns a sole winner and totals.
+    {
+        using namespace StonePotatoes::Civilization::Politics;
+        const auto election = TallyPluralityElection(
+            {{"north", 61}, {"south", 39}});
+        if (!election.winnerCandidateId.has_value() ||
+            *election.winnerCandidateId != "north" ||
+            election.winningVotes != 61 || election.totalVotes != 100 ||
+            !election.tiedCandidates.empty()) {
+            return 132;
         }
     }
 
