@@ -41,3 +41,20 @@ request.method = SuccessionMethod::Election;
 request.electionResult = result;
 const auto succession = ResolveLeadershipSuccession(current, request);
 ```
+
+## Election term calendar
+
+`BeginElectionTerm` initializes a caller-owned monthly clock with a positive
+term length. `AdvanceElectionTerm` reports when the configured term expires and
+retains any overdue months until the caller starts a new term. It does not
+automatically run an election or succession; after resolving the leadership
+change, create a fresh state with `BeginElectionTerm`.
+
+```cpp
+auto term = BeginElectionTerm({48});
+term = AdvanceElectionTerm(term, elapsedMonths);
+if (term.electionDue) {
+    // Run the configured election/succession flow, then start the next term.
+    term = BeginElectionTerm({48});
+}
+```

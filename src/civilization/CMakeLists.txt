@@ -18,6 +18,7 @@ add_library(StonePotatoesCivilization STATIC
     politics/PoliticalLegitimacy.cpp
     politics/PluralityElection.cpp
     politics/LeadershipSuccession.cpp
+    politics/ElectionTerm.cpp
 )
 target_include_directories(StonePotatoesCivilization
     PUBLIC
