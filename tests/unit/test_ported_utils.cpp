@@ -15,6 +15,7 @@
 #include "civilization/economic/FiscalBudget.h"
 #include "civilization/politics/PoliticalLegitimacy.h"
 #include "civilization/politics/PluralityElection.h"
+#include "civilization/politics/LeadershipSuccession.h"
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/economic/MarketSettlement.h"
 #include "civilization/economic/CurrencySupply.h"
@@ -981,6 +982,56 @@ static void TestPluralityElection() {
     CHECK(rejectedNoVotes);
 }
 
+static void TestLeadershipSuccession() {
+    using namespace Civilization::Politics;
+
+    const LeadershipState incumbent{"incumbent", 3};
+    LeadershipSuccessionRequest electionRequest;
+    electionRequest.method = SuccessionMethod::Election;
+    electionRequest.electionResult =
+        TallyPluralityElection({{"successor", 60}, {"incumbent", 40}});
+    const auto elected =
+        ResolveLeadershipSuccession(incumbent, electionRequest);
+    CHECK(elected.resolved);
+    CHECK(elected.state.officeHolderId == "successor");
+    CHECK(elected.state.termNumber == 4);
+
+    electionRequest.electionResult =
+        TallyPluralityElection({{"candidate-b", 50}, {"candidate-a", 50}});
+    const auto tied = ResolveLeadershipSuccession(incumbent, electionRequest);
+    CHECK(!tied.resolved);
+    CHECK(tied.state.officeHolderId == incumbent.officeHolderId);
+    CHECK(tied.state.termNumber == incumbent.termNumber);
+    CHECK(tied.tiedCandidates.size() == 2);
+
+    LeadershipSuccessionRequest hereditary;
+    hereditary.method = SuccessionMethod::Hereditary;
+    hereditary.designatedSuccessorId = "heir";
+    const auto inherited = ResolveLeadershipSuccession(incumbent, hereditary);
+    CHECK(inherited.resolved);
+    CHECK(inherited.state.officeHolderId == "heir");
+
+    LeadershipSuccessionRequest missingAppointment;
+    missingAppointment.method = SuccessionMethod::Appointment;
+    bool rejectedMissingSuccessor = false;
+    try {
+        (void)ResolveLeadershipSuccession(incumbent, missingAppointment);
+    } catch (const std::invalid_argument&) {
+        rejectedMissingSuccessor = true;
+    }
+    CHECK(rejectedMissingSuccessor);
+
+    bool rejectedTermOverflow = false;
+    try {
+        LeadershipSuccessionRequest request = hereditary;
+        (void)ResolveLeadershipSuccession(
+            {"incumbent", std::numeric_limits<std::uint64_t>::max()}, request);
+    } catch (const std::overflow_error&) {
+        rejectedTermOverflow = true;
+    }
+    CHECK(rejectedTermOverflow);
+}
+
 static void TestCultureDiffusion() {
     using namespace Civilization::Culture;
 
@@ -1395,6 +1446,7 @@ int main() {
     TestFiscalBudget();
     TestPoliticalLegitimacy();
     TestPluralityElection();
+    TestLeadershipSuccession();
     TestCultureDiffusion();
     TestCultureFormation();
     TestMilitaryLogistics();
