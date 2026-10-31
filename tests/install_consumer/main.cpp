@@ -825,6 +825,15 @@ int main(int argc, char** argv) {
             {{0.0f, 0.0f}, {0.1f, 0.0f}, {0.2f, 0.0f}, {0.8f, 0.0f}},
             0.11f);
         if (groups != std::vector<std::size_t>{0, 0, 0, 1}) return 89;
+        CultureIdentityTracker identityTracker;
+        const auto initialIdentities = identityTracker.Update(
+            {{0.0f}, {0.1f}, {0.9f}}, 0.2f);
+        const auto mergedIdentities = identityTracker.Update(
+            {{0.0f}, {0.05f}, {0.1f}}, 0.2f);
+        if (initialIdentities != std::vector<std::size_t>{0, 0, 1} ||
+            mergedIdentities != std::vector<std::size_t>{0, 0, 0}) {
+            return 104;
+        }
     }
 
     // Verify installed culture formation adopts novelty and fades traits.

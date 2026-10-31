@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
+#include <set>
 #include <stdexcept>
 
 namespace StonePotatoes {
@@ -90,6 +92,84 @@ std::vector<std::size_t> ClusterCultureRegionsBySimilarity(
         groups[region] = groupByRoot[root];
     }
     return groups;
+}
+
+std::vector<std::size_t> CultureIdentityTracker::Update(
+    const std::vector<std::vector<float>>& traitsByRegion,
+    float maxDistance) {
+    if (!m_PreviousIdentityByRegion.empty() &&
+        traitsByRegion.size() != m_PreviousIdentityByRegion.size()) {
+        throw std::invalid_argument(
+            "culture identity tracking requires stable region count and order");
+    }
+    const std::vector<std::size_t> clusters =
+        ClusterCultureRegionsBySimilarity(traitsByRegion, maxDistance);
+    if (clusters.empty()) {
+        m_PreviousIdentityByRegion.clear();
+        return {};
+    }
+
+    const std::size_t clusterCount =
+        *std::max_element(clusters.begin(), clusters.end()) + 1;
+    std::map<std::size_t, std::map<std::size_t, std::size_t>> overlap;
+    if (!m_PreviousIdentityByRegion.empty()) {
+        for (std::size_t region = 0; region < clusters.size(); ++region) {
+            ++overlap[m_PreviousIdentityByRegion[region]][clusters[region]];
+        }
+    }
+
+    struct Match {
+        std::size_t overlap = 0;
+        std::size_t identity = 0;
+        std::size_t cluster = 0;
+    };
+    std::vector<Match> matches;
+    for (const auto& [identity, clustersById] : overlap) {
+        for (const auto& [cluster, count] : clustersById) {
+            matches.push_back({count, identity, cluster});
+        }
+    }
+    std::sort(matches.begin(), matches.end(), [](const Match& lhs,
+                                                 const Match& rhs) {
+        if (lhs.overlap != rhs.overlap) return lhs.overlap > rhs.overlap;
+        if (lhs.identity != rhs.identity) return lhs.identity < rhs.identity;
+        return lhs.cluster < rhs.cluster;
+    });
+
+    std::vector<std::size_t> identityByCluster(clusterCount, 0);
+    std::vector<bool> assignedCluster(clusterCount, false);
+    std::set<std::size_t> assignedIdentity;
+    for (const Match& match : matches) {
+        if (assignedCluster[match.cluster] ||
+            assignedIdentity.count(match.identity) != 0) {
+            continue;
+        }
+        identityByCluster[match.cluster] = match.identity;
+        assignedCluster[match.cluster] = true;
+        assignedIdentity.insert(match.identity);
+    }
+
+    std::size_t nextIdentityId = m_NextIdentityId;
+    for (std::size_t cluster = 0; cluster < clusterCount; ++cluster) {
+        if (assignedCluster[cluster]) continue;
+        if (nextIdentityId == std::numeric_limits<std::size_t>::max()) {
+            throw std::overflow_error("culture identity id space exhausted");
+        }
+        identityByCluster[cluster] = nextIdentityId++;
+    }
+    std::vector<std::size_t> result;
+    result.reserve(clusters.size());
+    for (std::size_t cluster : clusters) {
+        result.push_back(identityByCluster[cluster]);
+    }
+    m_PreviousIdentityByRegion = result;
+    m_NextIdentityId = nextIdentityId;
+    return result;
+}
+
+void CultureIdentityTracker::Reset() {
+    m_PreviousIdentityByRegion.clear();
+    m_NextIdentityId = 0;
 }
 
 Economic::SDModel BuildCultureDiffusionModel(

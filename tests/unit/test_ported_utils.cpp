@@ -798,6 +798,28 @@ static void TestCultureDiffusion() {
         rejectedInvalidTrait = true;
     }
     CHECK(rejectedInvalidTrait);
+
+    CultureIdentityTracker identities;
+    CHECK((identities.Update({{0.0f}, {0.1f}, {0.9f}}, 0.2f) ==
+           std::vector<std::size_t>{0, 0, 1}));
+    CHECK((identities.Update({{0.0f}, {0.9f}, {0.05f}}, 0.1f) ==
+           std::vector<std::size_t>{0, 2, 0}));
+    CHECK((identities.Update({{0.0f}, {0.05f}, {0.1f}}, 0.2f) ==
+           std::vector<std::size_t>{0, 0, 0}));
+    CHECK((identities.Update({{0.0f}, {0.8f}, {0.85f}}, 0.1f) ==
+           std::vector<std::size_t>{3, 0, 0}));
+    bool rejectedRegionCountChange = false;
+    try {
+        (void)identities.Update({{0.0f}, {0.8f}}, 0.1f);
+    } catch (const std::invalid_argument&) {
+        rejectedRegionCountChange = true;
+    }
+    CHECK(rejectedRegionCountChange);
+    CHECK((identities.Update({{0.0f}, {0.8f}, {0.85f}}, 0.1f) ==
+           std::vector<std::size_t>{3, 0, 0}));
+    identities.Reset();
+    CHECK((identities.Update({{0.0f}, {0.9f}}, 0.1f) ==
+           std::vector<std::size_t>{0, 1}));
 }
 
 static void TestCultureFormation() {
