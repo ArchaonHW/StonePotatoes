@@ -497,8 +497,27 @@ static void TestRegionalAgeStructuredPopulationCalibration() {
         }
     }
 
+    RegionalAgeStructuredPopulationRates knownRates{
+        source.annualSurvivalRateByAgeGroup,
+        source.annualBirthsPerPersonByAgeGroup};
+    const auto inferredMigration =
+        InferRegionalAgeStructuredNetMigration(census, knownRates);
+    CHECK(inferredMigration.size() == migration.size());
+    for (std::size_t interval = 0; interval < migration.size(); ++interval) {
+        for (std::size_t region = 0; region < 2; ++region) {
+            for (std::size_t group = 0; group < 3; ++group) {
+                CHECK(std::abs(
+                          inferredMigration[interval]
+                              .netMigrationByRegionAndAgeGroup[region][group] -
+                          migration[interval]
+                              .netMigrationByRegionAndAgeGroup[region][group]) <
+                      1e-4f);
+            }
+        }
+    }
+
     const auto fitted = CalibrateRegionalAgeStructuredPopulationRates(
-        census, migration, {1.0f, 0.0f, 0.0f});
+        census, inferredMigration, {1.0f, 0.0f, 0.0f});
     for (std::size_t group = 0;
          group < source.annualSurvivalRateByAgeGroup.size(); ++group) {
         CHECK(std::abs(fitted.annualSurvivalRateByAgeGroup[group] -
@@ -517,6 +536,16 @@ static void TestRegionalAgeStructuredPopulationCalibration() {
         rejectedNonConservingMigration = true;
     }
     CHECK(rejectedNonConservingMigration);
+
+    bool rejectedInconsistentRates = false;
+    try {
+        auto incorrectRates = knownRates;
+        incorrectRates.annualSurvivalRateByAgeGroup[0] *= 0.9f;
+        (void)InferRegionalAgeStructuredNetMigration(census, incorrectRates);
+    } catch (const std::invalid_argument&) {
+        rejectedInconsistentRates = true;
+    }
+    CHECK(rejectedInconsistentRates);
 }
 
 static void TestTradeNetwork() {

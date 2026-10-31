@@ -152,9 +152,22 @@ to build a `RegionalAgeStructuredPopulationConfig`. The census interval must
 have no capacity-limited births, and the supplied migration must represent
 realized net flows rather than unconstrained requests.
 
+When rates are already known, `InferRegionalAgeStructuredNetMigration`
+estimates signed net arrivals for every region and age group by subtracting
+the shared-rate demographic projection from each next census. It verifies
+that the inferred values conserve each age group across regions. This yields
+net arrivals only; it cannot recover which origin region sent residents to
+which destination. The rates must be shared across regions, and births must
+not be limited by regional capacity. Inconsistent census deltas are rejected
+instead of being mislabeled as migration.
+
 ```cpp
 const auto rates = CalibrateRegionalAgeStructuredPopulationRates(
     censusByYear, netMigrationByInterval, fertilityWeights);
+// Or, when the rates are independently known:
+RegionalAgeStructuredPopulationRates knownRates{survivalRates, birthRates};
+const auto inferredNetMigration =
+    InferRegionalAgeStructuredNetMigration(censusByYear, knownRates);
 RegionalAgeStructuredPopulationConfig config;
 config.initialPopulationByRegionAndAgeGroup =
     censusByYear.front().populationByRegionAndAgeGroup;
