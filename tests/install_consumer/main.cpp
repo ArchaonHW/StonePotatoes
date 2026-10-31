@@ -5,6 +5,7 @@
 #include <civilization/politics/PoliticalLegitimacy.h>
 #include <civilization/politics/PluralityElection.h>
 #include <civilization/politics/LeadershipSuccession.h>
+#include <civilization/politics/ElectionTerm.h>
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/economic/MarketSettlement.h>
 #include <civilization/economic/CurrencySupply.h>
@@ -1001,6 +1002,12 @@ int main(int argc, char** argv) {
         if (!successor.resolved || successor.state.officeHolderId != "north" ||
             successor.state.termNumber != 3) {
             return 133;
+        }
+        auto term = BeginElectionTerm({12});
+        term = AdvanceElectionTerm(term, 12);
+        if (!term.electionDue || term.monthsServed != 12 ||
+            term.monthsPastDue != 0) {
+            return 134;
         }
     }
 

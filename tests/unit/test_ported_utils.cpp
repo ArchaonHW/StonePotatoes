@@ -16,6 +16,7 @@
 #include "civilization/politics/PoliticalLegitimacy.h"
 #include "civilization/politics/PluralityElection.h"
 #include "civilization/politics/LeadershipSuccession.h"
+#include "civilization/politics/ElectionTerm.h"
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/economic/MarketSettlement.h"
 #include "civilization/economic/CurrencySupply.h"
@@ -1032,6 +1033,49 @@ static void TestLeadershipSuccession() {
     CHECK(rejectedTermOverflow);
 }
 
+static void TestElectionTerm() {
+    using namespace Civilization::Politics;
+
+    auto term = BeginElectionTerm({12});
+    term = AdvanceElectionTerm(term, 5);
+    CHECK(term.monthsServed == 5);
+    CHECK(!term.electionDue);
+
+    term = AdvanceElectionTerm(term, 7);
+    CHECK(term.monthsServed == 12);
+    CHECK(term.electionDue);
+    CHECK(term.monthsPastDue == 0);
+
+    term = AdvanceElectionTerm(term, 3);
+    CHECK(term.electionDue);
+    CHECK(term.monthsPastDue == 3);
+
+    auto delayed = AdvanceElectionTerm(BeginElectionTerm({12}), 14);
+    CHECK(delayed.electionDue);
+    CHECK(delayed.monthsPastDue == 2);
+
+    const auto nextTerm = BeginElectionTerm({24});
+    CHECK(nextTerm.monthsServed == 0);
+    CHECK(!nextTerm.electionDue);
+
+    bool rejectedZeroLength = false;
+    try {
+        (void)BeginElectionTerm({0});
+    } catch (const std::invalid_argument&) {
+        rejectedZeroLength = true;
+    }
+    CHECK(rejectedZeroLength);
+
+    bool rejectedOverflow = false;
+    try {
+        (void)AdvanceElectionTerm(
+            {12, 12, std::numeric_limits<std::uint64_t>::max() - 1, true}, 2);
+    } catch (const std::overflow_error&) {
+        rejectedOverflow = true;
+    }
+    CHECK(rejectedOverflow);
+}
+
 static void TestCultureDiffusion() {
     using namespace Civilization::Culture;
 
@@ -1447,6 +1491,7 @@ int main() {
     TestPoliticalLegitimacy();
     TestPluralityElection();
     TestLeadershipSuccession();
+    TestElectionTerm();
     TestCultureDiffusion();
     TestCultureFormation();
     TestMilitaryLogistics();
