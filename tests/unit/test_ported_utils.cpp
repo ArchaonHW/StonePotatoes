@@ -14,7 +14,10 @@
 #include "civilization/economic/MarketPrice.h"
 #include "civilization/economic/FiscalBudget.h"
 #include "civilization/economic/TradeNetwork.h"
+#include "civilization/economic/MarketSettlement.h"
+#include "civilization/economic/CurrencySupply.h"
 #include "civilization/culture/CultureDiffusion.h"
+#include "civilization/culture/CultureFormation.h"
 #include "civilization/military/MilitaryLogistics.h"
 #include "civilization/military/BattleResolution.h"
 #include "civilization/diplomacy/Diplomacy.h"
@@ -676,6 +679,84 @@ static void TestMarketPrice() {
     CHECK(rejectedInvalidTarget);
 }
 
+static void TestMarketSettlement() {
+    using namespace Civilization::Economic;
+
+    std::vector<MarketAccount> accounts(3);
+    accounts[0].inventory = {{"grain", 10.0f}, {"wood", 4.0f}};
+    accounts[1].funds = 12.0f;
+    accounts[2].inventory = {{"wood", 10.0f}};
+    const std::vector<CommodityTradeOrder> orders = {
+        {0, 1, "grain", 10.0f, 1.0f},
+        {0, 1, "wood", 4.0f, 2.0f},
+        {2, 1, "wood", 4.0f, 1.0f},
+    };
+    const auto settled = SettleCommodityTrades(accounts, orders);
+    CHECK(settled.trades.size() == 3);
+    CHECK(std::abs(settled.trades[0].quantity - (12.0f * 10.0f / 22.0f)) <
+          1e-3f);
+    CHECK(std::abs(settled.accounts[1].funds) < 1e-3f);
+    CHECK(std::abs(settled.accounts[0].funds + settled.accounts[1].funds +
+                   settled.accounts[2].funds - 12.0f) < 1e-3f);
+    CHECK(std::abs(settled.accounts[0].inventory.at("grain") +
+                   settled.accounts[1].inventory.at("grain") - 10.0f) <
+          1e-3f);
+    CHECK(std::abs(settled.accounts[0].inventory.at("wood") +
+                   settled.accounts[1].inventory.at("wood") +
+                   settled.accounts[2].inventory.at("wood") - 14.0f) <
+          1e-3f);
+    CHECK(accounts[0].inventory.at("grain") == 10.0f);
+
+    const auto stockBounded = SettleCommodityTrades(
+        [] {
+            std::vector<MarketAccount> boundedAccounts(2);
+            boundedAccounts[0].inventory = {{"grain", 2.0f}};
+            boundedAccounts[1].funds = 10.0f;
+            return boundedAccounts;
+        }(),
+        {{0, 1, "grain", 5.0f, 1.0f}});
+    CHECK(stockBounded.trades[0].quantity == 2.0f);
+    CHECK(stockBounded.accounts[1].funds == 8.0f);
+
+    bool rejectedInvalidOrder = false;
+    try {
+        (void)SettleCommodityTrades(accounts,
+                                    {{0, 1, "", 1.0f, 1.0f}});
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidOrder = true;
+    }
+    CHECK(rejectedInvalidOrder);
+}
+
+static void TestCurrencySupply() {
+    using namespace Civilization::Economic;
+
+    CurrencySupplyConfig config;
+    config.initialSupply = 80.0f;
+    config.monthlyIssuance = 30.0f;
+    config.monthlyBurn = 10.0f;
+    config.maximumSupply = 100.0f;
+    auto supply = BuildCurrencySupplyModel(config);
+    supply.Step();
+    CHECK(supply.Stock(CurrencySupplyStockName()) == 90.0f);
+    supply.SetParam(CurrencyBurnParameterName(), 0.0f);
+    supply.Step();
+    CHECK(supply.Stock(CurrencySupplyStockName()) == 100.0f);
+    supply.SetParam(CurrencyIssuanceParameterName(), 0.0f);
+    supply.SetParam(CurrencyBurnParameterName(), 1000.0f);
+    supply.Step();
+    CHECK(supply.Stock(CurrencySupplyStockName()) == 0.0f);
+
+    bool rejectedInitialAboveCap = false;
+    try {
+        config.initialSupply = 101.0f;
+        (void)BuildCurrencySupplyModel(config);
+    } catch (const std::invalid_argument&) {
+        rejectedInitialAboveCap = true;
+    }
+    CHECK(rejectedInitialAboveCap);
+}
+
 static void TestFiscalBudget() {
     using namespace Civilization::Economic;
 
@@ -766,6 +847,72 @@ static void TestCultureDiffusion() {
         rejectedInvalidTrait = true;
     }
     CHECK(rejectedInvalidTrait);
+
+    CultureIdentityTracker identities;
+    CHECK((identities.Update({{0.0f}, {0.1f}, {0.9f}}, 0.2f) ==
+           std::vector<std::size_t>{0, 0, 1}));
+    CHECK((identities.Update({{0.0f}, {0.9f}, {0.05f}}, 0.1f) ==
+           std::vector<std::size_t>{0, 2, 0}));
+    CHECK((identities.Update({{0.0f}, {0.05f}, {0.1f}}, 0.2f) ==
+           std::vector<std::size_t>{0, 0, 0}));
+    CHECK((identities.Update({{0.0f}, {0.8f}, {0.85f}}, 0.1f) ==
+           std::vector<std::size_t>{3, 0, 0}));
+    bool rejectedRegionCountChange = false;
+    try {
+        (void)identities.Update({{0.0f}, {0.8f}}, 0.1f);
+    } catch (const std::invalid_argument&) {
+        rejectedRegionCountChange = true;
+    }
+    CHECK(rejectedRegionCountChange);
+    CHECK((identities.Update({{0.0f}, {0.8f}, {0.85f}}, 0.1f) ==
+           std::vector<std::size_t>{3, 0, 0}));
+    identities.Reset();
+    CHECK((identities.Update({{0.0f}, {0.9f}}, 0.1f) ==
+           std::vector<std::size_t>{0, 1}));
+}
+
+static void TestCultureFormation() {
+    using namespace Civilization::Culture;
+
+    CultureFormationConfig config;
+    config.initialTraitsByRegion = {{0.2f, 0.8f}, {1.0f, 0.0f}};
+    config.monthlyInnovationRateByRegion = {{0.5f, 0.0f}, {1.0f, 0.0f}};
+    config.monthlyDecayRateByRegion = {{0.0f, 0.25f}, {0.0f, 1.0f}};
+    auto formation = BuildCultureFormationModel(config);
+    formation.Step();
+    CHECK(std::abs(formation.Stock(CultureTraitStockName(0, 0)) - 0.6f) <
+          1e-3f);
+    CHECK(std::abs(formation.Stock(CultureTraitStockName(0, 1)) - 0.6f) <
+          1e-3f);
+    CHECK(formation.Stock(CultureTraitStockName(1, 0)) == 1.0f);
+    CHECK(formation.Stock(CultureTraitStockName(1, 1)) == 0.0f);
+
+    formation.SetParam(CultureInnovationRateParameterName(0, 0), 2.0f);
+    formation.SetParam(CultureDecayRateParameterName(0, 0), 2.0f);
+    formation.Step();
+    CHECK(formation.Stock(CultureTraitStockName(0, 0)) >= 0.0f &&
+          formation.Stock(CultureTraitStockName(0, 0)) <= 1.0f);
+
+    bool rejectedUnstableRates = false;
+    try {
+        CultureFormationConfig invalid = config;
+        invalid.monthlyInnovationRateByRegion[0][0] = 0.75f;
+        invalid.monthlyDecayRateByRegion[0][0] = 0.5f;
+        (void)BuildCultureFormationModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedUnstableRates = true;
+    }
+    CHECK(rejectedUnstableRates);
+
+    bool rejectedRaggedRows = false;
+    try {
+        CultureFormationConfig invalid = config;
+        invalid.monthlyDecayRateByRegion[1].clear();
+        (void)BuildCultureFormationModel(invalid);
+    } catch (const std::invalid_argument&) {
+        rejectedRaggedRows = true;
+    }
+    CHECK(rejectedRaggedRows);
 }
 
 static void TestMilitaryLogistics() {
@@ -830,6 +977,37 @@ static void TestBattleResolution() {
         rejectedInvalidDurability = true;
     }
     CHECK(rejectedInvalidDurability);
+
+    config = EngagementConfig{};
+    config.attackerUnits = 10.0f;
+    config.defenderUnits = 10.0f;
+    config.attackerDamagePerUnit = 0.2f;
+    config.defenderDamagePerUnit = 0.2f;
+    config.attackerMoraleFactor = 0.5f;
+    config.attackerTerrainDamageReduction = 0.5f;
+    config.defenderTerrainDamageReduction = 0.25f;
+    const EngagementResult modified = ResolveEngagement(config);
+    CHECK(std::abs(modified.attackerLosses - 1.0f) < 1e-4f);
+    CHECK(std::abs(modified.defenderLosses - 0.75f) < 1e-4f);
+
+    config.attackerMoraleFactor = 1.1f;
+    bool rejectedInvalidMorale = false;
+    try {
+        (void)ResolveEngagement(config);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidMorale = true;
+    }
+    CHECK(rejectedInvalidMorale);
+
+    config.attackerMoraleFactor = 0.5f;
+    config.defenderTerrainDamageReduction = -0.1f;
+    bool rejectedInvalidTerrain = false;
+    try {
+        (void)ResolveEngagement(config);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidTerrain = true;
+    }
+    CHECK(rejectedInvalidTerrain);
 
     config = EngagementConfig{};
     config.attackerUnits = 10.0f;
@@ -931,6 +1109,42 @@ static void TestTreatyLedger() {
     CHECK(ledger.CanDeclareWar(3, 4));
     CHECK(!ledger.Revoke(TreatyType::Alliance, 3, 4));
 
+    TreatyLedger contracts;
+    TreatyTerms terms;
+    terms.monthlyPaymentFromAToB = 3.0f;
+    terms.monthlyPaymentFromBToA = 8.0f;
+    terms.breachPenaltyWhenAIsBreacher = 12.0f;
+    terms.breachPenaltyWhenBIsBreacher = 15.0f;
+    CHECK(contracts.Sign(TreatyType::TradePact, 10, 4, 2, terms));
+    const auto obligations = contracts.MonthlyObligations();
+    CHECK(obligations.size() == 2);
+    CHECK(obligations[0].payerFaction == 4 &&
+          obligations[0].receiverFaction == 10 &&
+          obligations[0].amount == 8.0f);
+    CHECK(obligations[1].payerFaction == 10 &&
+          obligations[1].receiverFaction == 4 &&
+          obligations[1].amount == 3.0f);
+    const auto breach = contracts.Breach(TreatyType::TradePact, 10, 4);
+    CHECK(breach.has_value());
+    CHECK(breach->breachingFaction == 10 &&
+          breach->aggrievedFaction == 4 && breach->penaltyDue == 12.0f);
+    CHECK(!contracts.HasTreaty(TreatyType::TradePact, 4, 10));
+    CHECK(contracts.MonthlyObligations().empty());
+    CHECK(!contracts.Breach(TreatyType::TradePact, 10, 4).has_value());
+
+    TreatyLedger invalidTermsLedger;
+    TreatyTerms invalidTerms;
+    invalidTerms.breachPenaltyWhenAIsBreacher =
+        std::numeric_limits<float>::infinity();
+    bool rejectedInvalidTerms = false;
+    try {
+        (void)invalidTermsLedger.Sign(TreatyType::TradePact, 1, 2, 1,
+                                     invalidTerms);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidTerms = true;
+    }
+    CHECK(rejectedInvalidTerms);
+
     bool rejectedSelfTreaty = false;
     try {
         (void)ledger.Sign(TreatyType::TradePact, 4, 4, 1);
@@ -985,9 +1199,12 @@ int main() {
     TestPopulationCalibration();
     TestAgeStructuredPopulationCalibration();
     TestTradeNetwork();
+    TestMarketSettlement();
+    TestCurrencySupply();
     TestMarketPrice();
     TestFiscalBudget();
     TestCultureDiffusion();
+    TestCultureFormation();
     TestMilitaryLogistics();
     TestBattleResolution();
     TestDiplomacy();

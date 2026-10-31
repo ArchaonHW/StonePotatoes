@@ -3,7 +3,10 @@
 #include <civilization/economic/MarketPrice.h>
 #include <civilization/economic/FiscalBudget.h>
 #include <civilization/economic/TradeNetwork.h>
+#include <civilization/economic/MarketSettlement.h>
+#include <civilization/economic/CurrencySupply.h>
 #include <civilization/culture/CultureDiffusion.h>
+#include <civilization/culture/CultureFormation.h>
 #include <civilization/military/MilitaryLogistics.h>
 #include <civilization/military/BattleResolution.h>
 #include <civilization/diplomacy/Diplomacy.h>
@@ -759,6 +762,51 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Verify installed settlement atomically exchanges several commodities.
+    {
+        using namespace StonePotatoes::Civilization::Economic;
+        std::vector<MarketAccount> accounts(3);
+        accounts[0].inventory = {{"grain", 10.0f}, {"wood", 4.0f}};
+        accounts[1].funds = 12.0f;
+        accounts[2].inventory = {{"wood", 10.0f}};
+        const auto settled = SettleCommodityTrades(accounts, {
+            {0, 1, "grain", 10.0f, 1.0f},
+            {0, 1, "wood", 4.0f, 2.0f},
+            {2, 1, "wood", 4.0f, 1.0f},
+        });
+        if (settled.trades.size() != 3 ||
+            std::fabs(settled.accounts[1].funds) > 0.001f ||
+            std::fabs(settled.accounts[0].funds +
+                      settled.accounts[1].funds +
+                      settled.accounts[2].funds - 12.0f) > 0.001f ||
+            std::fabs(settled.accounts[0].inventory.at("grain") +
+                      settled.accounts[1].inventory.at("grain") - 10.0f) >
+                0.001f ||
+            std::fabs(settled.accounts[0].inventory.at("wood") +
+                      settled.accounts[1].inventory.at("wood") +
+                      settled.accounts[2].inventory.at("wood") - 14.0f) >
+                0.001f) {
+            return 101;
+        }
+    }
+
+    // Verify installed currency issuance is capped and burn respects supply.
+    {
+        using namespace StonePotatoes::Civilization::Economic;
+        CurrencySupplyConfig config;
+        config.initialSupply = 80.0f;
+        config.monthlyIssuance = 30.0f;
+        config.monthlyBurn = 10.0f;
+        config.maximumSupply = 100.0f;
+        auto currency = BuildCurrencySupplyModel(config);
+        currency.Step();
+        if (currency.Stock(CurrencySupplyStockName()) != 90.0f) return 102;
+        currency.SetParam(CurrencyIssuanceParameterName(), 0.0f);
+        currency.SetParam(CurrencyBurnParameterName(), 1000.0f);
+        currency.Step();
+        if (currency.Stock(CurrencySupplyStockName()) != 0.0f) return 102;
+    }
+
     // Verify installed culture traits diffuse independently across regions.
     {
         using namespace StonePotatoes::Civilization::Culture;
@@ -778,6 +826,32 @@ int main(int argc, char** argv) {
             {{0.0f, 0.0f}, {0.1f, 0.0f}, {0.2f, 0.0f}, {0.8f, 0.0f}},
             0.11f);
         if (groups != std::vector<std::size_t>{0, 0, 0, 1}) return 89;
+        CultureIdentityTracker identityTracker;
+        const auto initialIdentities = identityTracker.Update(
+            {{0.0f}, {0.1f}, {0.9f}}, 0.2f);
+        const auto mergedIdentities = identityTracker.Update(
+            {{0.0f}, {0.05f}, {0.1f}}, 0.2f);
+        if (initialIdentities != std::vector<std::size_t>{0, 0, 1} ||
+            mergedIdentities != std::vector<std::size_t>{0, 0, 0}) {
+            return 104;
+        }
+    }
+
+    // Verify installed culture formation adopts novelty and fades traits.
+    {
+        using namespace StonePotatoes::Civilization::Culture;
+        CultureFormationConfig config;
+        config.initialTraitsByRegion = {{0.2f, 0.8f}};
+        config.monthlyInnovationRateByRegion = {{0.5f, 0.0f}};
+        config.monthlyDecayRateByRegion = {{0.0f, 0.25f}};
+        auto culture = BuildCultureFormationModel(config);
+        culture.Step();
+        if (std::fabs(culture.Stock(CultureTraitStockName(0, 0)) - 0.6f) >
+                0.001f ||
+            std::fabs(culture.Stock(CultureTraitStockName(0, 1)) - 0.6f) >
+                0.001f) {
+            return 104;
+        }
     }
 
     // Verify the installed diplomacy model exposes directed relation stocks.
@@ -808,6 +882,29 @@ int main(int argc, char** argv) {
         if (!treaties.CanDeclareWar(1, 0) ||
             !treaties.ActiveTreaties().empty()) {
             return 99;
+        }
+    }
+
+    // Verify installed treaty contract payments and breach penalties.
+    {
+        using namespace StonePotatoes::Civilization::Diplomacy;
+        TreatyLedger treaties;
+        TreatyTerms terms;
+        terms.monthlyPaymentFromAToB = 4.0f;
+        terms.breachPenaltyWhenAIsBreacher = 20.0f;
+        if (!treaties.Sign(TreatyType::TradePact, 7, 2, 3, terms)) {
+            return 105;
+        }
+        const auto obligations = treaties.MonthlyObligations();
+        if (obligations.size() != 1 || obligations[0].payerFaction != 7 ||
+            obligations[0].receiverFaction != 2 ||
+            obligations[0].amount != 4.0f) {
+            return 105;
+        }
+        const auto breach = treaties.Breach(TreatyType::TradePact, 7, 2);
+        if (!breach || breach->penaltyDue != 20.0f ||
+            !treaties.MonthlyObligations().empty()) {
+            return 105;
         }
     }
 
@@ -884,6 +981,24 @@ int main(int argc, char** argv) {
             battle.survivingAttackers != 0.0f ||
             battle.survivingDefenders != 0.0f) {
             return 95;
+        }
+    }
+
+    // Verify morale lowers outgoing damage and terrain reduces incoming damage.
+    {
+        using namespace StonePotatoes::Civilization::Military;
+        EngagementConfig config;
+        config.attackerUnits = 10.0f;
+        config.defenderUnits = 10.0f;
+        config.attackerDamagePerUnit = 0.2f;
+        config.defenderDamagePerUnit = 0.2f;
+        config.attackerMoraleFactor = 0.5f;
+        config.attackerTerrainDamageReduction = 0.5f;
+        config.defenderTerrainDamageReduction = 0.25f;
+        const auto result = ResolveEngagement(config);
+        if (std::fabs(result.attackerLosses - 1.0f) > 0.001f ||
+            std::fabs(result.defenderLosses - 0.75f) > 0.001f) {
+            return 106;
         }
     }
 

@@ -47,3 +47,34 @@ if (treaties.CanDeclareWar(7, 2)) {
 }
 treaties.AdvanceMonth();
 ```
+
+## Treaty obligations and breach penalties
+
+`TreatyTerms` optionally adds directional monthly payments and one-time
+breach penalties. Amounts are finite, nonnegative, caller-defined units; the
+ledger does not debit treasuries or select a currency. Directional fields refer
+to the faction order passed to `Sign`, even though the stored treaty pair is
+normalized. For each active treaty, `MonthlyObligations()` returns positive
+payments in deterministic treaty order. Apply these obligations in the game
+economy before calling `AdvanceMonth()` for that period.
+
+`Breach(type, breachingFaction, counterpartyFaction)` removes an active treaty
+and returns the breacher, aggrieved faction, and applicable one-time penalty.
+It returns no value when no matching treaty is active. The caller decides how
+to collect the penalty and apply relation, reputation, or other consequences.
+`Revoke()` remains a penalty-free administrative removal.
+
+```cpp
+TreatyLedger contracts;
+TreatyTerms terms;
+terms.monthlyPaymentFromAToB = 5.0f;
+terms.breachPenaltyWhenAIsBreacher = 30.0f;
+contracts.Sign(TreatyType::TradePact, 2, 7, 12, terms);
+
+for (const TreatyPayment& payment : contracts.MonthlyObligations()) {
+    // Settle payment.payerFaction -> payment.receiverFaction in game economy.
+}
+if (const auto breach = contracts.Breach(TreatyType::TradePact, 2, 7)) {
+    // Apply breach->penaltyDue to the aggrieved faction or game rules.
+}
+```

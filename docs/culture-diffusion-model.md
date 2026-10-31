@@ -54,3 +54,18 @@ const auto groups = ClusterCultureRegionsBySimilarity(
     {{0.2f, 0.7f}, {0.25f, 0.68f}, {0.9f, 0.1f}}, 0.1f);
 // groups: {0, 0, 1}
 ```
+
+`CultureIdentityTracker` builds on those connected components and preserves
+identity ids across updates. Supply the current trait vector for each region in
+the same region order on every call. Matching greedily prioritizes the largest
+region overlap between prior identities and new groups, so a split tends to
+keep an id on the larger child and a merge tends to retain the identity with
+more surviving regions. Ties resolve by lower id and then group order. New
+groups receive increasing ids rather than reusing retired ids.
+Call `Reset()` to start a new simulation. The tracker does not assign names or
+meanings to identities; the application can attach those separately.
+
+```cpp
+CultureIdentityTracker identities;
+auto identityByRegion = identities.Update(currentTraits, 0.1f);
+```

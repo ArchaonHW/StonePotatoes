@@ -42,6 +42,24 @@ std::vector<std::size_t> ClusterCultureRegionsBySimilarity(
     const std::vector<std::vector<float>>& traitsByRegion,
     float maxDistance);
 
+/**
+ * Track stable culture identity ids while similarity clusters change over
+ * time. Regions must stay in the same input order; matching prefers the
+ * largest overlap between previous identities and new groups. New groups
+ * receive monotonically increasing ids.
+ */
+class CultureIdentityTracker {
+public:
+    std::vector<std::size_t> Update(
+        const std::vector<std::vector<float>>& traitsByRegion,
+        float maxDistance);
+    void Reset();
+
+private:
+    std::vector<std::size_t> m_PreviousIdentityByRegion;
+    std::size_t m_NextIdentityId = 0;
+};
+
 } // namespace Culture
 } // namespace Civilization
 } // namespace StonePotatoes
