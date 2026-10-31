@@ -443,18 +443,19 @@ The world is a **Living World** that includes:
 
 The current C++ slice provides `StonePotatoes::Civilization::Economic::SDModel`,
 a discrete stock-flow simulator with events, probes, and history, along with
-installable population, market, regional trade and settlement models. It also
-provides generic normalized cultural-trait diffusion between regions through
-`StonePotatoes::Civilization::Culture::BuildCultureDiffusionModel`. These are
-composable simulation components, not a complete civilization game. Political,
-diplomatic, military, cultural formation, and general currency systems remain
-in progress:
+installable population (including age cohorts and regional migration), market,
+fiscal, currency, trade and settlement models. It also provides regional
+cultural diffusion and formation, treaty diplomacy, military logistics and
+battle resolution, plus a configurable government-legitimacy model. These are
+composable simulation components, not a complete civilization game. Government
+types, elections and succession, diplomacy negotiation AI, tactical combat
+rules, and semantically rich cultural systems remain in progress:
 
 目前 C++ 切片提供 `StonePotatoes::Civilization::Economic::SDModel` 離散存量／流量
-模擬器，以及可安裝的人口、市場、區域貿易與交易結算模型；另有
-`StonePotatoes::Civilization::Culture::BuildCultureDiffusionModel`，提供通用且正規化
-的區域文化特徵擴散。這些是可組合的模擬元件，尚非完整文明遊戲；政治、外交、軍事、
-文化形成及一般貨幣系統仍在開發中：
+模擬器，以及可安裝的人口（含年齡世代與跨區遷徙）、市場、財政、貨幣、貿易與交易
+結算模型；另有區域文化擴散與形成、條約外交、軍事補給與交戰解析，以及可配置的
+政府合法性模型。這些是可組合的模擬元件，尚非完整文明遊戲；政府類型、選舉與繼承、
+外交談判 AI、戰術戰鬥規則及具語意的文化系統仍在開發中：
 
 - Population (demographics, birth/death rates, migration)
   人口（人口統計、出生/死亡率、遷移）
@@ -1169,8 +1170,8 @@ See [ROADMAP.md](ROADMAP.md) for the complete technical roadmap.
   **第 5 階段 — AI 代理** 📋（計畫中）
 - **Phase 6 — World Simulation** 📋 (Planned)
   **第 6 階段 — 世界模擬** 📋（計畫中）
-- **Phase 7 — Civilization Simulation** 🚧 (In progress: economic, demographic, and regional cultural-diffusion slices)
-  **第 7 階段 — 文明模擬** 🚧（進行中：經濟、人口與區域文化擴散切片）
+- **Phase 7 — Civilization Simulation** 🚧 (In progress: economic, demographic, culture, diplomacy, military, and government-legitimacy slices)
+  **第 7 階段 — 文明模擬** 🚧（進行中：經濟、人口、文化、外交、軍事與政府合法性切片）
 - **Phase 8 — GPU Massive Simulation** 📋 (Planned)
   **第 8 階段 — GPU 大規模模擬** 📋（計畫中）
 - **Phase 9 — Networking** 📋 (Planned)
