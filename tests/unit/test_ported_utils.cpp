@@ -912,6 +912,37 @@ static void TestBattleResolution() {
     config.defenderUnits = 10.0f;
     config.attackerDamagePerUnit = 0.2f;
     config.defenderDamagePerUnit = 0.2f;
+    config.attackerMoraleFactor = 0.5f;
+    config.attackerTerrainDamageReduction = 0.5f;
+    config.defenderTerrainDamageReduction = 0.25f;
+    const EngagementResult modified = ResolveEngagement(config);
+    CHECK(std::abs(modified.attackerLosses - 1.0f) < 1e-4f);
+    CHECK(std::abs(modified.defenderLosses - 0.75f) < 1e-4f);
+
+    config.attackerMoraleFactor = 1.1f;
+    bool rejectedInvalidMorale = false;
+    try {
+        (void)ResolveEngagement(config);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidMorale = true;
+    }
+    CHECK(rejectedInvalidMorale);
+
+    config.attackerMoraleFactor = 0.5f;
+    config.defenderTerrainDamageReduction = -0.1f;
+    bool rejectedInvalidTerrain = false;
+    try {
+        (void)ResolveEngagement(config);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidTerrain = true;
+    }
+    CHECK(rejectedInvalidTerrain);
+
+    config = EngagementConfig{};
+    config.attackerUnits = 10.0f;
+    config.defenderUnits = 10.0f;
+    config.attackerDamagePerUnit = 0.2f;
+    config.defenderDamagePerUnit = 0.2f;
     const BattleResult multiRound = ResolveBattle(config, 3);
     CHECK(multiRound.roundsCompleted == 3);
     CHECK(std::abs(multiRound.survivingAttackers - 5.12f) < 1e-4f);

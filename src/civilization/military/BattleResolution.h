@@ -17,6 +17,12 @@ struct EngagementConfig {
     // Damage points required to remove one unit on the respective side.
     float attackerDurability = 1.0f;
     float defenderDurability = 1.0f;
+    // [0, 1] outgoing damage factors; 0 disables attacks from that side.
+    float attackerMoraleFactor = 1.0f;
+    float defenderMoraleFactor = 1.0f;
+    // [0, 1] fraction of incoming damage prevented by local terrain.
+    float attackerTerrainDamageReduction = 0.0f;
+    float defenderTerrainDamageReduction = 0.0f;
 };
 
 /** Aggregate losses and survivors after both sides exchange one volley. */
