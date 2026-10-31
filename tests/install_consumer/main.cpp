@@ -1069,7 +1069,7 @@ int main(int argc, char** argv) {
             {120.0f, 90.0f, 45.0f}, {85.0f, 60.0f, 55.0f}};
         source.carryingCapacityByRegion = {10000.0f, 10000.0f};
         source.annualSurvivalRateByAgeGroup = {0.91f, 0.82f, 0.73f};
-        source.annualBirthsPerPersonByAgeGroup = {0.0f, 0.12f, 0.0f};
+        source.annualBirthsPerPersonByAgeGroup = {0.12f, 0.0f, 0.0f};
         source.annualMigrationFromRegionToRegionByAgeGroup = {
             {{0.0f, 0.0f, 0.0f}, {0.0f, 2.0f, 0.0f}},
             {{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}};
@@ -1095,10 +1095,10 @@ int main(int argc, char** argv) {
             }
         }
         const auto fit = Population::CalibrateRegionalAgeStructuredPopulationRates(
-            census, migration, {0.0f, 1.0f, 0.0f});
+            census, migration, {1.0f, 0.0f, 0.0f});
         if (std::fabs(fit.annualSurvivalRateByAgeGroup[2] - 0.73f) >
                 0.0001f ||
-            std::fabs(fit.annualBirthsPerPersonByAgeGroup[1] - 0.12f) >
+            std::fabs(fit.annualBirthsPerPersonByAgeGroup[0] - 0.12f) >
                 0.0001f) {
             return 107;
         }

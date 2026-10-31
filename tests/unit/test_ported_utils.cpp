@@ -450,7 +450,7 @@ static void TestRegionalAgeStructuredPopulationCalibration() {
         {120.0f, 90.0f, 45.0f}, {85.0f, 60.0f, 55.0f}};
     source.carryingCapacityByRegion = {10000.0f, 10000.0f};
     source.annualSurvivalRateByAgeGroup = {0.91f, 0.82f, 0.73f};
-    source.annualBirthsPerPersonByAgeGroup = {0.0f, 0.12f, 0.0f};
+    source.annualBirthsPerPersonByAgeGroup = {0.12f, 0.0f, 0.0f};
     source.annualMigrationFromRegionToRegionByAgeGroup = {
         {{0.0f, 0.0f, 0.0f}, {0.0f, 2.0f, 0.0f}},
         {{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}};
@@ -481,7 +481,7 @@ static void TestRegionalAgeStructuredPopulationCalibration() {
     }
 
     const auto fitted = CalibrateRegionalAgeStructuredPopulationRates(
-        census, migration, {0.0f, 1.0f, 0.0f});
+        census, migration, {1.0f, 0.0f, 0.0f});
     for (std::size_t group = 0;
          group < source.annualSurvivalRateByAgeGroup.size(); ++group) {
         CHECK(std::abs(fitted.annualSurvivalRateByAgeGroup[group] -
@@ -495,7 +495,7 @@ static void TestRegionalAgeStructuredPopulationCalibration() {
         auto invalidMigration = migration;
         invalidMigration.front().netMigrationByRegionAndAgeGroup[1][1] = 2.0f;
         (void)CalibrateRegionalAgeStructuredPopulationRates(
-            census, invalidMigration, {0.0f, 1.0f, 0.0f});
+            census, invalidMigration, {1.0f, 0.0f, 0.0f});
     } catch (const std::invalid_argument&) {
         rejectedNonConservingMigration = true;
     }
