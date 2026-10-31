@@ -2,6 +2,8 @@
 // Copyright (c) 2026 ArchaonHW
 #pragma once
 
+#include "civilization/population/PopulationDynamics.h"
+
 #include <vector>
 
 namespace StonePotatoes {
@@ -30,6 +32,23 @@ struct LogisticPopulationCalibration {
  */
 LogisticPopulationCalibration CalibrateLogisticGrowth(
     const std::vector<LogisticPopulationObservation>& observations,
+    float carryingCapacity);
+
+/** One migration-free annual census, indexed by age group. */
+struct AgeStructuredCensusObservation {
+    int year = 0;
+    std::vector<float> populationByAgeGroup;
+};
+
+/**
+ * Fit an annual age-cohort model to consecutive census years. Age transitions
+ * estimate survival rates; fertilityWeights describe relative fertility by
+ * age group, and one shared fertility scale is fitted to births. The data must
+ * represent years without net migration or carrying-capacity-limited births.
+ */
+AgeStructuredPopulationConfig CalibrateAgeStructuredPopulation(
+    const std::vector<AgeStructuredCensusObservation>& observations,
+    const std::vector<float>& fertilityWeights,
     float carryingCapacity);
 
 } // namespace Population

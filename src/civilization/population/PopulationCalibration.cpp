@@ -2,9 +2,11 @@
 // Copyright (c) 2026 ArchaonHW
 #include "civilization/population/PopulationCalibration.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace StonePotatoes {
@@ -78,6 +80,194 @@ LogisticPopulationCalibration CalibrateLogisticGrowth(
 
     return {static_cast<float>(growthRate),
             static_cast<float>(initialPopulation)};
+}
+
+AgeStructuredPopulationConfig CalibrateAgeStructuredPopulation(
+    const std::vector<AgeStructuredCensusObservation>& observations,
+    const std::vector<float>& fertilityWeights,
+    float carryingCapacity) {
+    if (observations.size() < 2 || fertilityWeights.size() < 2 ||
+        !std::isfinite(carryingCapacity) || carryingCapacity <= 0.0f) {
+        throw std::invalid_argument(
+            "age-structured calibration requires census years, age groups, and positive capacity");
+    }
+    const std::size_t groupCount = fertilityWeights.size();
+    bool hasFertileWeight = false;
+    for (float weight : fertilityWeights) {
+        if (!std::isfinite(weight) || weight < 0.0f) {
+            throw std::invalid_argument(
+                "fertility weights must be finite and nonnegative");
+        }
+        hasFertileWeight = hasFertileWeight || weight > 0.0f;
+    }
+    if (!hasFertileWeight) {
+        throw std::invalid_argument("at least one fertility weight must be positive");
+    }
+
+    for (std::size_t year = 0; year < observations.size(); ++year) {
+        const auto& observation = observations[year];
+        if (observation.populationByAgeGroup.size() != groupCount ||
+            (year > 0 &&
+             (observations[year - 1].year == std::numeric_limits<int>::max() ||
+              observation.year != observations[year - 1].year + 1))) {
+            throw std::invalid_argument(
+                "age-structured census years must be consecutive with matching age groups");
+        }
+        double total = 0.0;
+        for (float population : observation.populationByAgeGroup) {
+            if (!std::isfinite(population) || population < 0.0f) {
+                throw std::invalid_argument(
+                    "census populations must be finite and nonnegative");
+            }
+            total += population;
+        }
+        if (total > carryingCapacity) {
+            throw std::invalid_argument(
+                "census population exceeds carrying capacity");
+        }
+    }
+
+    std::vector<double> exposures(groupCount, 0.0);
+    std::vector<double> transitions(groupCount, 0.0);
+    for (std::size_t year = 0; year + 1 < observations.size(); ++year) {
+        const auto& current = observations[year].populationByAgeGroup;
+        const auto& next = observations[year + 1].populationByAgeGroup;
+        for (std::size_t group = 0; group + 2 < groupCount; ++group) {
+            exposures[group] += static_cast<double>(current[group]) * current[group];
+            transitions[group] +=
+                static_cast<double>(current[group]) * next[group + 1];
+        }
+    }
+
+    AgeStructuredPopulationConfig config;
+    config.initialPopulationByAgeGroup = observations.front().populationByAgeGroup;
+    config.carryingCapacity = carryingCapacity;
+    config.annualSurvivalRateByAgeGroup.assign(groupCount, 0.0f);
+    config.annualBirthsPerPersonByAgeGroup.assign(groupCount, 0.0f);
+    for (std::size_t group = 0; group + 2 < groupCount; ++group) {
+        if (exposures[group] <= 0.0) {
+            throw std::invalid_argument(
+                "census series has no exposure to estimate an age-group survival rate");
+        }
+        config.annualSurvivalRateByAgeGroup[group] = static_cast<float>(
+            std::clamp(transitions[group] / exposures[group], 0.0, 1.0));
+    }
+
+    const std::size_t penultimateGroup = groupCount - 2;
+    const std::size_t openGroup = groupCount - 1;
+    double penultimateSquares = 0.0;
+    double openSquares = 0.0;
+    double crossProduct = 0.0;
+    double penultimateTransition = 0.0;
+    double openTransition = 0.0;
+    double fertilityExposure = 0.0;
+    double fertilityBirths = 0.0;
+    for (std::size_t year = 0; year + 1 < observations.size(); ++year) {
+        const auto& current = observations[year].populationByAgeGroup;
+        const auto& next = observations[year + 1].populationByAgeGroup;
+        const double penultimate = current[penultimateGroup];
+        const double open = current[openGroup];
+        const double nextOpen = next[openGroup];
+        penultimateSquares += penultimate * penultimate;
+        openSquares += open * open;
+        crossProduct += penultimate * open;
+        penultimateTransition += penultimate * nextOpen;
+        openTransition += open * nextOpen;
+        double weightedPopulation = 0.0;
+        for (std::size_t group = 0; group < groupCount; ++group) {
+            weightedPopulation += static_cast<double>(current[group]) *
+                                  fertilityWeights[group];
+        }
+        fertilityExposure += weightedPopulation * weightedPopulation;
+        fertilityBirths += weightedPopulation * next.front();
+    }
+    const double determinant =
+        penultimateSquares * openSquares - crossProduct * crossProduct;
+    if (penultimateSquares <= 0.0 || openSquares <= 0.0 ||
+        determinant <= penultimateSquares * openSquares * 1e-10 ||
+        fertilityExposure <= 0.0) {
+        throw std::invalid_argument(
+            "census series lacks independent open-age or fertility exposure");
+    }
+    const double unconstrainedPenultimate =
+        (penultimateTransition * openSquares -
+         openTransition * crossProduct) / determinant;
+    const double unconstrainedOpen =
+        (openTransition * penultimateSquares -
+         penultimateTransition * crossProduct) / determinant;
+    std::vector<std::pair<double, double>> survivalCandidates;
+    if (unconstrainedPenultimate >= 0.0 && unconstrainedPenultimate <= 1.0 &&
+        unconstrainedOpen >= 0.0 && unconstrainedOpen <= 1.0) {
+        survivalCandidates.emplace_back(unconstrainedPenultimate,
+                                        unconstrainedOpen);
+    }
+    survivalCandidates.emplace_back(
+        0.0, std::clamp(openTransition / openSquares, 0.0, 1.0));
+    survivalCandidates.emplace_back(
+        1.0, std::clamp((openTransition - crossProduct) / openSquares,
+                        0.0, 1.0));
+    survivalCandidates.emplace_back(
+        std::clamp(penultimateTransition / penultimateSquares, 0.0, 1.0),
+        0.0);
+    survivalCandidates.emplace_back(
+        std::clamp((penultimateTransition - crossProduct) /
+                       penultimateSquares,
+                   0.0, 1.0),
+        1.0);
+    auto survivalError = [&](const auto& candidate) {
+        double error = 0.0;
+        for (std::size_t year = 0; year + 1 < observations.size(); ++year) {
+            const auto& current = observations[year].populationByAgeGroup;
+            const auto& next = observations[year + 1].populationByAgeGroup;
+            const double residual = next[openGroup] -
+                current[penultimateGroup] * candidate.first -
+                current[openGroup] * candidate.second;
+            error += residual * residual;
+        }
+        return error;
+    };
+    const auto bestSurvival = *std::min_element(
+        survivalCandidates.begin(), survivalCandidates.end(),
+        [&](const auto& lhs, const auto& rhs) {
+            return survivalError(lhs) < survivalError(rhs);
+        });
+    config.annualSurvivalRateByAgeGroup[penultimateGroup] =
+        static_cast<float>(bestSurvival.first);
+    config.annualSurvivalRateByAgeGroup[openGroup] =
+        static_cast<float>(bestSurvival.second);
+    const double fertilityScale =
+        std::max(0.0, fertilityBirths / fertilityExposure);
+    if (!std::isfinite(fertilityScale) ||
+        fertilityScale > std::numeric_limits<float>::max()) {
+        throw std::overflow_error("fitted fertility scale exceeds float range");
+    }
+    for (std::size_t group = 0; group < groupCount; ++group) {
+        const double rate = fertilityScale * fertilityWeights[group];
+        if (!std::isfinite(rate) || rate > std::numeric_limits<float>::max()) {
+            throw std::overflow_error("fitted birth rate exceeds float range");
+        }
+        config.annualBirthsPerPersonByAgeGroup[group] =
+            static_cast<float>(rate);
+    }
+
+    for (std::size_t year = 0; year + 1 < observations.size(); ++year) {
+        const auto& current = observations[year].populationByAgeGroup;
+        double projectedSurvivors = 0.0;
+        double weightedPopulation = 0.0;
+        for (std::size_t group = 0; group < groupCount; ++group) {
+            projectedSurvivors += current[group] *
+                config.annualSurvivalRateByAgeGroup[group];
+            weightedPopulation += static_cast<double>(current[group]) *
+                                  fertilityWeights[group];
+        }
+        const double projectedBirths = weightedPopulation * fertilityScale;
+        if (projectedSurvivors + projectedBirths >
+            static_cast<double>(carryingCapacity) + 1e-4) {
+            throw std::invalid_argument(
+                "fitted cohort model exceeds carrying capacity; use a larger capacity or review census assumptions");
+        }
+    }
+    return config;
 }
 
 } // namespace Population

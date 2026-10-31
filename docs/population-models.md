@@ -84,9 +84,26 @@ const float youngCohort = population.Stock(AgeGroupStockName(0));
 ```
 
 The model is a deterministic, single-region demographic slice. It does not
-currently model sex-separated fertility, multi-region flows, or calibration
-from census data. Use the other monthly model when
-scenario rates are expressed per month.
+model sex-separated fertility or multi-region flows. Use the other monthly
+model when scenario rates are expressed per month.
+
+### Fitting an age-cohort model from annual census counts
+
+`CalibrateAgeStructuredPopulation` accepts two or more consecutive annual
+census observations with counts by the same age groups. Survival rates are
+estimated from each cohort's movement into the next group. Fertility weights
+describe relative fertility by age group, and the tool fits one shared scale
+for those weights from the observed births in the youngest group. The result
+is an `AgeStructuredPopulationConfig` ready for
+`BuildAgeStructuredPopulationModel`.
+
+This compact fit assumes zero net migration, unchanged one-year cohort bins
+(with an open-ended final group), and no births clipped by carrying capacity
+during the observations. Supply a positive fertility weight for each group
+that contributes births. It rejects
+nonconsecutive years, missing age groups, invalid counts, or census totals
+above capacity. For data with migration or capacity-limited births, estimate
+those effects separately before fitting.
 
 ## Regional age-structured model
 
