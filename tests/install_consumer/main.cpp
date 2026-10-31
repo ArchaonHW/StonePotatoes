@@ -2,6 +2,7 @@
 #include <civilization/economic/SystemDynamics.h>
 #include <civilization/economic/MarketPrice.h>
 #include <civilization/economic/FiscalBudget.h>
+#include <civilization/politics/PoliticalLegitimacy.h>
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/economic/MarketSettlement.h>
 #include <civilization/economic/CurrencySupply.h>
@@ -952,6 +953,31 @@ int main(int argc, char** argv) {
         budget.SetParam(FiscalPublicSpendingParameterName(), 100.0f);
         budget.Step();
         if (budget.Stock(FiscalTreasuryStockName()) != 0.0f) return 91;
+    }
+
+    // Verify the installed political model responds to changing governing inputs.
+    {
+        using namespace StonePotatoes::Civilization::Politics;
+        PoliticalLegitimacyConfig config;
+        config.initialLegitimacy = 0.25f;
+        config.publicServiceSatisfaction = 1.0f;
+        config.taxBurden = 0.0f;
+        config.institutionalCohesion = 1.0f;
+        config.adjustmentRatePerMonth = 0.5f;
+        auto government = BuildPoliticalLegitimacyModel(config);
+        government.Step();
+        if (std::fabs(government.Stock(GovernmentLegitimacyStockName()) -
+                      0.625f) > 0.001f) {
+            return 130;
+        }
+        government.SetParam(PublicServiceSatisfactionParameterName(), 0.0f);
+        government.SetParam(TaxBurdenParameterName(), 1.0f);
+        government.SetParam(InstitutionalCohesionParameterName(), 0.0f);
+        government.Step();
+        if (government.Stock(GovernmentLegitimacyStockName()) >= 0.625f ||
+            government.Stock(GovernmentLegitimacyStockName()) < 0.0f) {
+            return 131;
+        }
     }
 
     // Verify the installed military model applies shortages to troop stocks.

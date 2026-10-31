@@ -13,6 +13,7 @@
 #include "civilization/economic/SystemDynamics.h"
 #include "civilization/economic/MarketPrice.h"
 #include "civilization/economic/FiscalBudget.h"
+#include "civilization/politics/PoliticalLegitimacy.h"
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/economic/MarketSettlement.h"
 #include "civilization/economic/CurrencySupply.h"
@@ -898,6 +899,44 @@ static void TestFiscalBudget() {
     CHECK(rejectedInvalidRate);
 }
 
+static void TestPoliticalLegitimacy() {
+    using namespace Civilization::Politics;
+
+    PoliticalLegitimacyConfig config;
+    config.initialLegitimacy = 0.2f;
+    config.publicServiceSatisfaction = 1.0f;
+    config.taxBurden = 0.0f;
+    config.institutionalCohesion = 1.0f;
+    config.adjustmentRatePerMonth = 0.5f;
+    auto government = BuildPoliticalLegitimacyModel(config);
+    government.Step();
+    CHECK(std::abs(government.Aux(GovernmentLegitimacyTargetAuxName()) - 1.0f) <
+          1e-5f);
+    CHECK(std::abs(government.Stock(GovernmentLegitimacyStockName()) - 0.6f) <
+          1e-5f);
+    government.Step();
+    CHECK(std::abs(government.Stock(GovernmentLegitimacyStockName()) - 0.8f) <
+          1e-5f);
+
+    government.SetParam(PublicServiceSatisfactionParameterName(), 0.0f);
+    government.SetParam(TaxBurdenParameterName(), 1.0f);
+    government.SetParam(InstitutionalCohesionParameterName(), 0.0f);
+    government.Step();
+    CHECK(government.Stock(GovernmentLegitimacyStockName()) < 0.8f);
+    CHECK(government.Stock(GovernmentLegitimacyStockName()) >= 0.0f);
+
+    config.publicServiceWeight = 0.0f;
+    config.taxBurdenWeight = 0.0f;
+    config.institutionalCohesionWeight = 0.0f;
+    bool rejectedEmptyWeights = false;
+    try {
+        (void)BuildPoliticalLegitimacyModel(config);
+    } catch (const std::invalid_argument&) {
+        rejectedEmptyWeights = true;
+    }
+    CHECK(rejectedEmptyWeights);
+}
+
 static void TestCultureDiffusion() {
     using namespace Civilization::Culture;
 
@@ -1310,6 +1349,7 @@ int main() {
     TestCurrencySupply();
     TestMarketPrice();
     TestFiscalBudget();
+    TestPoliticalLegitimacy();
     TestCultureDiffusion();
     TestCultureFormation();
     TestMilitaryLogistics();
