@@ -1061,6 +1061,68 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Verify regional cohort census fitting accounts for known net migration.
+    {
+        namespace Population = StonePotatoes::Civilization::Population;
+        Population::RegionalAgeStructuredPopulationConfig source;
+        source.initialPopulationByRegionAndAgeGroup = {
+            {120.0f, 90.0f, 45.0f}, {85.0f, 60.0f, 55.0f}};
+        source.carryingCapacityByRegion = {10000.0f, 10000.0f};
+        source.annualSurvivalRateByAgeGroup = {0.91f, 0.82f, 0.73f};
+        source.annualBirthsPerPersonByAgeGroup = {0.12f, 0.0f, 0.0f};
+        source.annualMigrationFromRegionToRegionByAgeGroup = {
+            {{0.0f, 0.0f, 0.0f}, {0.0f, 2.0f, 0.0f}},
+            {{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}};
+        auto modeled = Population::BuildRegionalAgeStructuredPopulationModel(source);
+        std::vector<Population::RegionalAgeStructuredCensusObservation> census;
+        std::vector<Population::RegionalAgeStructuredMigrationObservation> migration;
+        for (int year = 0; year <= 5; ++year) {
+            std::vector<std::vector<float>> byRegion;
+            for (std::size_t region = 0; region < 2; ++region) {
+                std::vector<float> byAge;
+                for (std::size_t group = 0; group < 3; ++group) {
+                    byAge.push_back(modeled.Stock(
+                        Population::RegionAgeGroupStockName(region, group)));
+                }
+                byRegion.push_back(std::move(byAge));
+            }
+            census.push_back({2020 + year, std::move(byRegion)});
+            if (year < 5) {
+                auto noMigration = source;
+                noMigration.initialPopulationByRegionAndAgeGroup =
+                    census.back().populationByRegionAndAgeGroup;
+                noMigration.annualMigrationFromRegionToRegionByAgeGroup =
+                    std::vector<std::vector<std::vector<float>>>(
+                        2, std::vector<std::vector<float>>(2,
+                            std::vector<float>(3, 0.0f)));
+                auto baseline =
+                    Population::BuildRegionalAgeStructuredPopulationModel(
+                        noMigration);
+                baseline.Step();
+                modeled.Step();
+                std::vector<std::vector<float>> netByRegionAndAge(2);
+                for (std::size_t region = 0; region < 2; ++region) {
+                    for (std::size_t group = 0; group < 3; ++group) {
+                        const auto stock =
+                            Population::RegionAgeGroupStockName(region, group);
+                        netByRegionAndAge[region].push_back(
+                            modeled.Stock(stock) - baseline.Stock(stock));
+                    }
+                }
+                migration.push_back(
+                    {2020 + year, std::move(netByRegionAndAge)});
+            }
+        }
+        const auto fit = Population::CalibrateRegionalAgeStructuredPopulationRates(
+            census, migration, {1.0f, 0.0f, 0.0f});
+        if (std::fabs(fit.annualSurvivalRateByAgeGroup[2] - 0.73f) >
+                0.0001f ||
+            std::fabs(fit.annualBirthsPerPersonByAgeGroup[0] - 0.12f) >
+                0.0001f) {
+            return 107;
+        }
+    }
+
     // Verify installed explicit demographic rates and scenario adjustment.
     {
         namespace Population = StonePotatoes::Civilization::Population;

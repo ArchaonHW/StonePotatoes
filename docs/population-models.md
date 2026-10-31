@@ -136,6 +136,35 @@ Rates can be adjusted with `AgeGroupSurvivalParameterName`,
 `AgeGroupBirthRateParameterName`, and
 `RegionalAgeMigrationParameterName(source, destination, ageGroup)`.
 
+### Fitting shared age-cohort rates across regions
+
+`CalibrateRegionalAgeStructuredPopulationRates` fits shared survival and
+fertility rates from consecutive annual census records for multiple regions.
+Each census is indexed `[region][age group]`. Supply one
+`RegionalAgeStructuredMigrationObservation` per census interval, containing
+signed net arrivals indexed by region and age group. Migration is interpreted
+after aging and births, and must conserve each age group across regions.
+
+The fit subtracts those known net migration counts before estimating cohort
+survival and births. It returns the shared rates only; combine them with the
+initial census, regional capacities, and the game's directed migration inputs
+to build a `RegionalAgeStructuredPopulationConfig`. The census interval must
+have no capacity-limited births, and the supplied migration must represent
+realized net flows rather than unconstrained requests.
+
+```cpp
+const auto rates = CalibrateRegionalAgeStructuredPopulationRates(
+    censusByYear, netMigrationByInterval, fertilityWeights);
+RegionalAgeStructuredPopulationConfig config;
+config.initialPopulationByRegionAndAgeGroup =
+    censusByYear.front().populationByRegionAndAgeGroup;
+config.carryingCapacityByRegion = capacities;
+config.annualSurvivalRateByAgeGroup = rates.annualSurvivalRateByAgeGroup;
+config.annualBirthsPerPersonByAgeGroup =
+    rates.annualBirthsPerPersonByAgeGroup;
+config.annualMigrationFromRegionToRegionByAgeGroup = migrationRules;
+```
+
 ## Monthly regional model
 
 `RegionalPopulationConfig` provides equally sized per-region vectors for
