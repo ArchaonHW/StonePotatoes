@@ -4,6 +4,7 @@
 #include <civilization/economic/FiscalBudget.h>
 #include <civilization/politics/PoliticalLegitimacy.h>
 #include <civilization/politics/PluralityElection.h>
+#include <civilization/politics/LeadershipSuccession.h>
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/economic/MarketSettlement.h>
 #include <civilization/economic/CurrencySupply.h>
@@ -991,6 +992,15 @@ int main(int argc, char** argv) {
             election.winningVotes != 61 || election.totalVotes != 100 ||
             !election.tiedCandidates.empty()) {
             return 132;
+        }
+        LeadershipSuccessionRequest request;
+        request.method = SuccessionMethod::Election;
+        request.electionResult = election;
+        const auto successor =
+            ResolveLeadershipSuccession({"incumbent", 2}, request);
+        if (!successor.resolved || successor.state.officeHolderId != "north" ||
+            successor.state.termNumber != 3) {
+            return 133;
         }
     }
 

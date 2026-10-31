@@ -17,6 +17,7 @@ add_library(StonePotatoesCivilization STATIC
     diplomacy/TreatyLedger.cpp
     politics/PoliticalLegitimacy.cpp
     politics/PluralityElection.cpp
+    politics/LeadershipSuccession.cpp
 )
 target_include_directories(StonePotatoesCivilization
     PUBLIC
