@@ -84,6 +84,17 @@ CalibrateRegionalAgeStructuredPopulationRates(
     const std::vector<RegionalAgeStructuredMigrationObservation>& migration,
     const std::vector<float>& fertilityWeights);
 
+/**
+ * Infer conservative regional net migration from consecutive censuses when
+ * shared demographic rates are already known. The result identifies net
+ * arrivals by region and age group, not the directed origin/destination flows.
+ * It assumes births are not capacity-limited during the observed intervals.
+ */
+std::vector<RegionalAgeStructuredMigrationObservation>
+InferRegionalAgeStructuredNetMigration(
+    const std::vector<RegionalAgeStructuredCensusObservation>& observations,
+    const RegionalAgeStructuredPopulationRates& rates);
+
 } // namespace Population
 } // namespace Civilization
 } // namespace StonePotatoes

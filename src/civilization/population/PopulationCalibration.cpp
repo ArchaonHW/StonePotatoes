@@ -502,6 +502,130 @@ CalibrateRegionalAgeStructuredPopulationRates(
     return rates;
 }
 
+std::vector<RegionalAgeStructuredMigrationObservation>
+InferRegionalAgeStructuredNetMigration(
+    const std::vector<RegionalAgeStructuredCensusObservation>& observations,
+    const RegionalAgeStructuredPopulationRates& rates) {
+    const std::size_t groupCount = rates.annualSurvivalRateByAgeGroup.size();
+    if (observations.size() < 2 || groupCount < 2 ||
+        rates.annualBirthsPerPersonByAgeGroup.size() != groupCount) {
+        throw std::invalid_argument(
+            "regional migration inference requires census intervals and matching rates");
+    }
+    for (std::size_t group = 0; group < groupCount; ++group) {
+        const float survival = rates.annualSurvivalRateByAgeGroup[group];
+        const float births = rates.annualBirthsPerPersonByAgeGroup[group];
+        if (!std::isfinite(survival) || survival < 0.0f || survival > 1.0f ||
+            !std::isfinite(births) || births < 0.0f) {
+            throw std::invalid_argument(
+                "regional demographic rates must be finite and in range");
+        }
+    }
+
+    const std::size_t regionCount =
+        observations.front().populationByRegionAndAgeGroup.size();
+    if (regionCount == 0) {
+        throw std::invalid_argument(
+            "regional migration inference requires at least one region");
+    }
+    for (std::size_t year = 0; year < observations.size(); ++year) {
+        const auto& observation = observations[year];
+        if (observation.populationByRegionAndAgeGroup.size() != regionCount ||
+            (year > 0 &&
+             (observations[year - 1].year == std::numeric_limits<int>::max() ||
+              observation.year != observations[year - 1].year + 1))) {
+            throw std::invalid_argument(
+                "regional census years must be consecutive with consistent regions");
+        }
+        for (const auto& groups : observation.populationByRegionAndAgeGroup) {
+            if (groups.size() != groupCount) {
+                throw std::invalid_argument(
+                    "regional census rows must match the demographic rates");
+            }
+            for (float population : groups) {
+                if (!std::isfinite(population) || population < 0.0f) {
+                    throw std::invalid_argument(
+                        "regional census populations must be finite and nonnegative");
+                }
+            }
+        }
+    }
+
+    const std::size_t openGroup = groupCount - 1;
+    std::vector<RegionalAgeStructuredMigrationObservation> inferred;
+    inferred.reserve(observations.size() - 1);
+    for (std::size_t interval = 0; interval + 1 < observations.size();
+         ++interval) {
+        const auto& current =
+            observations[interval].populationByRegionAndAgeGroup;
+        const auto& next =
+            observations[interval + 1].populationByRegionAndAgeGroup;
+        std::vector<std::vector<float>> netByRegion(
+            regionCount, std::vector<float>(groupCount, 0.0f));
+        std::vector<double> netByGroup(groupCount, 0.0);
+        std::vector<double> scaleByGroup(groupCount, 0.0);
+
+        for (std::size_t region = 0; region < regionCount; ++region) {
+            std::vector<double> demographicNext(groupCount, 0.0);
+            for (std::size_t group = 0; group < groupCount; ++group) {
+                demographicNext[0] +=
+                    static_cast<double>(current[region][group]) *
+                    rates.annualBirthsPerPersonByAgeGroup[group];
+                if (group > 0) {
+                    demographicNext[group] +=
+                        static_cast<double>(current[region][group - 1]) *
+                        rates.annualSurvivalRateByAgeGroup[group - 1];
+                }
+            }
+            demographicNext[openGroup] +=
+                static_cast<double>(current[region][openGroup]) *
+                rates.annualSurvivalRateByAgeGroup[openGroup];
+
+            for (std::size_t group = 0; group < groupCount; ++group) {
+                const double net =
+                    static_cast<double>(next[region][group]) -
+                    demographicNext[group];
+                if (!std::isfinite(net) ||
+                    std::abs(net) > std::numeric_limits<float>::max()) {
+                    throw std::overflow_error(
+                        "inferred regional net migration exceeds float range");
+                }
+                netByRegion[region][group] = static_cast<float>(net);
+                netByGroup[group] += net;
+                scaleByGroup[group] +=
+                    std::abs(static_cast<double>(next[region][group])) +
+                    std::abs(demographicNext[group]);
+            }
+        }
+
+        for (std::size_t group = 0; group < groupCount; ++group) {
+            if (std::abs(netByGroup[group]) >
+                1e-4 * std::max(1.0, scaleByGroup[group])) {
+                throw std::invalid_argument(
+                    "census deltas are inconsistent with shared rates and "
+                    "conservative regional migration");
+            }
+
+            // Remove the small aggregate residual accepted above (for example,
+            // census rounding) so the returned float observations are exactly
+            // conservative when consumed by the rate calibration API.
+            double roundedNetSum = 0.0;
+            for (std::size_t region = 0; region + 1 < regionCount; ++region) {
+                roundedNetSum += netByRegion[region][group];
+            }
+            if (std::abs(roundedNetSum) > std::numeric_limits<float>::max()) {
+                throw std::overflow_error(
+                    "conservative net migration exceeds float range");
+            }
+            netByRegion.back()[group] =
+                static_cast<float>(-roundedNetSum);
+        }
+        inferred.push_back(
+            {observations[interval].year, std::move(netByRegion)});
+    }
+    return inferred;
+}
+
 } // namespace Population
 } // namespace Civilization
 } // namespace StonePotatoes

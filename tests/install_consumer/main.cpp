@@ -1113,8 +1113,15 @@ int main(int argc, char** argv) {
                     {2020 + year, std::move(netByRegionAndAge)});
             }
         }
-        const auto fit = Population::CalibrateRegionalAgeStructuredPopulationRates(
-            census, migration, {1.0f, 0.0f, 0.0f});
+        const Population::RegionalAgeStructuredPopulationRates knownRates{
+            source.annualSurvivalRateByAgeGroup,
+            source.annualBirthsPerPersonByAgeGroup};
+        const auto inferredMigration =
+            Population::InferRegionalAgeStructuredNetMigration(census,
+                                                                knownRates);
+        const auto fit =
+            Population::CalibrateRegionalAgeStructuredPopulationRates(
+                census, inferredMigration, {1.0f, 0.0f, 0.0f});
         if (std::fabs(fit.annualSurvivalRateByAgeGroup[2] - 0.73f) >
                 0.0001f ||
             std::fabs(fit.annualBirthsPerPersonByAgeGroup[0] - 0.12f) >
