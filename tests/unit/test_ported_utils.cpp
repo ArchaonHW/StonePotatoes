@@ -473,10 +473,27 @@ static void TestRegionalAgeStructuredPopulationCalibration() {
         }
         census.push_back({2000 + year, std::move(byRegion)});
         if (year < 5) {
-            migration.push_back(
-                {2000 + year, {{0.0f, -1.0f, 0.0f},
-                               {0.0f, 1.0f, 0.0f}}});
+            auto noMigration = source;
+            noMigration.initialPopulationByRegionAndAgeGroup =
+                census.back().populationByRegionAndAgeGroup;
+            noMigration.annualMigrationFromRegionToRegionByAgeGroup =
+                std::vector<std::vector<std::vector<float>>>(
+                    2, std::vector<std::vector<float>>(2,
+                        std::vector<float>(3, 0.0f)));
+            auto baseline = BuildRegionalAgeStructuredPopulationModel(
+                noMigration);
+            baseline.Step();
             model.Step();
+            std::vector<std::vector<float>> netByRegionAndAge(2);
+            for (std::size_t region = 0; region < 2; ++region) {
+                for (std::size_t group = 0; group < 3; ++group) {
+                    const auto stock = RegionAgeGroupStockName(region, group);
+                    netByRegionAndAge[region].push_back(
+                        model.Stock(stock) - baseline.Stock(stock));
+                }
+            }
+            migration.push_back(
+                {2000 + year, std::move(netByRegionAndAge)});
         }
     }
 
