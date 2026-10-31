@@ -1061,6 +1061,49 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Verify regional cohort census fitting accounts for known net migration.
+    {
+        namespace Population = StonePotatoes::Civilization::Population;
+        Population::RegionalAgeStructuredPopulationConfig source;
+        source.initialPopulationByRegionAndAgeGroup = {
+            {120.0f, 90.0f, 45.0f}, {85.0f, 60.0f, 55.0f}};
+        source.carryingCapacityByRegion = {10000.0f, 10000.0f};
+        source.annualSurvivalRateByAgeGroup = {0.91f, 0.82f, 0.73f};
+        source.annualBirthsPerPersonByAgeGroup = {0.0f, 0.12f, 0.0f};
+        source.annualMigrationFromRegionToRegionByAgeGroup = {
+            {{0.0f, 0.0f, 0.0f}, {0.0f, 2.0f, 0.0f}},
+            {{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}};
+        auto modeled = Population::BuildRegionalAgeStructuredPopulationModel(source);
+        std::vector<Population::RegionalAgeStructuredCensusObservation> census;
+        std::vector<Population::RegionalAgeStructuredMigrationObservation> migration;
+        for (int year = 0; year <= 5; ++year) {
+            std::vector<std::vector<float>> byRegion;
+            for (std::size_t region = 0; region < 2; ++region) {
+                std::vector<float> byAge;
+                for (std::size_t group = 0; group < 3; ++group) {
+                    byAge.push_back(modeled.Stock(
+                        Population::RegionAgeGroupStockName(region, group)));
+                }
+                byRegion.push_back(std::move(byAge));
+            }
+            census.push_back({2020 + year, std::move(byRegion)});
+            if (year < 5) {
+                migration.push_back(
+                    {2020 + year, {{0.0f, -1.0f, 0.0f},
+                                   {0.0f, 1.0f, 0.0f}}});
+                modeled.Step();
+            }
+        }
+        const auto fit = Population::CalibrateRegionalAgeStructuredPopulationRates(
+            census, migration, {0.0f, 1.0f, 0.0f});
+        if (std::fabs(fit.annualSurvivalRateByAgeGroup[2] - 0.73f) >
+                0.0001f ||
+            std::fabs(fit.annualBirthsPerPersonByAgeGroup[1] - 0.12f) >
+                0.0001f) {
+            return 107;
+        }
+    }
+
     // Verify installed explicit demographic rates and scenario adjustment.
     {
         namespace Population = StonePotatoes::Civilization::Population;

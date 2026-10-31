@@ -270,6 +270,238 @@ AgeStructuredPopulationConfig CalibrateAgeStructuredPopulation(
     return config;
 }
 
+RegionalAgeStructuredPopulationRates
+CalibrateRegionalAgeStructuredPopulationRates(
+    const std::vector<RegionalAgeStructuredCensusObservation>& observations,
+    const std::vector<RegionalAgeStructuredMigrationObservation>& migration,
+    const std::vector<float>& fertilityWeights) {
+    if (observations.size() < 2 ||
+        migration.size() + 1 != observations.size() ||
+        fertilityWeights.size() < 2) {
+        throw std::invalid_argument(
+            "regional cohort calibration requires census intervals, "
+            "migration data, and at least two age groups");
+    }
+    const std::size_t regionCount =
+        observations.front().populationByRegionAndAgeGroup.size();
+    const std::size_t groupCount = fertilityWeights.size();
+    if (regionCount == 0) {
+        throw std::invalid_argument(
+            "regional cohort calibration requires at least one region");
+    }
+    bool hasFertileWeight = false;
+    for (float weight : fertilityWeights) {
+        if (!std::isfinite(weight) || weight < 0.0f) {
+            throw std::invalid_argument(
+                "fertility weights must be finite and nonnegative");
+        }
+        hasFertileWeight = hasFertileWeight || weight > 0.0f;
+    }
+    if (!hasFertileWeight) {
+        throw std::invalid_argument("at least one fertility weight must be positive");
+    }
+
+    for (std::size_t year = 0; year < observations.size(); ++year) {
+        const auto& observation = observations[year];
+        if (observation.populationByRegionAndAgeGroup.size() != regionCount ||
+            (year > 0 &&
+             (observations[year - 1].year == std::numeric_limits<int>::max() ||
+              observation.year != observations[year - 1].year + 1))) {
+            throw std::invalid_argument(
+                "regional census years must be consecutive with consistent regions");
+        }
+        for (const auto& groups : observation.populationByRegionAndAgeGroup) {
+            if (groups.size() != groupCount) {
+                throw std::invalid_argument(
+                    "regional census rows must match the fertility age groups");
+            }
+            for (float population : groups) {
+                if (!std::isfinite(population) || population < 0.0f) {
+                    throw std::invalid_argument(
+                        "regional census populations must be finite and nonnegative");
+                }
+            }
+        }
+    }
+
+    std::vector<std::vector<std::vector<double>>> adjustedNextByInterval(
+        migration.size(),
+        std::vector<std::vector<double>>(regionCount,
+                                         std::vector<double>(groupCount)));
+    for (std::size_t interval = 0; interval < migration.size(); ++interval) {
+        const auto& flow = migration[interval];
+        if (flow.fromYear != observations[interval].year ||
+            flow.netMigrationByRegionAndAgeGroup.size() != regionCount) {
+            throw std::invalid_argument(
+                "regional migration intervals must match census years and regions");
+        }
+        std::vector<double> netByAge(groupCount, 0.0);
+        std::vector<double> magnitudeByAge(groupCount, 0.0);
+        for (std::size_t region = 0; region < regionCount; ++region) {
+            const auto& net = flow.netMigrationByRegionAndAgeGroup[region];
+            if (net.size() != groupCount) {
+                throw std::invalid_argument(
+                    "regional migration rows must match the census age groups");
+            }
+            for (std::size_t group = 0; group < groupCount; ++group) {
+                if (!std::isfinite(net[group])) {
+                    throw std::invalid_argument(
+                        "regional migration values must be finite");
+                }
+                netByAge[group] += net[group];
+                magnitudeByAge[group] += std::abs(net[group]);
+                const double adjusted =
+                    observations[interval + 1]
+                        .populationByRegionAndAgeGroup[region][group] -
+                    net[group];
+                if (adjusted < -1e-5) {
+                    throw std::invalid_argument(
+                        "net migration exceeds the observed destination cohort");
+                }
+                adjustedNextByInterval[interval][region][group] =
+                    std::max(0.0, adjusted);
+            }
+        }
+        for (std::size_t group = 0; group < groupCount; ++group) {
+            if (std::abs(netByAge[group]) >
+                1e-5 * std::max(1.0, magnitudeByAge[group])) {
+                throw std::invalid_argument(
+                    "regional net migration must conserve each age group");
+            }
+        }
+    }
+
+    std::vector<double> exposures(groupCount, 0.0);
+    std::vector<double> transitions(groupCount, 0.0);
+    double penultimateSquares = 0.0;
+    double openSquares = 0.0;
+    double crossProduct = 0.0;
+    double penultimateTransition = 0.0;
+    double openTransition = 0.0;
+    double fertilityExposure = 0.0;
+    double fertilityBirths = 0.0;
+    const std::size_t penultimateGroup = groupCount - 2;
+    const std::size_t openGroup = groupCount - 1;
+    for (std::size_t interval = 0; interval < migration.size(); ++interval) {
+        for (std::size_t region = 0; region < regionCount; ++region) {
+            const auto& current =
+                observations[interval].populationByRegionAndAgeGroup[region];
+            const auto& adjustedNext = adjustedNextByInterval[interval][region];
+            for (std::size_t group = 0; group + 2 < groupCount; ++group) {
+                exposures[group] +=
+                    static_cast<double>(current[group]) * current[group];
+                transitions[group] +=
+                    static_cast<double>(current[group]) * adjustedNext[group + 1];
+            }
+
+            const double penultimate = current[penultimateGroup];
+            const double open = current[openGroup];
+            penultimateSquares += penultimate * penultimate;
+            openSquares += open * open;
+            crossProduct += penultimate * open;
+            penultimateTransition +=
+                penultimate * adjustedNext[openGroup];
+            openTransition += open * adjustedNext[openGroup];
+
+            double weightedPopulation = 0.0;
+            for (std::size_t group = 0; group < groupCount; ++group) {
+                weightedPopulation += static_cast<double>(current[group]) *
+                                      fertilityWeights[group];
+            }
+            fertilityExposure += weightedPopulation * weightedPopulation;
+            fertilityBirths += weightedPopulation * adjustedNext.front();
+        }
+    }
+
+    RegionalAgeStructuredPopulationRates rates;
+    rates.annualSurvivalRateByAgeGroup.assign(groupCount, 0.0f);
+    rates.annualBirthsPerPersonByAgeGroup.assign(groupCount, 0.0f);
+    for (std::size_t group = 0; group + 2 < groupCount; ++group) {
+        if (exposures[group] <= 0.0) {
+            throw std::invalid_argument(
+                "regional census has no exposure to estimate an age-group survival rate");
+        }
+        rates.annualSurvivalRateByAgeGroup[group] = static_cast<float>(
+            std::clamp(transitions[group] / exposures[group], 0.0, 1.0));
+    }
+
+    const double determinant =
+        penultimateSquares * openSquares - crossProduct * crossProduct;
+    if (penultimateSquares <= 0.0 || openSquares <= 0.0 ||
+        determinant <= penultimateSquares * openSquares * 1e-10 ||
+        fertilityExposure <= 0.0) {
+        throw std::invalid_argument(
+            "regional census lacks independent open-age or fertility exposure");
+    }
+    const double unconstrainedPenultimate =
+        (penultimateTransition * openSquares -
+         openTransition * crossProduct) / determinant;
+    const double unconstrainedOpen =
+        (openTransition * penultimateSquares -
+         penultimateTransition * crossProduct) / determinant;
+    std::vector<std::pair<double, double>> survivalCandidates;
+    if (unconstrainedPenultimate >= 0.0 && unconstrainedPenultimate <= 1.0 &&
+        unconstrainedOpen >= 0.0 && unconstrainedOpen <= 1.0) {
+        survivalCandidates.emplace_back(unconstrainedPenultimate,
+                                        unconstrainedOpen);
+    }
+    survivalCandidates.emplace_back(
+        0.0, std::clamp(openTransition / openSquares, 0.0, 1.0));
+    survivalCandidates.emplace_back(
+        1.0, std::clamp((openTransition - crossProduct) / openSquares,
+                        0.0, 1.0));
+    survivalCandidates.emplace_back(
+        std::clamp(penultimateTransition / penultimateSquares, 0.0, 1.0),
+        0.0);
+    survivalCandidates.emplace_back(
+        std::clamp((penultimateTransition - crossProduct) /
+                       penultimateSquares,
+                   0.0, 1.0),
+        1.0);
+    auto survivalError = [&](const auto& candidate) {
+        double error = 0.0;
+        for (std::size_t interval = 0; interval < migration.size(); ++interval) {
+            for (std::size_t region = 0; region < regionCount; ++region) {
+                const auto& current =
+                    observations[interval].populationByRegionAndAgeGroup[region];
+                const double residual = adjustedNextByInterval[interval][region]
+                                            [openGroup] -
+                    current[penultimateGroup] * candidate.first -
+                    current[openGroup] * candidate.second;
+                error += residual * residual;
+            }
+        }
+        return error;
+    };
+    const auto bestSurvival = *std::min_element(
+        survivalCandidates.begin(), survivalCandidates.end(),
+        [&](const auto& lhs, const auto& rhs) {
+            return survivalError(lhs) < survivalError(rhs);
+        });
+    rates.annualSurvivalRateByAgeGroup[penultimateGroup] =
+        static_cast<float>(bestSurvival.first);
+    rates.annualSurvivalRateByAgeGroup[openGroup] =
+        static_cast<float>(bestSurvival.second);
+
+    const double fertilityScale =
+        std::max(0.0, fertilityBirths / fertilityExposure);
+    if (!std::isfinite(fertilityScale) ||
+        fertilityScale > std::numeric_limits<float>::max()) {
+        throw std::overflow_error(
+            "fitted regional fertility scale exceeds float range");
+    }
+    for (std::size_t group = 0; group < groupCount; ++group) {
+        const double rate = fertilityScale * fertilityWeights[group];
+        if (!std::isfinite(rate) || rate > std::numeric_limits<float>::max()) {
+            throw std::overflow_error(
+                "fitted regional birth rate exceeds float range");
+        }
+        rates.annualBirthsPerPersonByAgeGroup[group] =
+            static_cast<float>(rate);
+    }
+    return rates;
+}
+
 } // namespace Population
 } // namespace Civilization
 } // namespace StonePotatoes
