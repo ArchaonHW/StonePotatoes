@@ -605,6 +605,20 @@ InferRegionalAgeStructuredNetMigration(
                     "census deltas are inconsistent with shared rates and "
                     "conservative regional migration");
             }
+
+            // Remove the small aggregate residual accepted above (for example,
+            // census rounding) so the returned float observations are exactly
+            // conservative when consumed by the rate calibration API.
+            double roundedNetSum = 0.0;
+            for (std::size_t region = 0; region + 1 < regionCount; ++region) {
+                roundedNetSum += netByRegion[region][group];
+            }
+            if (std::abs(roundedNetSum) > std::numeric_limits<float>::max()) {
+                throw std::overflow_error(
+                    "conservative net migration exceeds float range");
+            }
+            netByRegion.back()[group] =
+                static_cast<float>(-roundedNetSum);
         }
         inferred.push_back(
             {observations[interval].year, std::move(netByRegion)});
