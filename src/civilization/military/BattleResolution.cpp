@@ -21,7 +21,19 @@ void ValidateEngagement(const EngagementConfig& config) {
         !std::isfinite(config.attackerDurability) ||
         config.attackerDurability <= 0.0f ||
         !std::isfinite(config.defenderDurability) ||
-        config.defenderDurability <= 0.0f) {
+        config.defenderDurability <= 0.0f ||
+        !std::isfinite(config.attackerMoraleFactor) ||
+        config.attackerMoraleFactor < 0.0f ||
+        config.attackerMoraleFactor > 1.0f ||
+        !std::isfinite(config.defenderMoraleFactor) ||
+        config.defenderMoraleFactor < 0.0f ||
+        config.defenderMoraleFactor > 1.0f ||
+        !std::isfinite(config.attackerTerrainDamageReduction) ||
+        config.attackerTerrainDamageReduction < 0.0f ||
+        config.attackerTerrainDamageReduction > 1.0f ||
+        !std::isfinite(config.defenderTerrainDamageReduction) ||
+        config.defenderTerrainDamageReduction < 0.0f ||
+        config.defenderTerrainDamageReduction > 1.0f) {
         throw std::invalid_argument("invalid engagement configuration");
     }
 }
@@ -30,11 +42,15 @@ EngagementResult ResolveEngagementUnchecked(const EngagementConfig& config) {
     const double attackerLosses = std::min(
         static_cast<double>(config.attackerUnits),
         static_cast<double>(config.defenderUnits) *
-            config.defenderDamagePerUnit / config.attackerDurability);
+            config.defenderDamagePerUnit * config.defenderMoraleFactor *
+            (1.0 - config.attackerTerrainDamageReduction) /
+            config.attackerDurability);
     const double defenderLosses = std::min(
         static_cast<double>(config.defenderUnits),
         static_cast<double>(config.attackerUnits) *
-            config.attackerDamagePerUnit / config.defenderDurability);
+            config.attackerDamagePerUnit * config.attackerMoraleFactor *
+            (1.0 - config.defenderTerrainDamageReduction) /
+            config.defenderDurability);
 
     return {
         static_cast<float>(attackerLosses),

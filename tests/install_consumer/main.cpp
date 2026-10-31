@@ -974,6 +974,24 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Verify morale lowers outgoing damage and terrain reduces incoming damage.
+    {
+        using namespace StonePotatoes::Civilization::Military;
+        EngagementConfig config;
+        config.attackerUnits = 10.0f;
+        config.defenderUnits = 10.0f;
+        config.attackerDamagePerUnit = 0.2f;
+        config.defenderDamagePerUnit = 0.2f;
+        config.attackerMoraleFactor = 0.5f;
+        config.attackerTerrainDamageReduction = 0.5f;
+        config.defenderTerrainDamageReduction = 0.25f;
+        const auto result = ResolveEngagement(config);
+        if (std::fabs(result.attackerLosses - 1.0f) > 0.001f ||
+            std::fabs(result.defenderLosses - 0.75f) > 0.001f) {
+            return 106;
+        }
+    }
+
     // Verify the installed battle resolver advances bounded volleys.
     {
         using namespace StonePotatoes::Civilization::Military;
