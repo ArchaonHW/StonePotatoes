@@ -875,6 +875,29 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Verify installed treaty contract payments and breach penalties.
+    {
+        using namespace StonePotatoes::Civilization::Diplomacy;
+        TreatyLedger treaties;
+        TreatyTerms terms;
+        terms.monthlyPaymentFromAToB = 4.0f;
+        terms.breachPenaltyWhenAIsBreacher = 20.0f;
+        if (!treaties.Sign(TreatyType::TradePact, 7, 2, 3, terms)) {
+            return 105;
+        }
+        const auto obligations = treaties.MonthlyObligations();
+        if (obligations.size() != 1 || obligations[0].payerFaction != 7 ||
+            obligations[0].receiverFaction != 2 ||
+            obligations[0].amount != 4.0f) {
+            return 105;
+        }
+        const auto breach = treaties.Breach(TreatyType::TradePact, 7, 2);
+        if (!breach || breach->penaltyDue != 20.0f ||
+            !treaties.MonthlyObligations().empty()) {
+            return 105;
+        }
+    }
+
     // Verify the installed price model responds to inventory scarcity.
     {
         using namespace StonePotatoes::Civilization::Economic;

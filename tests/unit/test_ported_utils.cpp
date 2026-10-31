@@ -1007,6 +1007,42 @@ static void TestTreatyLedger() {
     CHECK(ledger.CanDeclareWar(3, 4));
     CHECK(!ledger.Revoke(TreatyType::Alliance, 3, 4));
 
+    TreatyLedger contracts;
+    TreatyTerms terms;
+    terms.monthlyPaymentFromAToB = 3.0f;
+    terms.monthlyPaymentFromBToA = 8.0f;
+    terms.breachPenaltyWhenAIsBreacher = 12.0f;
+    terms.breachPenaltyWhenBIsBreacher = 15.0f;
+    CHECK(contracts.Sign(TreatyType::TradePact, 10, 4, 2, terms));
+    const auto obligations = contracts.MonthlyObligations();
+    CHECK(obligations.size() == 2);
+    CHECK(obligations[0].payerFaction == 4 &&
+          obligations[0].receiverFaction == 10 &&
+          obligations[0].amount == 8.0f);
+    CHECK(obligations[1].payerFaction == 10 &&
+          obligations[1].receiverFaction == 4 &&
+          obligations[1].amount == 3.0f);
+    const auto breach = contracts.Breach(TreatyType::TradePact, 10, 4);
+    CHECK(breach.has_value());
+    CHECK(breach->breachingFaction == 10 &&
+          breach->aggrievedFaction == 4 && breach->penaltyDue == 12.0f);
+    CHECK(!contracts.HasTreaty(TreatyType::TradePact, 4, 10));
+    CHECK(contracts.MonthlyObligations().empty());
+    CHECK(!contracts.Breach(TreatyType::TradePact, 10, 4).has_value());
+
+    TreatyLedger invalidTermsLedger;
+    TreatyTerms invalidTerms;
+    invalidTerms.breachPenaltyWhenAIsBreacher =
+        std::numeric_limits<float>::infinity();
+    bool rejectedInvalidTerms = false;
+    try {
+        (void)invalidTermsLedger.Sign(TreatyType::TradePact, 1, 2, 1,
+                                     invalidTerms);
+    } catch (const std::invalid_argument&) {
+        rejectedInvalidTerms = true;
+    }
+    CHECK(rejectedInvalidTerms);
+
     bool rejectedSelfTreaty = false;
     try {
         (void)ledger.Sign(TreatyType::TradePact, 4, 4, 1);
