@@ -8,6 +8,7 @@
 #include <civilization/politics/ElectionTerm.h>
 #include <civilization/politics/GovernmentForm.h>
 #include <civilization/politics/VoterEligibility.h>
+#include <civilization/politics/CandidateEligibility.h>
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/economic/MarketSettlement.h>
 #include <civilization/economic/CurrencySupply.h>
@@ -1041,6 +1042,20 @@ int main(int argc, char** argv) {
         if (eligibleVoters.size() != 1 ||
             eligibleVoters.front() != "voter-adult") {
             return 137;
+        }
+        const auto eligibleCandidates = DetermineEligibleCandidates(
+            {21, true}, {{"minor", 20, true}, {"qualified", 30, true},
+                         {"non-citizen", 40, false}});
+        if (eligibleCandidates.size() != 1 ||
+            eligibleCandidates.front() != "qualified") {
+            return 138;
+        }
+        const auto qualifiedElection = TallyPluralityBallots(
+            eligibleCandidates, eligibleVoters,
+            {{"voter-adult", "qualified"}});
+        if (!qualifiedElection.winnerCandidateId.has_value() ||
+            *qualifiedElection.winnerCandidateId != "qualified") {
+            return 139;
         }
     }
 

@@ -19,6 +19,7 @@
 #include "civilization/politics/ElectionTerm.h"
 #include "civilization/politics/GovernmentForm.h"
 #include "civilization/politics/VoterEligibility.h"
+#include "civilization/politics/CandidateEligibility.h"
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/economic/MarketSettlement.h"
 #include "civilization/economic/CurrencySupply.h"
@@ -1180,6 +1181,26 @@ static void TestVoterEligibility() {
     CHECK(rejectedDuplicate);
 }
 
+static void TestCandidateEligibility() {
+    using namespace Civilization::Politics;
+
+    const auto eligible = DetermineEligibleCandidates(
+        {21, true}, {{"candidate-c", 20, true}, {"candidate-b", 21, true},
+                     {"candidate-a", 50, false}, {"candidate-d", 35, true}});
+    CHECK(eligible.size() == 2);
+    CHECK(eligible[0] == "candidate-b");
+    CHECK(eligible[1] == "candidate-d");
+
+    bool rejectedDuplicate = false;
+    try {
+        (void)DetermineEligibleCandidates(
+            {21, true}, {{"duplicate", 25, true}, {"duplicate", 30, true}});
+    } catch (const std::invalid_argument&) {
+        rejectedDuplicate = true;
+    }
+    CHECK(rejectedDuplicate);
+}
+
 static void TestCultureDiffusion() {
     using namespace Civilization::Culture;
 
@@ -1598,6 +1619,7 @@ int main() {
     TestElectionTerm();
     TestGovernmentForm();
     TestVoterEligibility();
+    TestCandidateEligibility();
     TestCultureDiffusion();
     TestCultureFormation();
     TestMilitaryLogistics();
