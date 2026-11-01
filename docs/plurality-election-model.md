@@ -51,6 +51,17 @@ const auto voters = DetermineEligibleVoters(
     {18, true}, {{"adult-citizen", 18, true}, {"visitor", 30, false}});
 ```
 
+`DetermineEligibleCandidates` applies a separate minimum age and optional
+citizenship rule to the caller's declared candidate profiles. It also rejects
+empty or duplicate IDs and returns a sorted list suitable for
+`TallyPluralityBallots`. Additional nomination, residency, and office-specific
+requirements remain caller policy.
+
+```cpp
+const auto candidates = DetermineEligibleCandidates(
+    {21, true}, {{"candidate-a", 30, true}, {"candidate-b", 19, true}});
+```
+
 ## Leadership succession
 
 `ResolveLeadershipSuccession` applies a succession event after the game has
