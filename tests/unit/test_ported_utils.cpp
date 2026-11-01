@@ -17,6 +17,7 @@
 #include "civilization/politics/PluralityElection.h"
 #include "civilization/politics/LeadershipSuccession.h"
 #include "civilization/politics/ElectionTerm.h"
+#include "civilization/politics/GovernmentForm.h"
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/economic/MarketSettlement.h"
 #include "civilization/economic/CurrencySupply.h"
@@ -1115,6 +1116,43 @@ static void TestElectionTerm() {
     CHECK(rejectedOverflow);
 }
 
+static void TestGovernmentForm() {
+    using namespace Civilization::Politics;
+
+    const auto electoral = BuildGovernmentRules(
+        {GovernmentForm::Electoral, 48});
+    CHECK(electoral.successionMethod == SuccessionMethod::Election);
+    CHECK(electoral.leadershipTermMonths ==
+          std::optional<std::uint64_t>(48));
+
+    const auto hereditary = BuildGovernmentRules(
+        {GovernmentForm::Hereditary, 0});
+    CHECK(hereditary.successionMethod == SuccessionMethod::Hereditary);
+    CHECK(!hereditary.leadershipTermMonths.has_value());
+
+    const auto appointed = BuildGovernmentRules(
+        {GovernmentForm::Appointed, 24});
+    CHECK(appointed.successionMethod == SuccessionMethod::Appointment);
+    CHECK(appointed.leadershipTermMonths ==
+          std::optional<std::uint64_t>(24));
+
+    bool rejectedElectoralWithoutTerm = false;
+    try {
+        (void)BuildGovernmentRules({GovernmentForm::Electoral, 0});
+    } catch (const std::invalid_argument&) {
+        rejectedElectoralWithoutTerm = true;
+    }
+    CHECK(rejectedElectoralWithoutTerm);
+
+    bool rejectedHereditaryFixedTerm = false;
+    try {
+        (void)BuildGovernmentRules({GovernmentForm::Hereditary, 12});
+    } catch (const std::invalid_argument&) {
+        rejectedHereditaryFixedTerm = true;
+    }
+    CHECK(rejectedHereditaryFixedTerm);
+}
+
 static void TestCultureDiffusion() {
     using namespace Civilization::Culture;
 
@@ -1531,6 +1569,7 @@ int main() {
     TestPluralityElection();
     TestLeadershipSuccession();
     TestElectionTerm();
+    TestGovernmentForm();
     TestCultureDiffusion();
     TestCultureFormation();
     TestMilitaryLogistics();

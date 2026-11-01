@@ -448,16 +448,17 @@ fiscal, currency, trade and settlement models. It also provides regional
 cultural diffusion and formation, treaty diplomacy, military logistics and
 battle resolution, plus a configurable government-legitimacy model, a
 plurality tally for pre-counted election votes, and an explicit leadership
-succession resolver with a caller-configured term clock. These are composable
-simulation components, not a complete civilization game. Government types,
-election procedures and eligibility, diplomacy negotiation AI, tactical
-combat rules, and semantically rich cultural systems remain in progress:
+succession resolver with a caller-configured term clock, and generic electoral,
+hereditary, and appointed government rules. These are composable simulation
+components, not a complete civilization game. Detailed government taxonomies,
+election procedures and eligibility, diplomacy negotiation AI, tactical combat
+rules, and semantically rich cultural systems remain in progress:
 
 目前 C++ 切片提供 `StonePotatoes::Civilization::Economic::SDModel` 離散存量／流量
 模擬器，以及可安裝的人口（含年齡世代與跨區遷徙）、市場、財政、貨幣、貿易與交易
 結算模型；另有區域文化擴散與形成、條約外交、軍事補給與交戰解析、可配置的政府合法性
-模型、預先統計票數或已驗證個別選票的相對多數決點票，以及含呼叫端可配置任期時鐘的領導者繼任解析器。個別選票會拒絕重複投票者、非合資格名單投票者及未登記候選人；選民名冊與政治資格規則仍由遊戲提供。
-這些是可組合的模擬元件，尚非完整文明遊戲；政府類型、選舉程序與資格規則、外交談判 AI、
+模型、預先統計票數或已驗證個別選票的相對多數決點票、領導者繼任與任期時鐘，以及選舉／世襲／任命政府規則。個別選票會拒絕重複投票者、非合資格名單投票者及未登記候選人；選民名冊與政治資格規則仍由遊戲提供。
+這些是可組合的模擬元件，尚非完整文明遊戲；更細緻的政府分類、選舉程序與資格規則、外交談判 AI、
 戰術戰鬥規則及具語意的文化系統仍在開發中：
 
 - Population (demographics, birth/death rates, migration)

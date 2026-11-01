@@ -6,6 +6,7 @@
 #include <civilization/politics/PluralityElection.h>
 #include <civilization/politics/LeadershipSuccession.h>
 #include <civilization/politics/ElectionTerm.h>
+#include <civilization/politics/GovernmentForm.h>
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/economic/MarketSettlement.h>
 #include <civilization/economic/CurrencySupply.h>
@@ -1017,6 +1018,20 @@ int main(int argc, char** argv) {
         if (!term.electionDue || term.monthsServed != 12 ||
             term.monthsPastDue != 0) {
             return 134;
+        }
+        const auto electoralRules = BuildGovernmentRules(
+            {GovernmentForm::Electoral, 12});
+        const auto monarchyRules = BuildGovernmentRules(
+            {GovernmentForm::Hereditary, 0});
+        const auto councilRules = BuildGovernmentRules(
+            {GovernmentForm::Appointed, 6});
+        if (electoralRules.successionMethod != SuccessionMethod::Election ||
+            electoralRules.leadershipTermMonths != 12 ||
+            monarchyRules.successionMethod != SuccessionMethod::Hereditary ||
+            monarchyRules.leadershipTermMonths.has_value() ||
+            councilRules.successionMethod != SuccessionMethod::Appointment ||
+            councilRules.leadershipTermMonths != 6) {
+            return 136;
         }
     }
 
