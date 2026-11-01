@@ -18,6 +18,7 @@
 #include "civilization/politics/LeadershipSuccession.h"
 #include "civilization/politics/ElectionTerm.h"
 #include "civilization/politics/GovernmentForm.h"
+#include "civilization/politics/VoterEligibility.h"
 #include "civilization/economic/TradeNetwork.h"
 #include "civilization/economic/MarketSettlement.h"
 #include "civilization/economic/CurrencySupply.h"
@@ -1153,6 +1154,32 @@ static void TestGovernmentForm() {
     CHECK(rejectedHereditaryFixedTerm);
 }
 
+static void TestVoterEligibility() {
+    using namespace Civilization::Politics;
+
+    const auto eligible = DetermineEligibleVoters(
+        {18, true},
+        {{"voter-c", 17, true}, {"voter-b", 18, true},
+         {"voter-a", 45, false}, {"voter-d", 30, true}});
+    CHECK(eligible.size() == 2);
+    CHECK(eligible[0] == "voter-b");
+    CHECK(eligible[1] == "voter-d");
+
+    const auto ageOnly = DetermineEligibleVoters(
+        {18, false}, {{"non-citizen", 18, false}, {"minor", 17, true}});
+    CHECK(ageOnly.size() == 1);
+    CHECK(ageOnly[0] == "non-citizen");
+
+    bool rejectedDuplicate = false;
+    try {
+        (void)DetermineEligibleVoters(
+            {18, true}, {{"duplicate", 18, true}, {"duplicate", 30, true}});
+    } catch (const std::invalid_argument&) {
+        rejectedDuplicate = true;
+    }
+    CHECK(rejectedDuplicate);
+}
+
 static void TestCultureDiffusion() {
     using namespace Civilization::Culture;
 
@@ -1570,6 +1597,7 @@ int main() {
     TestLeadershipSuccession();
     TestElectionTerm();
     TestGovernmentForm();
+    TestVoterEligibility();
     TestCultureDiffusion();
     TestCultureFormation();
     TestMilitaryLogistics();

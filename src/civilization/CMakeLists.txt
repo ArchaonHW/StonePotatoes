@@ -20,6 +20,7 @@ add_library(StonePotatoesCivilization STATIC
     politics/LeadershipSuccession.cpp
     politics/ElectionTerm.cpp
     politics/GovernmentForm.cpp
+    politics/VoterEligibility.cpp
 )
 target_include_directories(StonePotatoesCivilization
     PUBLIC

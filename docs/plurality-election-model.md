@@ -38,6 +38,19 @@ const auto result = TallyPluralityBallots(
     {{"voter-1", "candidate-a"}, {"voter-2", "candidate-b"}});
 ```
 
+## Voter eligibility
+
+`DetermineEligibleVoters` filters a supplied roster using a configurable
+minimum age and optional citizenship requirement. It validates nonempty,
+unique voter IDs and returns eligible IDs in sorted order, ready for
+`TallyPluralityBallots`. The game supplies the voter data and may apply any
+additional jurisdiction-specific rules before calling this helper.
+
+```cpp
+const auto voters = DetermineEligibleVoters(
+    {18, true}, {{"adult-citizen", 18, true}, {"visitor", 30, false}});
+```
+
 ## Leadership succession
 
 `ResolveLeadershipSuccession` applies a succession event after the game has

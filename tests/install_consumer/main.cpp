@@ -7,6 +7,7 @@
 #include <civilization/politics/LeadershipSuccession.h>
 #include <civilization/politics/ElectionTerm.h>
 #include <civilization/politics/GovernmentForm.h>
+#include <civilization/politics/VoterEligibility.h>
 #include <civilization/economic/TradeNetwork.h>
 #include <civilization/economic/MarketSettlement.h>
 #include <civilization/economic/CurrencySupply.h>
@@ -1032,6 +1033,14 @@ int main(int argc, char** argv) {
             councilRules.successionMethod != SuccessionMethod::Appointment ||
             councilRules.leadershipTermMonths != 6) {
             return 136;
+        }
+        const auto eligibleVoters = DetermineEligibleVoters(
+            {18, true},
+            {{"voter-young", 17, true}, {"voter-adult", 20, true},
+             {"visitor", 30, false}});
+        if (eligibleVoters.size() != 1 ||
+            eligibleVoters.front() != "voter-adult") {
+            return 137;
         }
     }
 
